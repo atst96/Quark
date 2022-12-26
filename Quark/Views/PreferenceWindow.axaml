@@ -1,0 +1,37 @@
+<Window
+	xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:components="using:Quark.Views.Components"
+    mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+    x:Class="Quark.Views.PreferenceWindow"
+    Title="PreferenceWindow">
+
+	<TabControl>
+		<TabItem Header="一般設定">
+		</TabItem>
+
+		<TabItem Header="プロジェクト">
+			
+		</TabItem>
+
+		<TabItem Header="NEUTRINO">
+			<StackPanel>
+				<components:LabelledControl
+					Header="NEUTRINOのディレクトリ">
+					<Grid>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition />
+							<ColumnDefinition Width="Auto" />
+						</Grid.ColumnDefinitions>
+
+						<TextBox Text="test" />
+						<Button Grid.Column="1" Content="…" />
+					</Grid>
+				</components:LabelledControl>
+			</StackPanel>
+		</TabItem>
+	</TabControl>
+
+</Window>
