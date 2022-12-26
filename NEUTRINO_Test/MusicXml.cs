@@ -1,5 +1,6 @@
 ﻿#nullable enable
 #pragma warning disable CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
+using System.Diagnostics.SymbolStore;
 using System.Xml.Serialization;
 
 namespace MusicXml;
@@ -179,7 +180,7 @@ public record Pitch
 public record Tie
 {
     [XmlAttribute("type")]
-    public string Type { get; set; }
+    public StartStop Type { get; set; }
 }
 
 public record Notation
@@ -200,8 +201,35 @@ public record Rest
 
 public record Lyric
 {
+    [XmlElement("syllabic")]
+    public Syllabic Syllabic { get; set; }
+
     [XmlElement("text")]
     public string Text { get; set; }
+}
+
+public enum StartStop
+{
+    [XmlEnum("start")]
+    Start,
+
+    [XmlEnum("stop")]
+    Stop,
+}
+
+public enum Syllabic
+{
+    [XmlEnum("begin")]
+    Begin,
+
+    [XmlEnum("end")]
+    End,
+
+    [XmlEnum("middle")]
+    Middle,
+
+    [XmlEnum("single")]
+    Single,
 }
 
 #pragma warning restore CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。

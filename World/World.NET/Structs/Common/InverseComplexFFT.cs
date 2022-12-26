@@ -3,13 +3,12 @@
 namespace World.NET.Structs.Common;
 
 /// <summary>
-/// Inverse FFT in the real sequence
+/// Inverse FFT in the complex sequence
 /// </summary>
-internal ref struct InverseRealFFT
+internal ref struct InverseComplexFFT
 {
     public int fft_size;
-    public double[] waveform;
-    public Span<fft_complex> spectrum;
+    public Span<fft_complex> input;
+    public Span<fft_complex> output;
     public fft_plan inverse_fft;
 }
-

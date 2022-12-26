@@ -6,10 +6,11 @@ public partial class Form1 : Form
     {
         this.InitializeComponent();
 
-        var f0File = @"path/to/your/f0_file";
-        var mgcFile = @"path/to/your/mgc_file";
-        var labFile = @"path/to/your/lab_file";
-        var scoreFile = @"path/to/your/no/compressed/musicxml_file";
+        var f0File = @"C:\Users\Shota\Desktop\NEUTRINO‰ğÍ\Setsuna.f0";
+        var mgcFile = @"C:\Users\Shota\Desktop\NEUTRINO‰ğÍ\Setsuna.mgc";
+        var labFile = @"C:\Users\Shota\Desktop\NEUTRINO‰ğÍ\score\timing\Setsuna.lab";
+        var scoreFile = @"C:\Users\Shota\Desktop\NEUTRINO‰ğÍ\Setsuna.musicxml";
+        var output = @"C:\Users\Shota\Desktop\NEUTRINO‰ğÍ\waves.png";
 
         //// ‰¹‹¿î•ñ‰ğÍ
         //var accoustic = SoundFileAnalyzer.Analyze(f0File, mgcFile, labFile);

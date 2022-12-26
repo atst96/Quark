@@ -1,17 +1,15 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace World.NET.Utils;
 
 internal static class ArrayUtil
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static T[] Rent<T>(int minimumLength)
         => ArrayPool<T>.Shared.Rent(minimumLength);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Return<T>(ref T[] array)
         => ArrayPool<T>.Shared.Return(array);
 }

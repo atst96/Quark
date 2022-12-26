@@ -1,0 +1,27 @@
+﻿<Window
+    x:Class="Quark.Views.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="clr-namespace:Quark"
+    xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+    xmlns:l="http://schemas.livet-mvvm.net/2011/wpf"
+    xmlns:lb="clr-namespace:Quark.Behaviors"
+    xmlns:vm="clr-namespace:Quark.ViewModels"
+    mc:Ignorable="d"
+    Title="MainWindow" Height="450" Width="800"
+    lb:ViewModelBehavior.Type="{x:Type vm:MainWindowViewModel}"
+    lb:ViewModelBehavior.DisposeDataContextOnWindowClosed="True"
+    d:DataContext="{d:DesignInstance Type={x:Type vm:MainWindowViewModel}, IsDesignTimeCreatable=True}"
+    FontFamily="Meiryo">
+    <Grid>
+        <Button Content="Button" HorizontalAlignment="Left" Height="41" Margin="15,17,0,0" VerticalAlignment="Top" Width="126" Click="Button_Click"/>
+        <ComboBox 
+            HorizontalAlignment="Left" Margin="15,70,0,0" VerticalAlignment="Top" Width="165"
+            ItemsSource="{Binding Models,Mode=OneWay}"
+            DisplayMemberPath="Name">
+            
+        </ComboBox>
+    </Grid>
+</Window>
