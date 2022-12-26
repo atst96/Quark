@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>True</UseWindowsForms>
+    <RootNamespace>Quark</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LivetCask.Behaviors" Version="4.0.2" />
+    <PackageReference Include="LivetCask.Collections" Version="4.0.2" />
+    <PackageReference Include="LivetCask.Converters" Version="4.0.2" />
+    <PackageReference Include="LivetCask.Core" Version="4.0.2" />
+    <PackageReference Include="LivetCask.Messaging" Version="4.0.2" />
+    <PackageReference Include="LivetCask.Mvvm" Version="4.0.2" />
+    <PackageReference Include="MemoryPack" Version="1.9.7" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.39" />
+  </ItemGroup>
+
+  <Import Project="..\Quark.Share\Quark.Share.projitems" Label="Shared" />
+
+</Project>

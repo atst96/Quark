@@ -1,5 +1,4 @@
 ﻿using MusicXml;
-using MusicXml.Domain;
 using System.Diagnostics;
 using System.Xml;
 using System.Xml.Serialization;
@@ -95,6 +94,8 @@ internal class MusicXMLAnalyzer
                         var duration = note.Duration * timePerQuarter;
                         var pitch = note.Pitch;
 
+                        
+
                         try
                         {
                             if (note.Rest is not null)
@@ -108,20 +109,19 @@ internal class MusicXMLAnalyzer
                                 var tie = note.Tie;
                                 if (tie is not null)
                                 {
-                                    if (tie.Type == "start")
+                                    if (tie.Type == StartStop.Start)
                                     {
+                                        // タイの始め
                                         tempFrame = new MusicXmlPhrase.Frame(
                                             (int)(currentTime / Unit),
                                             (int)((currentTime + duration) / Unit),
                                             note.Lyric.Text, code);
                                     }
-                                    else if (tie.Type == "stop" && tempFrame is not null)
+                                    else if (tie.Type == StartStop.Stop && tempFrame is not null)
                                     {
+                                        // タイの終わり
                                         tempFrame.EndFrame = (int)((currentTime + duration) / Unit);
                                         items.Add(tempFrame);
-                                        //tempFrame = new MusicXmlPhrase.Frame(
-                                        //    (int)(currentTime / Unit),
-                                        //    (int)((currentTime + duration) / Unit), null, code);
                                     }
                                     else
                                     {

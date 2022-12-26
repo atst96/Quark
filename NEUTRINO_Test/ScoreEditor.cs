@@ -1,5 +1,4 @@
-﻿using MusicXml.Domain;
-using SkiaSharp;
+﻿using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using System.Data;
 using System.Diagnostics;
@@ -191,8 +190,6 @@ public partial class ScoreEditor : UserControl
 
             if (this._isLoaded)
             {
-                // var renderScore = 
-
                 long totalFrameCount = this._framesCount;
 
                 int renderWidth = this.GetRenderWidth();
@@ -210,10 +207,6 @@ public partial class ScoreEditor : UserControl
 
                 // スコアの描画
                 var scores = this._score.Frames.Where(i => i.BeginFrame <= endFrameIdx && i.EndFrame >= beginFrameIdx).ToArray();
-                //if (scores.Any())
-                //{
-                //    Debug.WriteLine(beginFrameIdx + ": " + string.Join(", ", scores.Select(i => i.Pitch)));
-                //}
                 {
                     for (int i = 0; i < scores.Length; ++i)
                     {
@@ -226,10 +219,12 @@ public partial class ScoreEditor : UserControl
                         g.DrawRect(rect, new SKPaint
                         {
                             Color = new SKColor(Color.LightSkyBlue.R, Color.LightSkyBlue.G, Color.LightSkyBlue.B),
+                            Style = SKPaintStyle.Fill,
                         });
                         g.DrawRect(rect, new SKPaint
                         {
                             Color = new SKColor(Color.DarkBlue.R, Color.DarkBlue.G, Color.DarkBlue.B),
+                            Style = SKPaintStyle.Stroke,
                             StrokeWidth = 1.0f,
                             IsStroke = true,
                         });
@@ -242,11 +237,6 @@ public partial class ScoreEditor : UserControl
                 var pitches = this._pitches.Where(i => i.Index <= endFrameIdx && (i.Index + i.Values.Length) >= beginFrameIdx);
 
                 float pitchOffset = (float)KeyHeight / 2;
-
-                //if (pitches.Any())
-                //{
-                //    Debug.WriteLine(beginFrameIdx + ": " + string.Join("\n    ", pitches.Select(i => string.Join(", ", i.Values))));
-                //}
 
                 foreach (var pitch in pitches)
                 {

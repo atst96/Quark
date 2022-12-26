@@ -1,0 +1,109 @@
+﻿<Window x:Class="Quark.Views.PreferenceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Quark.Views"
+        xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:l="http://schemas.livet-mvvm.net/2011/wpf"
+        xmlns:ab="clr-namespace:Quark.Behaviors"
+        xmlns:vm="clr-namespace:Quark.ViewModels"
+        mc:Ignorable="d"
+        Title="アプリケーション設定" Height="450" Width="800"
+        FontFamily="Meiryo"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type={x:Type vm:PreferenceWindowViewModel}}"
+        ab:ViewModelBehavior.Type="{x:Type vm:PreferenceWindowViewModel}"
+        ab:ViewModelBehavior.DisposeDataContextOnWindowClosed="True">
+    <!--<i:Interaction.Behaviors>
+        <l:WindowCloseCancelBehavior CanClose="False" CloseCanceledCallbackCommand="{Binding CanCloseCommand, Mode=OneTime}" />
+    </i:Interaction.Behaviors>-->
+    <i:Interaction.Triggers>
+        <i:EventTrigger EventName="Closing">
+            <i:InvokeCommandAction Command="{Binding CloseCommand, Mode=OneTime}" PassEventArgsToCommand="True" />
+        </i:EventTrigger>
+    </i:Interaction.Triggers>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="120" />
+            <ColumnDefinition />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Grid.Column="0"
+                Background="{DynamicResource ToolBar.Background}"
+                BorderThickness="0,0,1,1"
+                BorderBrush="{DynamicResource ToolBar.BorderBrush}">
+            <TextBlock 
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Foreground="{DynamicResource ToolBar.Foreground}"
+                FontWeight="Bold"
+                Text="設定" />
+        </Border>
+
+        <Border Grid.Row="0" Grid.Column="1"
+                Background="{DynamicResource ToolBar.Background}"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource ToolBar.BorderBrush}">
+            <TextBlock 
+                HorizontalAlignment="Left" VerticalAlignment="Center"
+                Foreground="{DynamicResource ToolBar.Foreground}"
+                FontWeight="Bold"
+                Margin="46,0,0,0" Text="{Binding SelectedItem.Header, ElementName=MainTabControl, Mode=OneWay}" />
+        </Border>
+
+        <Border Height="32">
+
+        </Border>
+
+        <TabControl
+            x:Name="MainTabControl"
+            Grid.Row="1" Grid.ColumnSpan="2"
+            Style="{StaticResource LeftHeaderTabControlStyle}">
+
+            <TabItem Header="全般">
+
+            </TabItem>
+
+            <TabItem Header="NEUTRINO">
+                <StackPanel Margin="4">
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Text="NEUTRINOフォルダのパス"
+                            VerticalAlignment="Center" />
+
+                        <TextBox
+                            Grid.Column="1"
+                            IsReadOnly="True"
+                            Background="{DynamicResource InputBox.Disabled.Background}"
+                            Text="{Binding NeutrinoDirectory, Mode=OneWay}" />
+
+                        <Button
+                            Margin="4,0,0,0"
+                            Content="..."
+                            Grid.Column="2">
+                            <i:Interaction.Triggers>
+                                <i:EventTrigger EventName="Click">
+                                    <ab:FolderBrowserDialogInteractionMessageAction>
+                                        <l:DirectInteractionMessage CallbackCommand="{Binding NeutrinoDirectorySelectCommand, Mode=OneTime}">
+                                            <ab:FolderSelectionMessage />
+                                        </l:DirectInteractionMessage>
+                                    </ab:FolderBrowserDialogInteractionMessageAction>
+                                </i:EventTrigger>
+                            </i:Interaction.Triggers>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

@@ -1,7 +1,11 @@
-﻿using World.NET.Structs.Fft;
+﻿using System.Numerics;
+using System.Runtime.InteropServices;
+using World.NET.Structs.Fft;
+using World.NET.Utils;
 
 namespace World.NET;
-internal static class Fft
+
+internal unsafe static class Fft
 {
     // Commands for FFT (This is the same as FFTW)
     public const int FFT_FORWARD = 1;
@@ -10,63 +14,122 @@ internal static class Fft
 
     public static void BackwardFFT(ref fft_plan p)
     {
-        if (p.c_out == null)
-        {  // c2r
-            p.input[0] = p.c_in[0].v0;
-            p.input[1] = p.c_in[p.n / 2].v0;
-            for (int i = 1; i < p.n / 2; ++i)
-            {
-                p.input[i * 2] = p.c_in[i].v0;
-                p.input[i * 2 + 1] = -p.c_in[i].v1;
+        fixed (double* p_input = p.input)
+        fixed (int* p_ip = p.ip)
+        fixed (double* p_w = p.w)
+        {
+            if (p.c_out == null)
+            {  // c2r
+                p.input[0] = p.c_in[0].v0;
+                p.input[1] = p.c_in[p.n / 2].v0;
+                //for (int i = 1; i < p.n / 2; ++i)
+                //{
+                //    p.input[i * 2] = p.c_in[i].v0;
+                //    p.input[i * 2 + 1] = -p.c_in[i].v1;
+                //}
+                CopyAndInvertV1(p.c_in[1..(p.n / 2)].Cast<fft_complex, double>(), p.input[2..]);
+                //rdft(p.n, -1, p.input, p.ip, p.w);
+                rdft(p.n, -1, p_input, p_ip, p_w);
+                // for (int i = 0; i < p.n; ++i) p.@out[i] = p.input[i] * 2.0;
+                {
+                    int length = p.n;
+                    var coe = new Vector<double>(2.0);
+                    var vec = MemoryMarshal.Cast<double, Vector<double>>(p.input[0..length]);
+
+                    int i;
+                    for (i = 0; i < vec.Length; ++i)
+                    {
+                        (vec[i] * coe).CopyTo(p.@out[(i * Vector<double>.Count)..]);
+                    }
+
+                    for (i = vec.Length * Vector<double>.Count; i < p.n; ++i)
+                    {
+                        p.@out[i] = p.input[i] * 2.0;
+                    }
+                }
             }
-            rdft(p.n, -1, p.input, p.ip, p.w);
-            for (int i = 0; i < p.n; ++i) p.@out[i] = p.input[i] * 2.0;
-        }
-        else
-        {  // c2c
-            for (int i = 0; i < p.n; ++i)
-            {
-                p.input[i * 2] = p.c_in[i].v0;
-                p.input[i * 2 + 1] = p.c_in[i].v1;
-            }
-            cdft(p.n * 2, -1, p.input, p.ip, p.w);
-            for (int i = 0; i < p.n; ++i)
-            {
-                p.c_out[i].v0 = p.input[i * 2];
-                p.c_out[i].v1 = -p.input[i * 2 + 1];
+            else
+            {  // c2c
+               //for (int i = 0; i < p.n; ++i)
+               //{
+               //    p.input[i * 2] = p.c_in[i].v0;
+               //    p.input[i * 2 + 1] = p.c_in[i].v1;
+               //}
+                MemoryMarshal.Cast<fft_complex, double>(p.c_in[..p.n]).CopyTo(p.input);
+                //cdft(p.n * 2, -1, p.input, p.ip, p.w);
+                cdft(p.n * 2, -1, p_input, p_ip, p_w);
+                //for (int i = 0; i < p.n; ++i)
+                //{
+                //    p.c_out[i].v0 = p.input[i * 2];
+                //    p.c_out[i].v1 = -p.input[i * 2 + 1];
+                //}
+                CopyAndInvertV1(p.input[..(p.n << 1)], p.c_out.Cast<fft_complex, double>());
             }
         }
     }
 
     static void ForwardFFT(ref fft_plan p)
     {
-        if (p.c_in == null)
-        {  // r2c
-            for (int i = 0; i < p.n; ++i) p.input[i] = p.@in[i];
-            rdft(p.n, 1, p.input, p.ip, p.w);
-            p.c_out[0].v0 = p.input[0];
-            p.c_out[0].v1 = 0.0;
-            for (int i = 1; i < p.n / 2; ++i)
-            {
-                p.c_out[i].v0 = p.input[i * 2];
-                p.c_out[i].v1 = -p.input[i * 2 + 1];
+        fixed (double* p_input = p.input)
+        fixed (int* p_ip = p.ip)
+        fixed (double* p_w = p.w)
+        {
+            if (p.c_in == null)
+            {  // r2c
+               // for (int i = 0; i < p.n; ++i) p.input[i] = p.@in[i];
+                p.@in[..p.n].CopyTo(p.input);
+                //rdft(p.n, 1, p.input, p.ip, p.w);
+                rdft(p.n, 1, p_input, p_ip, p_w);
+                //p.c_out[0].v0 = p.input[0];
+                //p.c_out[0].v1 = 0.0;
+                p.c_out[0].Set(p.input[0], 0.0);
+                //for (int i = 1; i < p.n / 2; ++i)
+                //{
+                //    p.c_out[i].v0 = p.input[i * 2];
+                //    p.c_out[i].v1 = -p.input[i * 2 + 1];
+                //}
+                CopyAndInvertV1(p.input[2..p.n], p.c_out[1..].Cast<fft_complex, double>());
+                //p.c_out[p.n / 2].v0 = p.input[1];
+                //p.c_out[p.n / 2].v1 = 0.0;
+                p.c_out[p.n / 2].Set(p.input[1], 0.0);
             }
-            p.c_out[p.n / 2].v0 = p.input[1];
-            p.c_out[p.n / 2].v1 = 0.0;
+            else
+            {  // c2c
+               //for (int i = 0; i < p.n; ++i)
+               //{
+               //    p.input[i * 2] = p.c_in[i].v0;
+               //    p.input[i * 2 + 1] = p.c_in[i].v1;
+               //}
+                MemoryMarshal.Cast<fft_complex, double>(p.c_in[..p.n]).CopyTo(p.input);
+                //cdft(p.n * 2, 1, p.input, p.ip, p.w);
+                cdft(p.n * 2, 1, p_input, p_ip, p_w);
+                //for (int i = 0; i < p.n; ++i)
+                //{
+                //    p.c_out[i].v0 = p.input[i * 2];
+                //    p.c_out[i].v1 = -p.input[i * 2 + 1];
+                //}
+                CopyAndInvertV1(p.input[..(p.n << 1)], p.c_out.Cast<fft_complex, double>());
+            }
         }
-        else
-        {  // c2c
-            for (int i = 0; i < p.n; ++i)
-            {
-                p.input[i * 2] = p.c_in[i].v0;
-                p.input[i * 2 + 1] = p.c_in[i].v1;
-            }
-            cdft(p.n * 2, 1, p.input, p.ip, p.w);
-            for (int i = 0; i < p.n; ++i)
-            {
-                p.c_out[i].v0 = p.input[i * 2];
-                p.c_out[i].v1 = -p.input[i * 2 + 1];
-            }
+    }
+
+    private static readonly Vector<double> test = VectorUtil.GetAlternativeVector(1.0, -1.0);
+
+    private static void CopyAndInvertV1(Span<double> src, Span<double> dest)
+    {
+        var vector = MemoryMarshal.Cast<double, Vector<double>>(src);
+        int size = Vector<double>.Count;
+
+        int i;
+        for (i = 0; i < vector.Length; ++i)
+        {
+            Vector.Multiply(vector[i], test).CopyTo(dest[(i * size)..]);
+        }
+
+        for (i *= size; i < src.Length; i += 2)
+        {
+            dest[i] = src[i];
+            dest[i + 1] = -src[i + 1];
         }
     }
 
@@ -86,7 +149,11 @@ internal static class Fft
         output.w = new double[n * 5 / 4];
 
         output.ip[0] = 0;
-        makewt(output.n >> 1, output.ip, output.w);
+        fixed (int* p_ip = output.ip)
+        fixed (double* p_w = output.w)
+        {
+            makewt(output.n >> 1, p_ip, p_w);
+        }
         return output;
     }
 
@@ -106,8 +173,12 @@ internal static class Fft
         output.w = new double[n * 5 / 4];
 
         output.ip[0] = 0;
-        makewt(output.n >> 2, output.ip, output.w);
-        makect(output.n >> 2, output.ip, output.w[(output.n >> 2)..]);
+        fixed (int* p_ip = output.ip)
+        fixed (double* p_w = output.w)
+        {
+            makewt(output.n >> 2, p_ip, p_w);
+            makect(output.n >> 2, p_ip, &p_w[output.n >> 2]);
+        }
         return output;
     }
 
@@ -127,8 +198,12 @@ internal static class Fft
         output.w = new double[n * 5 / 4];
 
         output.ip[0] = 0;
-        makewt(output.n >> 2, output.ip, output.w);
-        makect(output.n >> 2, output.ip, output.w[(output.n >> 2)..]);
+        fixed (int* p_ip = output.ip)
+        fixed (double* p_w = output.w)
+        {
+            makewt(output.n >> 2, p_ip, p_w);
+            makect(output.n >> 2, p_ip, &p_w[output.n >> 2]);
+        }
         return output;
     }
 
@@ -162,7 +237,7 @@ internal static class Fft
     // The following functions are reffered by
     // http://www.kurims.kyoto-u.ac.jp/~ooura/index.html
 
-    private static void cdft(int n, int isgn, Span<double> a, Span<int> ip, Span<double> w)
+    private static void cdft(int n, int isgn, double* a, int* ip, double* w)
     {
         int nw;
 
@@ -178,7 +253,7 @@ internal static class Fft
     }
 
 
-    private static void rdft(int n, int isgn, Span<double> a, Span<int> ip, Span<double> w)
+    private static void rdft(int n, int isgn, double* a, int* ip, double* w)
     {
         double xi;
 
@@ -190,7 +265,7 @@ internal static class Fft
             if (n > 4)
             {
                 cftfsub(n, a, ip, nw, w);
-                rftfsub(n, a, nc, w[nw..]);
+                rftfsub(n, a, nc, &w[nw]);
             }
             else if (n == 4)
             {
@@ -206,7 +281,7 @@ internal static class Fft
             a[0] -= a[1];
             if (n > 4)
             {
-                rftbsub(n, a, nc, w[nw..]);
+                rftbsub(n, a, nc, &w[nw]);
                 cftbsub(n, a, ip, nw, w);
             }
             else if (n == 4)
@@ -216,7 +291,7 @@ internal static class Fft
         }
     }
 
-    private static void makewt(int nw, Span<int> ip, Span<double> w)
+    private static void makewt(int nw, int* ip, double* w)
     {
         int j, nwh, nw0, nw1;
         double delta, wn4r, wk1r, wk1i, wk3r, wk3i;
@@ -285,7 +360,7 @@ internal static class Fft
         }
     }
 
-    private static void makeipt(int nw, Span<int> ip)
+    private static void makeipt(int nw, int* ip)
     {
         int j, l, m, m2, p, q;
 
@@ -306,7 +381,7 @@ internal static class Fft
         }
     }
 
-    private static void makect(int nc, Span<int> ip, Span<double> c)
+    private static void makect(int nc, int* ip, double* c)
     {
         int j, nch;
         double delta;
@@ -329,13 +404,13 @@ internal static class Fft
     // -------- child routines --------
 
 
-    private static void cftfsub(int n, Span<double> a, Span<int> ip, int nw, Span<double> w)
+    private static void cftfsub(int n, double* a, int* ip, int nw, double* w)
     {
         if (n > 8)
         {
             if (n > 32)
             {
-                cftf1st(n, a, w[(nw - (n >> 2))..]);
+                cftf1st(n, a, &w[nw - (n >> 2)]);
                 if (n > 512)
                 {
                     cftrec4(n, a, nw, w);
@@ -352,7 +427,7 @@ internal static class Fft
             }
             else if (n == 32)
             {
-                cftf161(a, w[(nw - 8)..]);
+                cftf161(a, &w[nw - 8]);
                 bitrv216(a);
             }
             else
@@ -371,13 +446,13 @@ internal static class Fft
         }
     }
 
-    private static void cftbsub(int n, Span<double> a, Span<int> ip, int nw, Span<double> w)
+    private static void cftbsub(int n, double* a, int* ip, int nw, double* w)
     {
         if (n > 8)
         {
             if (n > 32)
             {
-                cftb1st(n, a, w[(nw - (n >> 2))..]);
+                cftb1st(n, a, &w[nw - (n >> 2)]);
                 if (n > 512)
                 {
                     cftrec4(n, a, nw, w);
@@ -394,7 +469,7 @@ internal static class Fft
             }
             else if (n == 32)
             {
-                cftf161(a, w[(nw - 8)..]);
+                cftf161(a, &w[nw - 8]);
                 bitrv216neg(a);
             }
             else
@@ -413,7 +488,7 @@ internal static class Fft
         }
     }
 
-    private static void bitrv2(int n, Span<int> ip, Span<double> a)
+    private static void bitrv2(int n, int* ip, double* a)
     {
         int j, j1, k, k1, l, m, nh, nm;
         double xr, xi, yr, yi;
@@ -767,7 +842,7 @@ internal static class Fft
         }
     }
 
-    private static void bitrv2conj(int n, Span<int> ip, Span<double> a)
+    private static void bitrv2conj(int n, int* ip, double* a)
     {
         int j, j1, k, k1, l, m, nh, nm;
         double xr, xi, yr, yi;
@@ -1129,7 +1204,7 @@ internal static class Fft
         }
     }
 
-    private static void bitrv216(Span<double> a)
+    private static void bitrv216(double* a)
     {
         double x1r, x1i, x2r, x2i, x3r, x3i, x4r, x4i,
     x5r, x5i, x7r, x7i, x8r, x8i, x10r, x10i,
@@ -1185,7 +1260,7 @@ internal static class Fft
         a[29] = x7i;
     }
 
-    private static void bitrv216neg(Span<double> a)
+    private static void bitrv216neg(double* a)
     {
         double x1r, x1i, x2r, x2i, x3r, x3i, x4r, x4i,
     x5r, x5i, x6r, x6i, x7r, x7i, x8r, x8i,
@@ -1254,7 +1329,7 @@ internal static class Fft
         a[31] = x8i;
     }
 
-    private static void bitrv208(Span<double> a)
+    private static void bitrv208(double* a)
     {
         double x1r, x1i, x3r, x3i, x4r, x4i, x6r, x6i;
 
@@ -1276,7 +1351,7 @@ internal static class Fft
         a[13] = x3i;
     }
 
-    private static void bitrv208neg(Span<double> a)
+    private static void bitrv208neg(double* a)
     {
         double x1r, x1i, x2r, x2i, x3r, x3i, x4r, x4i,
           x5r, x5i, x6r, x6i, x7r, x7i;
@@ -1311,7 +1386,7 @@ internal static class Fft
         a[15] = x4i;
     }
 
-    private static void cftf1st(int n, Span<double> a, Span<double> w)
+    private static void cftf1st(int n, double* a, double* w)
     {
         int j, j0, j1, j2, j3, k, m, mh;
         double wn4r, csc1, csc3, wk1r, wk1i, wk3r, wk3i,
@@ -1517,7 +1592,7 @@ internal static class Fft
         a[j3 + 3] = wk3i * x0i - wk3r * x0r;
     }
 
-    private static void cftb1st(int n, Span<double> a, Span<double> w)
+    private static void cftb1st(int n, double* a, double* w)
     {
         int j, j0, j1, j2, j3, k, m, mh;
         double wn4r, csc1, csc3, wk1r, wk1i, wk3r, wk3i,
@@ -1723,7 +1798,7 @@ internal static class Fft
         a[j3 + 3] = wk3i * x0i - wk3r * x0r;
     }
 
-    private static void cftrec4(int n, Span<double> a, int nw, Span<double> w)
+    private static void cftrec4(int n, double* a, int nw, double* w)
     {
         int isplt, j, k, m;
 
@@ -1731,19 +1806,19 @@ internal static class Fft
         while (m > 512)
         {
             m >>= 2;
-            cftmdl1(m, a[(n - m)..], w[(nw - (m >> 1))..]);
+            cftmdl1(m, &a[n - m], &w[nw - (m >> 1)]);
         }
-        cftleaf(m, 1, a[(n - m)..], nw, w);
+        cftleaf(m, 1, &a[n - m], nw, w);
         k = 0;
         for (j = n - m; j > 0; j -= m)
         {
             k++;
             isplt = cfttree(m, j, k, a, nw, w);
-            cftleaf(m, isplt, a[(j - m)..], nw, w);
+            cftleaf(m, isplt, &a[j - m], nw, w);
         }
     }
 
-    private static int cfttree(int n, int j, int k, Span<double> a, int nw, Span<double> w)
+    private static int cfttree(int n, int j, int k, double* a, int nw, double* w)
     {
         int i, isplt, m;
 
@@ -1752,11 +1827,11 @@ internal static class Fft
             isplt = k & 1;
             if (isplt != 0)
             {
-                cftmdl1(n, a[(j - n)..], w[(nw - (n >> 1))..]);
+                cftmdl1(n, &a[j - n], &w[nw - (n >> 1)]);
             }
             else
             {
-                cftmdl2(n, a[(j - n)..], w[(nw - n)..]);
+                cftmdl2(n, &a[j - n], &w[nw - n]);
             }
         }
         else
@@ -1771,7 +1846,7 @@ internal static class Fft
             {
                 while (m > 128)
                 {
-                    cftmdl1(m, a[(j - m)..], w[(nw - (m >> 1))..]);
+                    cftmdl1(m, &a[j - m], &w[nw - (m >> 1)]);
                     m >>= 2;
                 }
             }
@@ -1779,7 +1854,7 @@ internal static class Fft
             {
                 while (m > 128)
                 {
-                    cftmdl2(m, a[(j - m)..], w[(nw - m)..]);
+                    cftmdl2(m, &a[j - m], &w[nw - m]);
                     m >>= 2;
                 }
             }
@@ -1787,73 +1862,73 @@ internal static class Fft
         return isplt;
     }
 
-    private static void cftleaf(int n, int isplt, Span<double> a, int nw, Span<double> w)
+    private static void cftleaf(int n, int isplt, double* a, int nw, double* w)
     {
         if (n == 512)
         {
-            cftmdl1(128, a, w[(nw - 64)..]);
-            cftf161(a, w[(nw - 8)..]);
-            cftf162(a[32..], w[(nw - 32)..]);
-            cftf161(a[64..], w[(nw - 8)..]);
-            cftf161(a[96..], w[(nw - 8)..]);
-            cftmdl2(128, a[128..], w[(nw - 128)..]);
-            cftf161(a[128..], w[(nw - 8)..]);
-            cftf162(a[160..], w[(nw - 32)..]);
-            cftf161(a[192..], w[(nw - 8)..]);
-            cftf162(a[224..], w[(nw - 32)..]);
-            cftmdl1(128, a[256..], w[(nw - 64)..]);
-            cftf161(a[256..], w[(nw - 8)..]);
-            cftf162(a[288..], w[(nw - 32)..]);
-            cftf161(a[320..], w[(nw - 8)..]);
-            cftf161(a[352..], w[(nw - 8)..]);
+            cftmdl1(128, a, &w[nw - 64]);
+            cftf161(a, &w[nw - 8]);
+            cftf162(&a[32], &w[nw - 32]);
+            cftf161(&a[64], &w[nw - 8]);
+            cftf161(&a[96], &w[nw - 8]);
+            cftmdl2(128, &a[128], &w[nw - 128]);
+            cftf161(&a[128], &w[nw - 8]);
+            cftf162(&a[160], &w[nw - 32]);
+            cftf161(&a[192], &w[nw - 8]);
+            cftf162(&a[224], &w[nw - 32]);
+            cftmdl1(128, &a[256], &w[nw - 64]);
+            cftf161(&a[256], &w[nw - 8]);
+            cftf162(&a[288], &w[nw - 32]);
+            cftf161(&a[320], &w[nw - 8]);
+            cftf161(&a[352], &w[nw - 8]);
             if (isplt != 0)
             {
-                cftmdl1(128, a[384..], w[(nw - 64)..]);
-                cftf161(a[480..], w[(nw - 8)..]);
+                cftmdl1(128, &a[384], &w[nw - 64]);
+                cftf161(&a[480], &w[nw - 8]);
             }
             else
             {
-                cftmdl2(128, a[384..], w[(nw - 128)..]);
-                cftf162(a[480..], w[(nw - 32)..]);
+                cftmdl2(128, &a[384], &w[nw - 128]);
+                cftf162(&a[480], &w[nw - 32]);
             }
-            cftf161(a[384..], w[(nw - 8)..]);
-            cftf162(a[416..], w[(nw - 32)..]);
-            cftf161(a[448..], w[(nw - 8)..]);
+            cftf161(&a[384], &w[nw - 8]);
+            cftf162(&a[416], &w[nw - 32]);
+            cftf161(&a[448], &w[nw - 8]);
         }
         else
         {
-            cftmdl1(64, a, w[(nw - 32)..]);
-            cftf081(a, w[(nw - 8)..]);
-            cftf082(a[16..], w[(nw - 8)..]);
-            cftf081(a[32..], w[(nw - 8)..]);
-            cftf081(a[48..], w[(nw - 8)..]);
-            cftmdl2(64, a[64..], w[(nw - 64)..]);
-            cftf081(a[64..], w[(nw - 8)..]);
-            cftf082(a[80..], w[(nw - 8)..]);
-            cftf081(a[96..], w[(nw - 8)..]);
-            cftf082(a[112..], w[(nw - 8)..]);
-            cftmdl1(64, a[128..], w[(nw - 32)..]);
-            cftf081(a[128..], w[(nw - 8)..]);
-            cftf082(a[144..], w[(nw - 8)..]);
-            cftf081(a[160..], w[(nw - 8)..]);
-            cftf081(a[176..], w[(nw - 8)..]);
+            cftmdl1(64, a, &w[nw - 32]);
+            cftf081(a, &w[nw - 8]);
+            cftf082(&a[16], &w[nw - 8]);
+            cftf081(&a[32], &w[nw - 8]);
+            cftf081(&a[48], &w[nw - 8]);
+            cftmdl2(64, &a[64], &w[nw - 64]);
+            cftf081(&a[64], &w[nw - 8]);
+            cftf082(&a[80], &w[nw - 8]);
+            cftf081(&a[96], &w[nw - 8]);
+            cftf082(&a[112], &w[nw - 8]);
+            cftmdl1(64, &a[128], &w[nw - 32]);
+            cftf081(&a[128], &w[nw - 8]);
+            cftf082(&a[144], &w[nw - 8]);
+            cftf081(&a[160], &w[nw - 8]);
+            cftf081(&a[176], &w[nw - 8]);
             if (isplt != 0)
             {
-                cftmdl1(64, a[192..], w[(nw - 32)..]);
-                cftf081(a[240..], w[(nw - 8)..]);
+                cftmdl1(64, &a[192], &w[nw - 32]);
+                cftf081(&a[240], &w[nw - 8]);
             }
             else
             {
-                cftmdl2(64, a[192..], w[(nw - 64)..]);
-                cftf082(a[240..], w[(nw - 8)..]);
+                cftmdl2(64, &a[192], &w[nw - 64]);
+                cftf082(&a[240], &w[nw - 8]);
             }
-            cftf081(a[192..], w[(nw - 8)..]);
-            cftf082(a[208..], w[(nw - 8)..]);
-            cftf081(a[224..], w[(nw - 8)..]);
+            cftf081(&a[192], &w[nw - 8]);
+            cftf082(&a[208], &w[nw - 8]);
+            cftf081(&a[224], &w[nw - 8]);
         }
     }
 
-    private static void cftmdl1(int n, Span<double> a, Span<double> w)
+    private static void cftmdl1(int n, double* a, double* w)
     {
         int j, j0, j1, j2, j3, k, m, mh;
         double wn4r, wk1r, wk1i, wk3r, wk3i;
@@ -1963,7 +2038,7 @@ internal static class Fft
         a[j3 + 1] = -wn4r * (x0i - x0r);
     }
 
-    private static void cftmdl2(int n, Span<double> a, Span<double> w)
+    private static void cftmdl2(int n, double* a, double* w)
     {
         int j, j0, j1, j2, j3, k, kr, m, mh;
         double wn4r, wk1r, wk1i, wk3r, wk3i, wd1r, wd1i, wd3r, wd3i;
@@ -2097,25 +2172,25 @@ internal static class Fft
         a[j3 + 1] = y0i + y2i;
     }
 
-    private static void cftfx41(int n, Span<double> a, int nw, Span<double> w)
+    private static void cftfx41(int n, double* a, int nw, double* w)
     {
         if (n == 128)
         {
-            cftf161(a, w[(nw - 8)..]);
-            cftf162(a[32..], w[(nw - 32)..]);
-            cftf161(a[64..], w[(nw - 8)..]);
-            cftf161(a[96..], w[(nw - 8)..]);
+            cftf161(a, &w[nw - 8]);
+            cftf162(&a[32], &w[nw - 32]);
+            cftf161(&a[64], &w[nw - 8]);
+            cftf161(&a[96], &w[nw - 8]);
         }
         else
         {
-            cftf081(a, w[(nw - 8)..]);
-            cftf082(a[16..], w[(nw - 8)..]);
-            cftf081(a[32..], w[(nw - 8)..]);
-            cftf081(a[48..], w[(nw - 8)..]);
+            cftf081(a, &w[nw - 8]);
+            cftf082(&a[16], &w[nw - 8]);
+            cftf081(&a[32], &w[nw - 8]);
+            cftf081(&a[48], &w[nw - 8]);
         }
     }
 
-    private static void cftf161(Span<double> a, Span<double> w)
+    private static void cftf161(double* a, double* w)
     {
         double wn4r, wk1r, wk1i,
           x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i,
@@ -2273,7 +2348,7 @@ internal static class Fft
         a[7] = x1i - x3r;
     }
 
-    private static void cftf162(Span<double> a, Span<double> w)
+    private static void cftf162(double* a, double* w)
     {
         double wn4r, wk1r, wk1i, wk2r, wk2i, wk3r, wk3i,
           x0r, x0i, x1r, x1i, x2r, x2i,
@@ -2455,7 +2530,7 @@ internal static class Fft
         a[31] = x1i - x2r;
     }
 
-    private static void cftf081(Span<double> a, Span<double> w)
+    private static void cftf081(double* a, double* w)
     {
         double wn4r, x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i,
           y0r, y0i, y1r, y1i, y2r, y2i, y3r, y3i,
@@ -2516,7 +2591,7 @@ internal static class Fft
         a[7] = y2i - y6r;
     }
 
-    private static void cftf082(Span<double> a, Span<double> w)
+    private static void cftf082(double* a, double* w)
     {
         double wn4r, wk1r, wk1i, x0r, x0i, x1r, x1i,
           y0r, y0i, y1r, y1i, y2r, y2i, y3r, y3i,
@@ -2588,7 +2663,7 @@ internal static class Fft
     }
 
 
-    private static void cftf040(Span<double> a)
+    private static void cftf040(double* a)
     {
         double x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
 
@@ -2610,7 +2685,7 @@ internal static class Fft
         a[7] = x1i - x3r;
     }
 
-    private static void cftb040(Span<double> a)
+    private static void cftb040(double* a)
     {
         double x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
 
@@ -2632,7 +2707,7 @@ internal static class Fft
         a[7] = x1i + x3r;
     }
 
-    private static void cftx020(Span<double> a)
+    private static void cftx020(double* a)
     {
         double x0r, x0i;
 
@@ -2644,7 +2719,7 @@ internal static class Fft
         a[3] = x0i;
     }
 
-    private static void rftfsub(int n, Span<double> a, int nc, Span<double> c)
+    private static void rftfsub(int n, double* a, int nc, double* c)
     {
         int j, k, kk, ks, m;
         double wkr, wki, xr, xi, yr, yi;
@@ -2669,7 +2744,7 @@ internal static class Fft
         }
     }
 
-    private static void rftbsub(int n, Span<double> a, int nc, Span<double> c)
+    private static void rftbsub(int n, double* a, int nc, double* c)
     {
         int j, k, kk, ks, m;
         double wkr, wki, xr, xi, yr, yi;
@@ -2694,7 +2769,7 @@ internal static class Fft
         }
     }
 
-    private static void dctsub(int n, Span<double> a, int nc, Span<double> c)
+    private static void dctsub(int n, double* a, int nc, double* c)
     {
         int j, k, kk, ks, m;
         double wkr, wki, xr;
@@ -2715,7 +2790,7 @@ internal static class Fft
         a[m] *= c[0];
     }
 
-    private static void dstsub(int n, Span<double> a, int nc, Span<double> c)
+    private static void dstsub(int n, double* a, int nc, double* c)
     {
         int j, k, kk, ks, m;
         double wkr, wki, xr;
