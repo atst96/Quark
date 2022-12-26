@@ -1,0 +1,32 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Quark.Views.Components">
+	<Design.PreviewWith>
+		<controls:LabelledControl />
+	</Design.PreviewWith>
+
+	<Style Selector="controls|LabelledControl">
+		<Setter Property="Template">
+			<ControlTemplate>
+				<Grid Background="Transparent">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto" />
+						<ColumnDefinition />
+					</Grid.ColumnDefinitions>
+
+					<Border Grid.Column="0" Width="{TemplateBinding LabelWidth, Mode=OneTime}">
+						<Label
+							Name="PART_HeaderPresenter"
+							VerticalContentAlignment="Center"
+							Content="{TemplateBinding Header, Mode=OneWay}"  />
+					</Border>
+					
+					<ContentPresenter
+						Name="PART_ContentPresenter"
+						Grid.Column="1"
+						Content="{TemplateBinding Content, Mode=OneWay}" />
+				</Grid>
+			</ControlTemplate>
+		</Setter>
+	</Style>
+</Styles>
