@@ -14,13 +14,14 @@
     lb:ViewModelBehavior.Type="{x:Type vm:MainWindowViewModel}"
     lb:ViewModelBehavior.DisposeDataContextOnWindowClosed="True"
     d:DataContext="{d:DesignInstance Type={x:Type vm:MainWindowViewModel}, IsDesignTimeCreatable=True}"
-    FontFamily="Meiryo">
+    FontFamily="{StaticResource UIFont}">
     <Grid>
         <Button Content="Button" HorizontalAlignment="Left" Height="41" Margin="15,17,0,0" VerticalAlignment="Top" Width="126" Click="Button_Click"/>
         <ComboBox 
             HorizontalAlignment="Left" Margin="15,70,0,0" VerticalAlignment="Top" Width="165"
             ItemsSource="{Binding Models,Mode=OneWay}"
             DisplayMemberPath="Name">
+        <Menu Grid.Column="0" FontFamily="{StaticResource UIFont}">
             
         </ComboBox>
     </Grid>

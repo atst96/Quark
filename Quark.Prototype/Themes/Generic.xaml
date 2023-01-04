@@ -2,6 +2,10 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:Themes="clr-namespace:Microsoft.Windows.Themes;assembly=PresentationFramework.Aero">
+
+    <!-- TODO: 将来的には日本語環境のみUIフォントを適用する -->
+    <FontFamily x:Key="UIFont">Meiryo</FontFamily>
+    
     <SolidColorBrush x:Key="ToolBar.Foreground" Color="#444" />
     <SolidColorBrush x:Key="ToolBar.BorderBrush" Color="#DADADA" />
     <SolidColorBrush x:Key="ToolBar.Background" Color="#F8F8F8" />
