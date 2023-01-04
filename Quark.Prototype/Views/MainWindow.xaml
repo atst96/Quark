@@ -8,21 +8,100 @@
     xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:l="http://schemas.livet-mvvm.net/2011/wpf"
     xmlns:lb="clr-namespace:Quark.Behaviors"
+    xmlns:v="clr-namespace:Quark.Views"
     xmlns:vm="clr-namespace:Quark.ViewModels"
     mc:Ignorable="d"
     Title="MainWindow" Height="450" Width="800"
     lb:ViewModelBehavior.Type="{x:Type vm:MainWindowViewModel}"
     lb:ViewModelBehavior.DisposeDataContextOnWindowClosed="True"
-    d:DataContext="{d:DesignInstance Type={x:Type vm:MainWindowViewModel}, IsDesignTimeCreatable=True}"
+    d:DataContext="{d:DesignInstance Type={x:Type vm:MainWindowViewModel}}"
     FontFamily="{StaticResource UIFont}">
+    <i:Interaction.Triggers>
+        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenSettingWindow">
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:PreferenceWindow}" Mode="Modal" IsOwned="True" />
+        </l:InteractionMessageTrigger>
+
+        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenNewProjectWindow">
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:NewProjectWindow}" Mode="Modal" IsOwned="True">
+                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnNewProjectSelected">
+                    <l:TransitionMessage TransitionViewModel="{Binding NewProjectViewModel, Mode=OneTime}" />
+                </l:DirectInteractionMessage>
+            </l:TransitionInteractionMessageAction>
+        </l:InteractionMessageTrigger>
+
+        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="SaveProjectDialog">
+            <l:SaveFileDialogInteractionMessageAction>
+                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnSaveProjectFileSelected">
+                    <l:SavingFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
+                </l:DirectInteractionMessage>
+            </l:SaveFileDialogInteractionMessageAction>
+        </l:InteractionMessageTrigger>
+    </i:Interaction.Triggers>
     <Grid>
-        <Button Content="Button" HorizontalAlignment="Left" Height="41" Margin="15,17,0,0" VerticalAlignment="Top" Width="126" Click="Button_Click"/>
-        <ComboBox 
-            HorizontalAlignment="Left" Margin="15,70,0,0" VerticalAlignment="Top" Width="165"
-            ItemsSource="{Binding Models,Mode=OneWay}"
-            DisplayMemberPath="Name">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
         <Menu Grid.Column="0" FontFamily="{StaticResource UIFont}">
-            
-        </ComboBox>
+            <MenuItem Header="ファイル(_F)">
+                <MenuItem Header="新しいプロジェクト(_N)" Command="{Binding NewProjectCommand, Mode=OneTime}" />
+                <MenuItem Header="開く(_O)">
+                    <i:Interaction.Triggers>
+                        <i:EventTrigger EventName="Click">
+                            <l:OpenFileDialogInteractionMessageAction>
+                                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnOpenProjectFileSelected">
+                                    <l:OpeningFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
+                                </l:DirectInteractionMessage>
+                            </l:OpenFileDialogInteractionMessageAction>
+                        </i:EventTrigger>
+                    </i:Interaction.Triggers>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="保存(_S)" Command="{Binding SaveCommand,Mode=OneTime}" />
+                <Separator />
+                <MenuItem Header="終了(_X)" InputGestureText="Alt+F4">
+                    <!-- ウィンドウを閉じる -->
+                    <i:Interaction.Triggers>
+                        <i:EventTrigger EventName="Click">
+                            <l:WindowInteractionMessageAction>
+                                <l:DirectInteractionMessage>
+                                    <l:WindowActionMessage Action="Close" />
+                                </l:DirectInteractionMessage>
+                            </l:WindowInteractionMessageAction>
+                        </i:EventTrigger>
+                    </i:Interaction.Triggers>
+                </MenuItem>
+            </MenuItem>
+
+            <!--<MenuItem Header="プロジェクト(_P)">
+            </MenuItem>-->
+
+            <MenuItem Header="ツール(_T)">
+                <MenuItem Header="オプション(_O)" Command="{Binding OpenSettingWindowCommand,Mode=OneTime}" />
+            </MenuItem>
+        </Menu>
+
+        <!--TODO: マルチトラック対応-->
+        <Grid Grid.Row="1">
+            <!--<Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+
+            <ListBox Grid.Column="0"
+                     BorderThickness="0">
+            </ListBox>-->
+
+            <Grid Grid.Column="2">
+
+            </Grid>
+        </Grid>
+
+        <StatusBar Grid.Row="2">
+            <Label Content="" />
+        </StatusBar>
     </Grid>
 </Window>

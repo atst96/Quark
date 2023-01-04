@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using Quark.Project;
 using Quark.Services;
 using Quark.Utils;
-using Quark.ViewModels;
 
 namespace Quark;
 
@@ -31,10 +31,12 @@ public partial class App : Application
         ServiceProvider = new ServiceCollection()
             // Service
             .AddSingleton(settingService)
-            .AddSingleton<NeutrinoService>()
+            .AddSingleton<Services.NeutrinoService>()
+            .AddSingleton<ProjectService>()
             // ViewModel
-            .AddTransient<MainWindowViewModel>()
-            .AddTransient<PreferenceWindowViewModel>()
+            .AddTransient<ViewModels.MainWindowViewModel>()
+            .AddTransient<ViewModels.PreferenceWindowViewModel>()
+            .AddTransient<ViewModels.NewProjectWindowViewModel>()
             // Build
             .BuildServiceProvider();
     }

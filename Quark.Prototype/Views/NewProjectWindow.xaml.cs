@@ -1,14 +1,13 @@
 ﻿using System.Windows;
-using Livet.Messaging;
 
 namespace Quark.Views;
 
 /// <summary>
-/// Interaction logic for MainWindow.xaml
+/// NewProjectWindow.xaml の相互作用ロジック
 /// </summary>
-public partial class MainWindow : Window
+public partial class NewProjectWindow : Window
 {
-    public MainWindow()
+    public NewProjectWindow()
     {
         this.InitializeComponent();
     }
