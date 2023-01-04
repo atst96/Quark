@@ -3,7 +3,7 @@ using System.Windows;
 
 namespace Quark.Behaviors;
 
-internal class FolderSelectionMessage : ResponsiveInteractionMessage<string>
+internal class FolderSelectionMessage : ResponsiveInteractionMessage<string?>
 {
     /// <summary>
     /// ダイアログの説明文

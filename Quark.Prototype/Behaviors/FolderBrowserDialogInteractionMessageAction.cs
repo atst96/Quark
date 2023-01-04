@@ -28,9 +28,8 @@ internal class FolderBrowserDialogInteractionMessageAction : InteractionMessageA
         if (message.InitalDirectory is not null)
             dialog.InitialDirectory = message.InitalDirectory;
 
-        if (dialog.ShowDialog(new WindowWrapper(hwnd)) == DialogResult.OK)
-        {
-            message.Response = dialog.SelectedPath;
-        }
+        message.Response = dialog.ShowDialog(new WindowWrapper(hwnd)) == DialogResult.OK
+            ? dialog.SelectedPath
+            : null;
     }
 }
