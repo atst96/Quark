@@ -10,7 +10,7 @@
         xmlns:vm="clr-namespace:Quark.ViewModels"
         mc:Ignorable="d"
         Title="アプリケーション設定" Height="450" Width="800"
-        FontFamily="Meiryo"
+        FontFamily="{StaticResource UIFont}"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         d:DataContext="{d:DesignInstance Type={x:Type vm:PreferenceWindowViewModel}}"
         ab:ViewModelBehavior.Type="{x:Type vm:PreferenceWindowViewModel}"
