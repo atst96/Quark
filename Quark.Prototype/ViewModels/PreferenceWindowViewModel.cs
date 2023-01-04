@@ -27,16 +27,19 @@ internal class PreferenceWindowViewModel : ViewModelBase
     private ICommand? _neutrinoDirectorySelectCommand;
     private Settings _settings;
 
-    public ICommand NeutrinoDirectorySelectCommand => this._neutrinoDirectorySelectCommand ??= new DelegateCommand<FolderSelectionMessage>(a =>
+    public ICommand NeutrinoDirectorySelectCommand => this._neutrinoDirectorySelectCommand ??= new DelegateCommand<FolderSelectionMessage>(msg =>
     {
-        var directory = a.Response;
+        var directory = msg.Response;
 
-        // 設定変更
-        this._settings.Neutrino.Directory = directory;
+        if (directory is not null)
+        {
+            // 設定変更
+            this._settings.Neutrino.Directory = directory;
 
-        // 表示変更
-        this.NeutrinoDirectory = directory;
-        this.RaisePropertyChanged(nameof(NeutrinoDirectory));
+            // 表示変更
+            this.NeutrinoDirectory = directory;
+            this.RaisePropertyChanged(nameof(NeutrinoDirectory));
+        }
     });
 
     public string? NeutrinoDirectory { get; private set; }
