@@ -26,7 +26,7 @@ public static class NeutrinoModelUtil
     /// <returns>モデル情報</returns>
     public static IList<ModelInfo> GetModels(string path)
         => GetModelDirectories(path)
-            .Select(i => new ModelInfo(GetModelName(i), i))
+            .Select(p => new ModelInfo(Path.GetFileName(p), GetModelName(p), p))
             .OrderBy(i => i.Name, StringComparer.CurrentCulture)
             .ToList();
 

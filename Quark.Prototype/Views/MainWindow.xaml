@@ -75,8 +75,19 @@
                 </MenuItem>
             </MenuItem>
 
-            <!--<MenuItem Header="プロジェクト(_P)">
-            </MenuItem>-->
+            <MenuItem Header="プロジェクト(_P)">
+                <MenuItem Header="MusicXMLをインポート(_I)">
+                    <i:Interaction.Triggers>
+                        <i:EventTrigger EventName="Click">
+                            <l:OpenFileDialogInteractionMessageAction>
+                                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnImportMusicXMLFileSelected">
+                                    <l:OpeningFileSelectionMessage Filter="MusicXML|*.musicxml" />
+                                </l:DirectInteractionMessage>
+                            </l:OpenFileDialogInteractionMessageAction>
+                        </i:EventTrigger>
+                    </i:Interaction.Triggers>
+                </MenuItem>
+            </MenuItem>
 
             <MenuItem Header="ツール(_T)">
                 <MenuItem Header="オプション(_O)" Command="{Binding OpenSettingWindowCommand,Mode=OneTime}" />

@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Windows;
 using System.Windows.Input;
-using Livet.Behaviors.Messaging.IO;
 using Livet.Messaging;
 using Livet.Messaging.IO;
 using Quark.Models.Neutrino;
 using Quark.Mvvm;
+using Quark.Projects;
 using Quark.Services;
 
 namespace Quark.ViewModels;
@@ -16,17 +15,19 @@ internal class MainWindowViewModel : ViewModelBase
     private NeutrinoService _neutrino;
     private ProjectService _projects;
 
-    private Project.Project? _currentProject;
+    private Project? _currentProject;
+
+    public bool HasProject => this._currentProject is not null;
 
     /// <summary>
     /// 現在のプロジェクト
     /// </summary>
-    public Project.Project? CurrentProject
+    public Project? CurrentProject
     {
         get => this._currentProject;
         private set
         {
-            if (this.RaisePropertyChangedIfSet(ref this._currentProject, value))
+            if (this.RaisePropertyChangedIfSet(ref this._currentProject, value, nameof(this.HasProject)))
             {
                 this._saveCommand?.RaiseCanExecute();
             }
@@ -96,7 +97,7 @@ internal class MainWindowViewModel : ViewModelBase
     {
         if (msg is { Response.Length: > 0 })
         {
-            this.CurrentProject = this._projects.Open(msg.Response[0]);
+            this.CurrentProject = this._projects.Open(msg.Response[0], this._neutrino.GetModels());
         }
     }
 
@@ -111,5 +112,16 @@ internal class MainWindowViewModel : ViewModelBase
     private void SaveProject(string? path = null)
     {
         this.CurrentProject!.SaveToFile(path);
+    }
+
+    public void OnImportMusicXMLFileSelected(OpeningFileSelectionMessage msg)
+    {
+        if (!this.HasProject || msg is not { Response.Length: > 0 })
+        {
+            return;
+        }
+
+        var path = msg.Response[0];
+        this.CurrentProject!.Tracks.ImportFromMusicXml(path, System.IO.Path.GetFileNameWithoutExtension(path));
     }
 }
