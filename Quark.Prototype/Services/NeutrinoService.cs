@@ -1,7 +1,5 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using Quark.Data.Settings;
 using Quark.Models.Neutrino;
 using Quark.Utils;
@@ -22,8 +20,15 @@ internal class NeutrinoService
 
     public IList<ModelInfo> GetModels()
     {
-        var path = Path.Combine(this._setting.Neutrino.Directory!, ModelDirName);
+        if (this._setting.Neutrino.Directory is null)
+        {
+            return new List<ModelInfo>();
+        }
+        else
+        {
+            var path = Path.Combine(this._setting.Neutrino.Directory!, ModelDirName);
 
-        return NeutrinoModelUtil.GetModels(path);
+            return NeutrinoModelUtil.GetModels(path);
+        }
     }
 }

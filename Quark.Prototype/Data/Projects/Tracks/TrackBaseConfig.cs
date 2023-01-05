@@ -1,26 +1,25 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Runtime.CompilerServices;
 using MemoryPack;
 
-namespace Quark.Data.Project;
+namespace Quark.Data.Projects.Tracks;
 
 [MemoryPackable]
-internal partial class ProjectComposition
+[MemoryPackUnion(1, typeof(NeutrinoTrackConfig))]
+public abstract partial class TrackBaseConfig
 {
-    public string Name { get; set; }
-    public string Directory { get; set; }
+    public string TrackId { get; set; }
+    public string TrackName { get; set; }
 
-    public LinkedList<TrackCompositionBase> Tracks { get; set; }
-
-    [MemoryPackConstructor]
 #pragma warning disable CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
-    private ProjectComposition() { }
+    [MemoryPackConstructor]
+    protected TrackBaseConfig()
+    {
+    }
 #pragma warning restore CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
 
-    public ProjectComposition(string name, string directory)
+    protected TrackBaseConfig(string trackId, string trackName)
     {
-        this.Name = name;
-        this.Directory = directory;
-        this.Tracks = new LinkedList<TrackCompositionBase>();
+        this.TrackId = trackId;
+        this.TrackName = trackName;
     }
 }

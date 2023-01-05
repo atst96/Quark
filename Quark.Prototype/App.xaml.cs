@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using Quark.Project;
 using Quark.Services;
 using Quark.Utils;
 
