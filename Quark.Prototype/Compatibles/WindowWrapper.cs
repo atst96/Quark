@@ -1,6 +1,6 @@
 ﻿using System.Windows.Forms;
 
-namespace Quark;
+namespace Quark.Compatibles;
 
 public class WindowWrapper : IWin32Window
 {
@@ -10,4 +10,6 @@ public class WindowWrapper : IWin32Window
     {
         this.Handle = handle;
     }
+
+    public static WindowWrapper FromHandle(nint handle) => new(handle);
 }
