@@ -1,6 +1,6 @@
 ﻿using System.Windows.Forms;
 
-namespace Quark;
+namespace Quark.Compatibles;
 
 public class WindowWrapper : IWin32Window
 {

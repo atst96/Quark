@@ -348,3 +348,10 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+
+# Local Project
+NEUTRINO_Convert/
+NEUTRINO_MgcToImage/
+NEUTRINO_RealtimeTest/
+WaveformToImage/

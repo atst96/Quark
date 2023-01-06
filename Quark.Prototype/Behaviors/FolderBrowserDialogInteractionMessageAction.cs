@@ -1,5 +1,6 @@
 ﻿using Livet.Behaviors.Messaging;
 using Livet.Messaging;
+using Quark.Compatibles;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Interop;
@@ -28,7 +29,7 @@ internal class FolderBrowserDialogInteractionMessageAction : InteractionMessageA
         if (message.InitalDirectory is not null)
             dialog.InitialDirectory = message.InitalDirectory;
 
-        message.Response = dialog.ShowDialog(new WindowWrapper(hwnd)) == DialogResult.OK
+        message.Response = dialog.ShowDialog(WindowWrapper.FromHandle(hwnd)) == DialogResult.OK
             ? dialog.SelectedPath
             : null;
     }
