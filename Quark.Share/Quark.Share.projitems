@@ -20,6 +20,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Models\Neutrino\NeutrinoOption.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\Neutrino\NsfOption.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\Neutrino\WorldOption.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Utils\GuidUtil.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)VirtualFile.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Utils\MemoryPackUtil.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Utils\MusicXmlUtil.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Utils\NeutrinoLabelUtil.cs" />
