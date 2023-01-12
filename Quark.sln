@@ -147,4 +147,8 @@ Global
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E1464E1E-42E0-4A97-9B96-E81FA92F8169}
 	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		Quark.Share\Quark.Share.projitems*{575faec9-6a42-4bd1-8dcf-63862c872e56}*SharedItemsImports = 5
+		Quark.Share\Quark.Share.projitems*{a58086c5-7e2b-402b-9c80-3f38a68fb49c}*SharedItemsImports = 13
+	EndGlobalSection
 EndGlobal

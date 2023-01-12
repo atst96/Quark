@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Livet;
 using Quark.Data.Project;
 using Quark.Models.Neutrino;
+using Quark.Projects.Tracks;
 using Quark.Utils;
 
 namespace Quark.Projects;
@@ -80,4 +81,7 @@ internal class Project : NotificationObject
         => trackId is null
             ? Path.Combine(this.Directory, "tracks")
             : Path.Combine(this.Directory, "tracks", trackId);
+
+    public string GetTrackDirectoryPath(TrackBase track)
+        => this.GetTrackDirectoryPath(track?.TrackId);
 }

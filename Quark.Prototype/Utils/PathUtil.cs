@@ -9,4 +9,6 @@ internal static class PathUtil
 
     public static string GetAbsolutePath(string relativePath)
         => Path.Combine(_workDirectory, relativePath);
+
+    public static string Dq(string path) => $"\"{path}\"";
 }

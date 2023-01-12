@@ -20,6 +20,14 @@
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenSettingWindow">
             <l:TransitionInteractionMessageAction WindowType="{x:Type v:PreferenceWindow}" Mode="Modal" IsOwned="True" />
         </l:InteractionMessageTrigger>
+        
+        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenProgressWindow">
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:ProgressWindow}" Mode="Modal" IsOwned="True">
+                <l:DirectInteractionMessage>
+                    <l:TransitionMessage TransitionViewModel="{Binding ProgressWindowViewModel,Mode=OneTime}" />
+                </l:DirectInteractionMessage>
+            </l:TransitionInteractionMessageAction>
+        </l:InteractionMessageTrigger>
 
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenNewProjectWindow">
             <l:TransitionInteractionMessageAction WindowType="{x:Type v:NewProjectWindow}" Mode="Modal" IsOwned="True">

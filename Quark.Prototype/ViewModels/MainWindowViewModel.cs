@@ -1,16 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows.Documents;
 using System.Windows.Input;
 using Livet.Messaging;
 using Livet.Messaging.IO;
+using Quark.Data.Projects;
 using Quark.Models.Neutrino;
 using Quark.Mvvm;
 using Quark.Projects;
+using Quark.Projects.Tracks;
 using Quark.Services;
 
 namespace Quark.ViewModels;
 
-internal class MainWindowViewModel : ViewModelBase
+internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 {
     private NeutrinoService _neutrino;
     private ProjectService _projects;
@@ -18,6 +25,10 @@ internal class MainWindowViewModel : ViewModelBase
     private Project? _currentProject;
 
     public bool HasProject => this._currentProject is not null;
+
+    private ProgressWindowViewModel _progressWindowViewModel;
+    public ProgressWindowViewModel ProgressWindowViewModel
+        => this._progressWindowViewModel ??= new("進捗状況", closeable: false);
 
     /// <summary>
     /// 現在のプロジェクト
@@ -98,6 +109,11 @@ internal class MainWindowViewModel : ViewModelBase
         if (msg is { Response.Length: > 0 })
         {
             this.CurrentProject = this._projects.Open(msg.Response[0], this._neutrino.GetModels());
+
+            if (this.CurrentProject.Tracks.LastOrDefault() is NeutrinoTrack t)
+            {
+                this.LoadTrack(this.CurrentProject, t);
+            }
         }
     }
 
@@ -122,6 +138,53 @@ internal class MainWindowViewModel : ViewModelBase
         }
 
         var path = msg.Response[0];
-        this.CurrentProject!.Tracks.ImportFromMusicXml(path, System.IO.Path.GetFileNameWithoutExtension(path));
+        var track = this.CurrentProject!.Tracks.ImportFromMusicXml(path, System.IO.Path.GetFileNameWithoutExtension(path));
+        this.LoadTrack(this.CurrentProject!, track);
+    }
+
+    private const string TempModelId = "KIRITAN";
+
+    public async void LoadTrack(Project project, NeutrinoTrack track)
+    {
+        var modelId = TempModelId;
+
+        var musicXml = track.GetMusicXmlPath();
+        var fullLabel = track.GetFullLabelPath();
+        var monoLabel = track.GetMonoLabelPath();
+        var f0Path = track.GetF0Path(modelId);
+        var mspecPath = track.GetMspecPath(modelId);
+
+        // Label
+        if (!(File.Exists(fullLabel) || File.Exists(monoLabel)))
+        {
+            this._neutrino.ConvertMusicXmlToTiming(track).Wait();
+        }
+
+        var timingPath = track.GetTimingLabelPath();
+        if (!File.Exists(timingPath))
+        {
+            await this._neutrino.GetTiming(track, modelId);
+        }
+
+        // 推論
+        if (!(File.Exists(f0Path) || File.Exists(mspecPath)))
+        {
+            var vm = this.ProgressWindowViewModel;
+            vm.Clear(closeable: false);
+
+            _ = this.Messenger.RaiseAsync(new("OpenProgressWindow"));
+            bool result = await this._neutrino.EstimateFeatures(track, TempModelId, vm);
+
+            vm.CanClose();
+            if (result)
+            {
+                vm.Close();
+            }
+        }
+    }
+
+    public void Report(ProgressReport value)
+    {
+        Debug.WriteLine(value);
     }
 }
