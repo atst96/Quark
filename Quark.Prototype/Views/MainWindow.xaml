@@ -115,7 +115,23 @@
             </ListBox>-->
 
             <Grid Grid.Column="2">
+                <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12"
+                        BorderThickness="1" BorderBrush="#AAAA00" Background="#FFFFAA">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
+                        <TextBlock Grid.Column="0" Text="モデル: " Margin="4"
+                                   VerticalAlignment="Center"/>
+
+                        <ComboBox Grid.Column="1" Width="180" Margin="4"
+                                  ItemsSource="{Binding Models, Mode=OneWay}"
+                                  DisplayMemberPath="Name"
+                                  SelectedItem="{Binding SelectedModelInfo, Mode=TwoWay}"/>
+                    </Grid>
+                </Border>
             </Grid>
         </Grid>
 

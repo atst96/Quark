@@ -22,8 +22,9 @@ internal class NeutrinoTrack : TrackBase
     public bool HasTiming(string modelId)
         => this._audioFeatures.TryGetValue(modelId, out var f) && f.HasTiming();
 
-    public NeutrinoTrack(Project project, string trackName, string musicXml) : base(project, trackName)
+    public NeutrinoTrack(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
     {
+        this.Singer = model;
         this.MusicXml = musicXml;
     }
 
@@ -33,7 +34,7 @@ internal class NeutrinoTrack : TrackBase
         var singer = config.Singer;
         if (singer is not null)
         {
-            this.Singer = models.FirstOrDefault(t => t.Id == singer);
+            this.Singer = models.FirstOrDefault(t => t.Id == singer)!; // TODO: モデルが見つからない場合
         }
 
         this.MusicXml = config.MusicXml;
@@ -68,7 +69,7 @@ internal class NeutrinoTrack : TrackBase
             };
         }).ToDictionary(i => i.ModelId);
 
-        return new NeutrinoTrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Name, features);
+        return new NeutrinoTrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Id, features);
     }
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
