@@ -23,6 +23,8 @@
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.39" />
   </ItemGroup>
 
-  <Import Project="..\Quark.Share\Quark.Share.projitems" Label="Shared" />
+  <ItemGroup>
+    <ProjectReference Include="..\Quark.Share\Quark.Share.csproj" />
+  </ItemGroup>
 
 </Project>
