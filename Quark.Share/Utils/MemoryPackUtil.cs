@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using MemoryPack;
+using ZstdNet;
 
 namespace Quark.Utils;
 
@@ -16,4 +17,26 @@ internal static class MemoryPackUtil
 
     public static void WriteFile<T>(string path, T data)
         => File.WriteAllBytes(path, Serialize(data));
+
+    public static T DeserializeCompressed<T>(byte[] data)
+    {
+        using (var dec = new Decompressor())
+        {
+            return Deserialize<T>(dec.Unwrap(data));
+        };
+    }
+
+    public static T ReadFileCompressed<T>(string path)
+        => DeserializeCompressed<T>(File.ReadAllBytes(path));
+
+    public static byte[] SerializeCompression<T>(T data)
+    {
+        using (var comp = new Compressor(new(CompressionOptions.MaxCompressionLevel)))
+        {
+            return comp.Wrap(MemoryPackSerializer.Serialize(data));
+        }
+    }
+
+    public static void WriteFileCompression<T>(string path, T data)
+        => File.WriteAllBytes(path, SerializeCompression(data));
 }
