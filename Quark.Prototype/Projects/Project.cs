@@ -27,23 +27,16 @@ internal class Project : NotificationObject
 
     public TrackCollection Tracks { get; }
 
-    /// <summary>
-    /// プロジェクトのディレクトリ
-    /// </summary>
-    public string Directory { get; }
-
-    public Project(string name, string directory)
+    public Project(string name)
     {
         this.Tracks = new(this);
         this._name = name;
-        this.Directory = directory;
     }
 
     public Project(string projDir, ProjectConfig composition, IEnumerable<ModelInfo> models)
     {
         this.ProjectFilePath = projDir;
         this._name = composition.Name;
-        this.Directory = composition.Directory;
         this.Tracks = new(this);
         this.Tracks.Load(composition.Tracks, models);
     }
@@ -70,18 +63,5 @@ internal class Project : NotificationObject
 
 
     public ProjectConfig GetConfig()
-        => new(this.Name, this.Directory, this.Tracks.GetConfig());
-
-    /// <summary>
-    /// トラックのディレクトリを取得する
-    /// </summary>
-    /// <param name="trackId">トラックID</param>
-    /// <returns>トラックのディレクトリ</returns>
-    public string GetTrackDirectoryPath(string? trackId)
-        => trackId is null
-            ? Path.Combine(this.Directory, "tracks")
-            : Path.Combine(this.Directory, "tracks", trackId);
-
-    public string GetTrackDirectoryPath(TrackBase track)
-        => this.GetTrackDirectoryPath(track?.TrackId);
+        => new(this.Name, this.Tracks.GetConfig());
 }

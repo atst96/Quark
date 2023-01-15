@@ -79,7 +79,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         var viewModel = (NewProjectWindowViewModel)msg.TransitionViewModel;
         if (viewModel is { IsInvalid: true })
         {
-            this.CurrentProject = this._projects.Create(viewModel.ProjectName, viewModel.WorkingDirectory);
+            this.CurrentProject = this._projects.Create(viewModel.ProjectName);
         }
     }
 
@@ -148,36 +148,56 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         var modelId = TempModelId;
 
-        var musicXml = track.GetMusicXmlPath();
-        var fullLabel = track.GetFullLabelPath();
-        var monoLabel = track.GetMonoLabelPath();
-        var f0Path = track.GetF0Path(modelId);
-        var mspecPath = track.GetMspecPath(modelId);
-
         // Label
-        if (!(File.Exists(fullLabel) || File.Exists(monoLabel)))
+        if (!track.HasScoreTiming())
         {
-            this._neutrino.ConvertMusicXmlToTiming(track).Wait();
+            var result = await this._neutrino.ConvertMusicXmlToTiming(track);
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
         }
 
-        var timingPath = track.GetTimingLabelPath();
-        if (!File.Exists(timingPath))
+            track.FullTiming = result.FullTiming;
+            track.MonoTiming = result.MonoTiming;
+        }
+
+        var features = track.GetFeatures(modelId);
+        if (!features.HasTiming())
         {
-            await this._neutrino.GetTiming(track, modelId);
+            var result = await this._neutrino.GetTiming(track, features);
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
+            }
+
+            features.Timing = result.Timing;
+            features.F0 = null;
+            features.Mspec = null;
         }
 
         // 推論
-        if (!(File.Exists(f0Path) || File.Exists(mspecPath)))
+        if (!features.HasFeatures())
         {
             var vm = this.ProgressWindowViewModel;
             vm.Clear(closeable: false);
 
             _ = this.Messenger.RaiseAsync(new("OpenProgressWindow"));
-            bool result = await this._neutrino.EstimateFeatures(track, TempModelId, vm);
+            var result = await this._neutrino.EstimateFeatures(track, features, progress: vm);
 
             vm.CanClose();
-            if (result)
+            if (result is null)
             {
+                // TODO: 実行失敗時
+                return;
+            }
+            else
+            {
+                features.F0 = result.F0;
+                features.Mspec = result.Mspec;
+
+                // 進捗ウィンドウを閉じる
                 vm.Close();
             }
         }

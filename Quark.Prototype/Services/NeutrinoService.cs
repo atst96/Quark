@@ -2,14 +2,16 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Documents;
-using System.Windows.Navigation;
-using Livet.Behaviors.Messaging;
+using Quark.Constants;
 using Quark.Data.Projects;
 using Quark.Data.Settings;
 using Quark.Models.Neutrino;
+using Quark.Neutrino;
+using Quark.Projects.Neutrino;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 
@@ -54,25 +56,52 @@ internal class NeutrinoService
     private string GetNeutrinoPath(string path)
         => Path.Combine(this.GetNeturinoDir(), path);
 
-    public Task ConvertMusicXmlToTiming(NeutrinoTrack track)
+    private static readonly Encoding TextEncoding = new UTF8Encoding(false);
+
+    public async Task<ConvertScoreToTimingResult?> ConvertMusicXmlToTiming(NeutrinoTrack track)
     {
         var procExe = this.GetNeutrinoPath(MusicXmlExe);
 
-        var args = $"\"{track.GetMusicXmlPath()}\" \"{track.GetFullLabelPath()}\" \"{track.GetMonoLabelPath()}\"";
-        var p = Process.Start(new ProcessStartInfo(procExe, args)
+        using (var musicXmlFile = TempFile.Create(FileAccess.ReadWrite, FileShare.Read, FileExtensions.MusicXML))
+        using (var fullLabFile = new VirtualFile(FileExtensions.Label))
+        using (var monoLabFile = new VirtualFile(FileExtensions.Label))
         {
-            WorkingDirectory = this.GetNeturinoDir(),
-        })!;
+            musicXmlFile.Write(TextEncoding.GetBytes(track.MusicXml));
 
-        return p.WaitForExitAsync();
+            var t1 = fullLabFile.Read();
+            var t2 = monoLabFile.Read();
+
+            var args = string.Join(" ",
+                PathUtil.Dq(musicXmlFile.Path),
+                PathUtil.Dq(fullLabFile.FilePath),
+                PathUtil.Dq(monoLabFile.FilePath));
+
+            var p = Process.Start(new ProcessStartInfo(procExe, args)
+            {
+                WorkingDirectory = this.GetNeturinoDir(),
+            })!;
+
+            await p.WaitForExitAsync().ConfigureAwait(false);
+
+            if (IsSuccess(p.ExitCode))
+            {
+                await Task.WhenAll(t1, t2).ConfigureAwait(false);
+
+                return new(t1.Result, t2.Result);
+            }
+        }
+
+        return null;
     }
 
     private static readonly Regex Regex = new(@"^.+Progress\s*=\s*(?<progress>\d+)\s*%.+$", RegexOptions.Compiled);
 
     private static bool IsSuccess(int exitCode) => exitCode == 0;
 
-    private static async Task<int> Run(string exePath, string? args = null, string? pwd = null, IProgress<ProgressReport>? progress = null)
+    private static async Task<bool> Run(string exePath, string? args = null, string? pwd = null, IProgress<ProgressReport>? progress = null)
     {
+        Debug.WriteLine("=== START NEUTRINO ===");
+
         using var p = new Process()
         {
             StartInfo = new(exePath)
@@ -91,6 +120,8 @@ internal class NeutrinoService
         void receive(object _, DataReceivedEventArgs args)
         {
             var line = args.Data ?? string.Empty;
+            Debug.WriteLine(line);
+
             double? progressValue = null;
 
             var m = Regex.Match(line);
@@ -112,49 +143,124 @@ internal class NeutrinoService
 
         await p.WaitForExitAsync().ConfigureAwait(false);
 
+        Debug.WriteLine("=== END NEUTRINO ===");
+
         p.OutputDataReceived -= receive;
 
 
-        if (!IsSuccess(p.ExitCode))
+        bool isSuccess = IsSuccess(p.ExitCode);
+
+        if (!isSuccess)
         {
             progress?.Report(new(ProgressReportType.Error, null, 100));
         }
 
-        return p.ExitCode;
+        return isSuccess;
     }
 
-    public Task<bool> GetTiming(NeutrinoTrack track, string modelId, IProgress<ProgressReport>? progress = null)
+    public async Task<EstimateTimingResult?> GetTiming(NeutrinoTrack track, AudioFeaturesV2 features, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetNeutrinoPath(NeutrinoExe);
 
-        var args = string.Join(" ",
-            PathUtil.Dq(track.GetFullLabelPath()),
-            PathUtil.Dq(track.GetTimingLabelPath()),
-            PathUtil.Dq(track.GetF0Path(modelId)),
-            PathUtil.Dq(track.GetMspecPath(modelId)),
-            this.GetModelPath(modelId),
-            "-i", PathUtil.Dq(track.GetPhrasePath(modelId)),
-            "-m -t -a");
+        // 対象ファイル用のCancellationToken
+        using var targetClTokenSource = new CancellationTokenSource();
+        var targetClToken = targetClTokenSource.Token;
 
-        return Run(procExe, args, this.GetNeturinoDir(), progress).ContinueWith(t => t.Result != 0, TaskContinuationOptions.OnlyOnRanToCompletion);
+        // 一時ファイル用のCancellationToken
+        using var tempClTokenSource = new CancellationTokenSource();
+        var tempClToken = tempClTokenSource.Token;
+
+        using (var fullLabFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
+        using (var timingLabFile = new VirtualFile(FileExtensions.Label))
+        using (var phraseFile = new VirtualFile(FileExtensions.Text))
+        using (var f0File = new VirtualFile(FileExtensions.F0))
+        using (var mspecFile = new VirtualFile(FileExtensions.Mspec))
+        {
+            // 一時ファイルのタイミング情報を書き込む
+            fullLabFile.Write(track.FullTiming);
+
+            var args = string.Join(" ",
+                PathUtil.Dq(fullLabFile.Path),
+                PathUtil.Dq(timingLabFile.FilePath),
+                PathUtil.Dq(f0File.FilePath),
+                PathUtil.Dq(mspecFile.FilePath),
+                this.GetModelPath(features.ModelId),
+                "-i", PathUtil.Dq(phraseFile.FilePath),
+                "-m", "-t", "-a");
+
+            var timingLabTask = timingLabFile.Read(targetClToken);
+            var phraseTask = phraseFile.Read(targetClToken);
+            var f0Task = f0File.Read(tempClToken);
+            var mspecTask = mspecFile.Read(tempClToken);
+
+            bool isSuccess = await Run(procExe, args, this.GetNeturinoDir(), progress)
+                .ConfigureAwait(false);
+
+            if (isSuccess)
+            {
+                tempClTokenSource.Cancel();
+
+                await Task.WhenAll(timingLabTask, phraseTask).ConfigureAwait(false);
+
+                return new(
+                    TextEncoding.GetString(timingLabTask.Result),
+                    TextEncoding.GetString(phraseTask.Result));
+            }
+            else
+            {
+                targetClTokenSource.Cancel();
+                tempClTokenSource.Cancel();
+            }
+        }
+
+        return null;
     }
 
-    public async Task<bool> EstimateFeatures(NeutrinoTrack track, string modelId, IProgress<ProgressReport>? progress = null)
+    public async Task<EstimateFeaturesResultV2?> EstimateFeatures(NeutrinoTrack track, AudioFeaturesV2 features, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetNeutrinoPath(NeutrinoExe);
 
-        var args = string.Join(" ",
-            PathUtil.Dq(track.GetFullLabelPath()),
-            PathUtil.Dq(track.GetTimingLabelPath()),
-            PathUtil.Dq(track.GetF0Path(modelId)),
-            PathUtil.Dq(track.GetMspecPath(modelId)),
-            this.GetModelPath(modelId),
-            "-i", PathUtil.Dq(track.GetPhrasePath(modelId)),
-            "-m -t");
+        // 対象ファイル用のCancellationToken
+        using var clTokenSource = new CancellationTokenSource();
+        var clToken = clTokenSource.Token;
 
-        int exitCode = await Run(procExe, args, this.GetNeturinoDir(), progress)
-            .ConfigureAwait(false);
+        using (var fullLabFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
+        using (var timingLabFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
+        using (var f0File = new VirtualFile(FileExtensions.F0))
+        using (var mspecFile = new VirtualFile(FileExtensions.Mspec))
+        {
+            // 一時ファイルのタイミング情報を書き込む
+            fullLabFile.Write(track.FullTiming);
+            timingLabFile.Write(TextEncoding.GetBytes(features.Timing!));
 
-        return IsSuccess(exitCode);
+            var args = string.Join(" ",
+                PathUtil.Dq(fullLabFile.Path),
+                PathUtil.Dq(timingLabFile.Path),
+                PathUtil.Dq(f0File.FilePath),
+                PathUtil.Dq(mspecFile.FilePath),
+                this.GetModelPath(features.ModelId),
+                "-m", "-t", "-s");
+
+            var f0Task = f0File.Read(clToken);
+            var mspecTask = mspecFile.Read(clToken);
+
+            bool isSuccess = await Run(procExe, args, this.GetNeturinoDir(), progress)
+                .ConfigureAwait(false);
+
+            if (isSuccess)
+            {
+                await Task.WhenAll(f0Task, mspecTask).ConfigureAwait(false);
+
+                return new(
+                    DataConvertUtil.Convert<float>(f0Task.Result),
+                    DataConvertUtil.Convert<float>(mspecTask.Result));
+            }
+            else
+            {
+                clTokenSource.Cancel();
+            }
+        }
+
+        return null;
     }
 }

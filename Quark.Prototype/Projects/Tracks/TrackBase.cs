@@ -9,8 +9,6 @@ internal abstract class TrackBase : NotificationObject
 {
     protected Project Project { get; }
 
-    public string DirectoryPath { get; }
-
     public string TrackId { get; }
 
     private string _trackName;
@@ -26,7 +24,6 @@ internal abstract class TrackBase : NotificationObject
         this.Project = project;
         this.TrackId = trackId;
         this._trackName = trackName;
-        this.DirectoryPath = project.GetTrackDirectoryPath(this.TrackId);
     }
 
     protected TrackBase(Project project, string trackName)

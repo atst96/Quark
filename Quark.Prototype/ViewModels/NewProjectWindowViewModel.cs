@@ -32,35 +32,9 @@ internal class NewProjectWindowViewModel : ViewModelBase
         }
     }
 
-    private string _workindDirectory = string.Empty;
-
-    /// <summary>
-    /// 作業フォルダ
-    /// </summary>
-    public string WorkingDirectory
-    {
-        get => this._workindDirectory;
-        set
-        {
-            if (this.RaisePropertyChangedIfSet(ref this._workindDirectory, value))
-            {
-                this.Validate();
-            }
-        }
-    }
-
     private void Validate()
     {
-        this.IsInvalid = !(string.IsNullOrWhiteSpace(this.ProjectName) || string.IsNullOrWhiteSpace(this.WorkingDirectory));
-    }
-
-
-    public void OnWorkDirectorySelected(FolderSelectionMessage message)
-    {
-        if (message.Response is not null)
-        {
-            this.WorkingDirectory = message.Response;
-        }
+        this.IsInvalid = !(string.IsNullOrWhiteSpace(this.ProjectName));
     }
 
     /// <summary>
@@ -69,6 +43,5 @@ internal class NewProjectWindowViewModel : ViewModelBase
     public void Clear()
     {
         this._projectName = string.Empty;
-        this._workindDirectory = string.Empty;
     }
 }
