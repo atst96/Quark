@@ -1,8 +1,4 @@
-﻿using System;
-using System.IO;
-using System.IO.Pipes;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.IO.Pipes;
 using Quark.Utils;
 
 namespace Quark;
@@ -10,7 +6,7 @@ namespace Quark;
 /// <summary>
 /// 名前付きパイプを使用して出力ファイルを受け取るためのクラス
 /// </summary>
-internal class VirtualFile : IDisposable
+public class VirtualFile : IDisposable
 {
     private static readonly string _commonGuid = GuidUtil.GetStringGuid();
     private string _pipeName;

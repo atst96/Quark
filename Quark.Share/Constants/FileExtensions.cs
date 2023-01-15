@@ -1,6 +1,6 @@
 ﻿namespace Quark.Constants;
 
-internal static class FileExtensions
+public static class FileExtensions
 {
     /// <summary>ラベル</summary>
     public const string MusicXML = ".musicxml";

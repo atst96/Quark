@@ -4,7 +4,7 @@ using ZstdNet;
 
 namespace Quark.Utils;
 
-internal static class MemoryPackUtil
+public static class MemoryPackUtil
 {
     public static T Deserialize<T>(byte[] data)
         => MemoryPackSerializer.Deserialize<T>(data)!;
