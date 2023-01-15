@@ -1,11 +1,15 @@
 ﻿using System;
 using System.IO;
 using System.IO.Pipes;
+using System.Threading;
 using System.Threading.Tasks;
 using Quark.Utils;
 
 namespace Quark;
 
+/// <summary>
+/// 名前付きパイプを使用して出力ファイルを受け取るためのクラス
+/// </summary>
 internal class VirtualFile : IDisposable
 {
     private static readonly string _commonGuid = GuidUtil.GetStringGuid();
@@ -13,13 +17,14 @@ internal class VirtualFile : IDisposable
     private NamedPipeServerStream _namedPipeServer;
     private bool _disposedValue;
 
-    public VirtualFile(string? suffix)
+    public VirtualFile(string? suffix = null)
     {
-        this._pipeName = string.Join("/", "Quark", _commonGuid, GuidUtil.GetStringGuid() + (suffix ?? string.Empty));
+        this._pipeName = Path.Combine("Quark", _commonGuid, GuidUtil.GetStringGuid() + suffix);
         this._namedPipeServer = new(this._pipeName, PipeDirection.InOut);
     }
 
-    public string GetPath() => Path.Join("/", "Quark", this._pipeName);
+    public string FilePath =>
+        OperatingSystem.IsWindows() ? (@"\\.\pipe\" + this._pipeName) : (@"/tmp/" + this._pipeName);
 
     private Task WaitConnection()
     {
@@ -29,11 +34,12 @@ internal class VirtualFile : IDisposable
             : Task.CompletedTask;
     }
 
-    public Task<byte[]> Read() => Task.Run(() =>
+    public async Task<byte[]> Read(CancellationToken? cancellationToken = null)
     {
         var server = this._namedPipeServer;
 
-        server.WaitForConnection();
+        await server.WaitForConnectionAsync(cancellationToken ?? CancellationToken.None)
+            .ConfigureAwait(false);
 
         byte[] data;
         using (var ms = new MemoryStream())
@@ -45,7 +51,7 @@ internal class VirtualFile : IDisposable
         server.Disconnect();
 
         return data;
-    });
+    }
 
     public Task Write(byte[] data) => this.WaitConnection().ContinueWith(t =>
     {
