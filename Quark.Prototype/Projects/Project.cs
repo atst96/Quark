@@ -54,11 +54,11 @@ internal class Project : NotificationObject
             this.ProjectFilePath = projPath;
         }
 
-        MemoryPackUtil.WriteFile(projPath, this.GetConfig());
+        MemoryPackUtil.WriteFileCompression(projPath, this.GetConfig());
     }
 
     public static Project Open(string projPath, IEnumerable<ModelInfo> models)
-        => new Project(projPath, MemoryPackUtil.ReadFile<ProjectConfig>(projPath)!, models);
+        => new Project(projPath, MemoryPackUtil.ReadFileCompressed<ProjectConfig>(projPath)!, models);
 
 
 
