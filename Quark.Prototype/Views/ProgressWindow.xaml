@@ -24,7 +24,7 @@
     </i:Interaction.Behaviors>
     <i:Interaction.Triggers>
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="WindowClose">
-            <l:WindowInteractionMessageAction>
+            <l:WindowInteractionMessageAction InvokeActionOnlyWhenWindowIsActive="False">
                 <l:DirectInteractionMessage>
                     <l:WindowActionMessage Action="Close" />
                 </l:DirectInteractionMessage>
@@ -71,7 +71,7 @@
 
         <Button Grid.Row="1" Grid.Column="1" Margin="0,4,4,4" Width="100" Style="{StaticResource Button.Primary}"
                 HorizontalAlignment="Right"
-                IsEnabled="{Binding Closeable,Mode=OneWay}"
+                IsEnabled="{Binding Closeable, Mode=OneWay}"
                 Content="閉じる" IsCancel="True" />
     </Grid>
 </Window>

@@ -18,11 +18,11 @@
     FontFamily="{StaticResource UIFont}">
     <i:Interaction.Triggers>
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenSettingWindow">
-            <l:TransitionInteractionMessageAction WindowType="{x:Type v:PreferenceWindow}" Mode="Modal" IsOwned="True" />
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:PreferenceWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False" />
         </l:InteractionMessageTrigger>
-        
+
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenProgressWindow">
-            <l:TransitionInteractionMessageAction WindowType="{x:Type v:ProgressWindow}" Mode="Modal" IsOwned="True">
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:ProgressWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False">
                 <l:DirectInteractionMessage>
                     <l:TransitionMessage TransitionViewModel="{Binding ProgressWindowViewModel,Mode=OneTime}" />
                 </l:DirectInteractionMessage>
@@ -30,7 +30,7 @@
         </l:InteractionMessageTrigger>
 
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenNewProjectWindow">
-            <l:TransitionInteractionMessageAction WindowType="{x:Type v:NewProjectWindow}" Mode="Modal" IsOwned="True">
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:NewProjectWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False">
                 <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnNewProjectSelected">
                     <l:TransitionMessage TransitionViewModel="{Binding NewProjectViewModel, Mode=OneTime}" />
                 </l:DirectInteractionMessage>
@@ -38,7 +38,7 @@
         </l:InteractionMessageTrigger>
 
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="SaveProjectDialog">
-            <l:SaveFileDialogInteractionMessageAction>
+            <l:SaveFileDialogInteractionMessageAction InvokeActionOnlyWhenWindowIsActive="False">
                 <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnSaveProjectFileSelected">
                     <l:SavingFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
                 </l:DirectInteractionMessage>
