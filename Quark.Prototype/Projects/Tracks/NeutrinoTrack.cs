@@ -35,30 +35,41 @@ internal class NeutrinoTrack : TrackBase
         {
             this.Singer = models.FirstOrDefault(t => t.Id == singer);
         }
-    }
 
-    public void ImportFromMusicXml(string path)
-    {
-        if (!Directory.Exists(this.DirectoryPath))
+        this.MusicXml = config.MusicXml;
+        this.FullTiming = config.FullTiming;
+        this.MonoTiming = config.MonoTiming;
+
+        var features = this._audioFeatures;
+        features.Clear();
+
+        foreach (var kvp in config.Features)
         {
-            Directory.CreateDirectory(this.DirectoryPath);
+            var value = kvp.Value;
+            features.Add(kvp.Key, new(value.ModelId)
+            {
+                Timing = value.Timing,
+                F0 = value.F0,
+                Mspec = value.Mspec,
+            });
         }
-
-        File.Copy(path, this.GetMusicXmlPath());
     }
 
     public override TrackBaseConfig GetConfig()
-        => new NeutrinoTrackConfig(this.TrackId, this.TrackName, this.Singer?.Name);
+    {
+        var features = this._audioFeatures.Select((kvp) =>
+        {
+            var value = kvp.Value;
+            return new AudioFeaturesConfigV2(value.ModelId)
+            {
+                Timing = value.Timing,
+                F0 = value.F0,
+                Mspec = value.Mspec,
+            };
+        }).ToDictionary(i => i.ModelId);
 
-    public string GetMusicXmlPath() => Path.Combine(this.DirectoryPath, "score.musicxml");
-
-    public string GetFullLabelPath() => Path.Combine(this.DirectoryPath, "full.lab");
-
-    public string GetMonoLabelPath() => Path.Combine(this.DirectoryPath, "mono.lab");
-
-    public string GetTimingLabelPath() => Path.Combine(this.DirectoryPath, "timing.lab");
-
-    public string GetPhrasePath(string modelId) => Path.Combine(this.DirectoryPath, $"{modelId}.phrase.txt");
+        return new NeutrinoTrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Name, features);
+    }
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
