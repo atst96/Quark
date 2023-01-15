@@ -10,6 +10,7 @@
     xmlns:lb="clr-namespace:Quark.Behaviors"
     xmlns:v="clr-namespace:Quark.Views"
     xmlns:vm="clr-namespace:Quark.ViewModels"
+    xmlns:ctr="clr-namespace:Quark.Controls"
     mc:Ignorable="d"
     Title="MainWindow" Height="450" Width="800"
     lb:ViewModelBehavior.Type="{x:Type vm:MainWindowViewModel}"
@@ -115,6 +116,9 @@
             </ListBox>-->
 
             <Grid Grid.Column="2">
+
+                <ctr:PlotEditor Track="{Binding CurrentTrack, Mode=OneWay}" />
+
                 <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12"
                         BorderThickness="1" BorderBrush="#AAAA00" Background="#FFFFAA">
                     <Grid Margin="8">

@@ -74,6 +74,9 @@ internal class NeutrinoTrack : TrackBase
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
+
+    public AudioFeaturesV2 GetFeatures() => this.GetFeatures(this.Singer!.Id);
+
     public AudioFeaturesV2 GetFeatures(string modelId)
     {
         // 音響データがあれば既存のものを、なければ新規作成して返す

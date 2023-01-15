@@ -1,25 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Xml.Serialization;
 using System.Xml;
 using Quark.Models.MusicXML;
-using System.IO;
 using static Quark.Models.MusicXML.Direction;
-using System.Linq;
 
 namespace Quark.Utils;
 
 /// <summary>
 /// MusicXMLファイルの処理に関するUtil
 /// </summary>
-internal static class MusicXmlUtil
+public static class MusicXmlUtil
 {
     const int Unit = 5;
 
-    public static MusicXmlPhrase Parse(string path)
+    public static MusicXmlPhrase Parse(string xml)
     {
-        var score = ParseMusicXml(path);
+        var score = ParseMusicXml(xml);
 
         var items = new List<MusicXmlPhrase.Frame>(
             /* TODO: 要素数を指定する(パフォーマンス対策) */);
@@ -140,14 +136,14 @@ internal static class MusicXmlUtil
 
     private static XmlSerializer _serializer = new XmlSerializer(typeof(MusicXmlObject));
 
-    private static MusicXmlObject ParseMusicXml(string path)
+    private static MusicXmlObject ParseMusicXml(string xml)
     {
-        using var reader = XmlReader.Create(path, new XmlReaderSettings
+        using (var sr = new StringReader(xml))
+        using (var reader = XmlReader.Create(sr, new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore }))
         {
-            DtdProcessing = DtdProcessing.Ignore
-        });
 
-        return _serializer.Deserialize(reader) as MusicXmlObject ?? throw new NotSupportedException();
+            return _serializer.Deserialize(reader) as MusicXmlObject ?? throw new NotSupportedException();
+        }
     }
 
     static int GetCode(Dictionary<int, int>? keys, Pitch pitch)

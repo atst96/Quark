@@ -188,6 +188,13 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
     private const string TempModelId = "KIRITAN";
 
+    private NeutrinoTrack _currentTrack;
+    public NeutrinoTrack CurrentTrack
+    {
+        get => this._currentTrack;
+        set => this.RaisePropertyChangedIfSet(ref this._currentTrack, value);
+    }
+
     public async void LoadTrack(Project project, NeutrinoTrack track)
     {
         // Label
@@ -198,7 +205,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             {
                 // TODO: 実行失敗時
                 return;
-        }
+            }
 
             track.FullTiming = result.FullTiming;
             track.MonoTiming = result.MonoTiming;
@@ -243,6 +250,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
                 vm.Close();
             }
         }
+
+        App.Instance.Dispatcher.Invoke(() => this.CurrentTrack = track);
     }
 
     public void Report(ProgressReport value)
