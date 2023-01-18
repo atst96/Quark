@@ -10,7 +10,7 @@
         xmlns:vm="clr-namespace:Quark.ViewModels"
         xmlns:local="clr-namespace:Quark.Views"
         mc:Ignorable="d"
-        Title="新しいプロジェクト" Height="230" Width="492"
+        Title="新しいプロジェクト" Height="195" Width="492"
         FontFamily="{DynamicResource UIFont}"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
         FocusManager.FocusedElement="{Binding ElementName=ProjectNameTextBox, Mode=OneTime}"
@@ -49,27 +49,6 @@
                 Text="{Binding ProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
             <!-- 作業フォルダ -->
-            <TextBlock Grid.Column="0" Grid.Row="2" Margin="4" VerticalAlignment="Center">
-                <Run Text="作業フォルダ" /><Run Text="*" Foreground="IndianRed" />
-            </TextBlock>
-
-            <TextBox
-                Grid.Column="2" Grid.Row="2" Margin="0,4,4,4" IsTabStop="False" IsReadOnly="True"
-                Background="{DynamicResource InputBox.Disabled.Background}"
-                Text="{Binding WorkingDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-            <Button
-                Grid.Column="1" Grid.Row="2" Margin="4,4,4,4" TabIndex="1" Content="選択...">
-                <i:Interaction.Triggers>
-                    <i:EventTrigger EventName="Click">
-                        <ab:FolderBrowserDialogInteractionMessageAction>
-                            <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnWorkDirectorySelected">
-                                <ab:FolderSelectionMessage />
-                            </l:DirectInteractionMessage>
-                        </ab:FolderBrowserDialogInteractionMessageAction>
-                    </i:EventTrigger>
-                </i:Interaction.Triggers>
-            </Button>
         </Grid>
 
         <Border Grid.Row="1"

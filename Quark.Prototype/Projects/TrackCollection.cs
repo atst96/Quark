@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
 using Quark.Projects.Tracks;
@@ -21,10 +23,9 @@ internal class TrackCollection : ObservableCollection<TrackBase>
     /// </summary>
     /// <param name="path">パス</param>
     /// <param name="trackName">トラック名</param>
-    public NeutrinoTrack ImportFromMusicXml(string path, string trackName)
+    public NeutrinoTrack ImportFromMusicXml(string path, string trackName, ModelInfo model)
     {
-        var newTrack = new NeutrinoTrack(this._project, trackName);
-        newTrack.ImportFromMusicXml(path);
+        var newTrack = new NeutrinoTrack(this._project, trackName, File.ReadAllText(path, Encoding.UTF8), model);
 
         this.Add(newTrack);
 

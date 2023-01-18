@@ -21,8 +21,11 @@
     <PackageReference Include="MemoryPack" Version="1.9.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.39" />
+    <PackageReference Include="SkiaSharp.Views.WPF" Version="2.88.3" />
   </ItemGroup>
 
-  <Import Project="..\Quark.Share\Quark.Share.projitems" Label="Shared" />
+  <ItemGroup>
+    <ProjectReference Include="..\Quark.Share\Quark.Share.csproj" />
+  </ItemGroup>
 
 </Project>

@@ -1,16 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Windows.Input;
 using Livet.Messaging;
 using Livet.Messaging.IO;
+using Quark.Data.Projects;
 using Quark.Models.Neutrino;
 using Quark.Mvvm;
 using Quark.Projects;
+using Quark.Projects.Tracks;
 using Quark.Services;
 
 namespace Quark.ViewModels;
 
-internal class MainWindowViewModel : ViewModelBase
+internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 {
     private NeutrinoService _neutrino;
     private ProjectService _projects;
@@ -18,6 +23,20 @@ internal class MainWindowViewModel : ViewModelBase
     private Project? _currentProject;
 
     public bool HasProject => this._currentProject is not null;
+
+    private ProgressWindowViewModel? _progressWindowViewModel;
+    public ProgressWindowViewModel ProgressWindowViewModel
+        => this._progressWindowViewModel ??= new("進捗状況", closeable: false);
+
+    private ModelInfo? _selectedModelInfo;
+    /// <summary>
+    /// 選択中のモデル
+    /// </summary>
+    public ModelInfo? SelectedModelInfo
+    {
+        get => this._selectedModelInfo;
+        set => this.RaisePropertyChangedIfSet(ref this._selectedModelInfo, value);
+    }
 
     /// <summary>
     /// 現在のプロジェクト
@@ -34,7 +53,15 @@ internal class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public IList<ModelInfo> Models { get; }
+    private IList<ModelInfo> _models = new List<ModelInfo>();
+    /// <summary>
+    /// 選択可能なモデル情報
+    /// </summary>
+    public IList<ModelInfo> Models
+    {
+        get => this._models;
+        set => this.RaisePropertyChangedIfSet(ref this._models, value);
+    }
 
     private NewProjectWindowViewModel? _newProjectViewModel;
     public NewProjectWindowViewModel NewProjectViewModel
@@ -44,7 +71,7 @@ internal class MainWindowViewModel : ViewModelBase
     {
         this._neutrino = neutrino;
         this._projects = projects;
-        this.Models = neutrino.GetModels();
+        this.UpdateModels();
     }
 
     private ICommand? _openSettingWindowCommand;
@@ -53,6 +80,7 @@ internal class MainWindowViewModel : ViewModelBase
         get => this._openSettingWindowCommand ??= new DelegateCommand(() =>
         {
             this.Messenger.Raise(new TransitionMessage("OpenSettingWindow"));
+            this.UpdateModels();
         });
     }
 
@@ -68,7 +96,7 @@ internal class MainWindowViewModel : ViewModelBase
         var viewModel = (NewProjectWindowViewModel)msg.TransitionViewModel;
         if (viewModel is { IsInvalid: true })
         {
-            this.CurrentProject = this._projects.Create(viewModel.ProjectName, viewModel.WorkingDirectory);
+            this.CurrentProject = this._projects.Create(viewModel.ProjectName);
         }
     }
 
@@ -98,6 +126,11 @@ internal class MainWindowViewModel : ViewModelBase
         if (msg is { Response.Length: > 0 })
         {
             this.CurrentProject = this._projects.Open(msg.Response[0], this._neutrino.GetModels());
+
+            if (this.CurrentProject.Tracks.LastOrDefault() is NeutrinoTrack t)
+            {
+                this.LoadTrack(this.CurrentProject, t);
+            }
         }
     }
 
@@ -122,6 +155,107 @@ internal class MainWindowViewModel : ViewModelBase
         }
 
         var path = msg.Response[0];
-        this.CurrentProject!.Tracks.ImportFromMusicXml(path, System.IO.Path.GetFileNameWithoutExtension(path));
+        var track = this.CurrentProject!.Tracks.ImportFromMusicXml(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
+        this.LoadTrack(this.CurrentProject!, track);
+    }
+
+    /// <summary>初期選択のモデルID</summary>
+    private const string TempDefaultModelId = "KIRITAN";
+
+    private void UpdateModels()
+    {
+        // 前回選択のモデルID
+        var model = this.SelectedModelInfo;
+
+        // モデル一覧を取得
+        this.Models = this._neutrino.GetModels();
+
+
+        if (model is not null)
+        {
+            // 前回選択済みなら同じモデルを選択する
+            this.SelectedModelInfo = this.Models.FirstOrDefault(m => m.Id == model.Id);
+        }
+
+        if (this.SelectedModelInfo is null)
+        {
+            // 前回未選択または前回のモデルが見つからない場合は既定のモデルを選択
+            // それも見つからなければ最初のモデルを選択する
+            this.SelectedModelInfo = this.Models.FirstOrDefault(m => m.Id == TempDefaultModelId)
+                ?? this.Models.FirstOrDefault();
+        }
+    }
+
+    private const string TempModelId = "KIRITAN";
+
+    private NeutrinoTrack _currentTrack;
+    public NeutrinoTrack CurrentTrack
+    {
+        get => this._currentTrack;
+        set => this.RaisePropertyChangedIfSet(ref this._currentTrack, value);
+    }
+
+    public async void LoadTrack(Project project, NeutrinoTrack track)
+    {
+        // Label
+        if (!track.HasScoreTiming())
+        {
+            var result = await this._neutrino.ConvertMusicXmlToTiming(track);
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
+            }
+
+            track.FullTiming = result.FullTiming;
+            track.MonoTiming = result.MonoTiming;
+        }
+
+        var features = track.GetFeatures(track.Singer!.Id);
+        if (!features.HasTiming())
+        {
+            var result = await this._neutrino.GetTiming(track, features);
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
+            }
+
+            features.Timing = result.Timing;
+            features.F0 = null;
+            features.Mspec = null;
+        }
+
+        // 推論
+        if (!features.HasFeatures())
+        {
+            var vm = this.ProgressWindowViewModel;
+            vm.Clear(closeable: false);
+
+            _ = this.Messenger.RaiseAsync(new("OpenProgressWindow"));
+            var result = await this._neutrino.EstimateFeatures(track, features, progress: vm);
+
+            vm.CanClose();
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
+            }
+            else
+            {
+                features.F0 = result.F0;
+                features.Mspec = result.Mspec;
+
+                // 進捗ウィンドウを閉じる
+                vm.Close();
+            }
+        }
+
+        App.Instance.Dispatcher.Invoke(() => this.CurrentTrack = track);
+    }
+
+    public void Report(ProgressReport value)
+    {
+        Debug.WriteLine(value);
     }
 }

@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Livet;
 using Quark.Data.Project;
 using Quark.Models.Neutrino;
+using Quark.Projects.Tracks;
 using Quark.Utils;
 
 namespace Quark.Projects;
@@ -26,23 +27,16 @@ internal class Project : NotificationObject
 
     public TrackCollection Tracks { get; }
 
-    /// <summary>
-    /// プロジェクトのディレクトリ
-    /// </summary>
-    public string Directory { get; }
-
-    public Project(string name, string directory)
+    public Project(string name)
     {
         this.Tracks = new(this);
         this._name = name;
-        this.Directory = directory;
     }
 
     public Project(string projDir, ProjectConfig composition, IEnumerable<ModelInfo> models)
     {
         this.ProjectFilePath = projDir;
         this._name = composition.Name;
-        this.Directory = composition.Directory;
         this.Tracks = new(this);
         this.Tracks.Load(composition.Tracks, models);
     }
@@ -60,24 +54,14 @@ internal class Project : NotificationObject
             this.ProjectFilePath = projPath;
         }
 
-        MemoryPackUtil.WriteFile(projPath, this.GetConfig());
+        MemoryPackUtil.WriteFileCompression(projPath, this.GetConfig());
     }
 
     public static Project Open(string projPath, IEnumerable<ModelInfo> models)
-        => new Project(projPath, MemoryPackUtil.ReadFile<ProjectConfig>(projPath)!, models);
+        => new Project(projPath, MemoryPackUtil.ReadFileCompressed<ProjectConfig>(projPath)!, models);
 
 
 
     public ProjectConfig GetConfig()
-        => new(this.Name, this.Directory, this.Tracks.GetConfig());
-
-    /// <summary>
-    /// トラックのディレクトリを取得する
-    /// </summary>
-    /// <param name="trackId">トラックID</param>
-    /// <returns>トラックのディレクトリ</returns>
-    public string GetTrackDirectoryPath(string? trackId)
-        => trackId is null
-            ? Path.Combine(this.Directory, "tracks")
-            : Path.Combine(this.Directory, "tracks", trackId);
+        => new(this.Name, this.Tracks.GetConfig());
 }

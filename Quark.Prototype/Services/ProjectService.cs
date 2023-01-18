@@ -11,16 +11,7 @@ internal class ProjectService
     {
     }
 
-    public Project Create(string name, string directory)
-    {
-        var dirInfo = new DirectoryInfo(directory);
-        if (!dirInfo.Exists)
-        {
-            dirInfo.Create();
-        }
-
-        return new Project(name, directory);
-    }
+    public Project Create(string name) => new Project(name);
 
     public Project Open(string projPath, IEnumerable<ModelInfo> models)
         => Project.Open(projPath, models);

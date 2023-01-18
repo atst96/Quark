@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using MemoryPack;
 using Quark.Data.Projects.Tracks;
 
@@ -8,7 +9,9 @@ namespace Quark.Data.Project;
 internal partial class ProjectConfig
 {
     public string Name { get; set; }
-    public string Directory { get; set; }
+
+    [Obsolete("Deprecated", false)]
+    public string? Directory { get; set; }
 
     public IEnumerable<TrackBaseConfig> Tracks { get; init; }
 
@@ -17,10 +20,9 @@ internal partial class ProjectConfig
     private ProjectConfig() { }
 #pragma warning restore CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
 
-    public ProjectConfig(string name, string directory, IEnumerable<TrackBaseConfig> tracks)
+    public ProjectConfig(string name, IEnumerable<TrackBaseConfig> tracks)
     {
         this.Name = name;
-        this.Directory = directory;
         this.Tracks = tracks;
     }
 }

@@ -10,6 +10,7 @@
     xmlns:lb="clr-namespace:Quark.Behaviors"
     xmlns:v="clr-namespace:Quark.Views"
     xmlns:vm="clr-namespace:Quark.ViewModels"
+    xmlns:ctr="clr-namespace:Quark.Controls"
     mc:Ignorable="d"
     Title="MainWindow" Height="450" Width="800"
     lb:ViewModelBehavior.Type="{x:Type vm:MainWindowViewModel}"
@@ -18,11 +19,19 @@
     FontFamily="{StaticResource UIFont}">
     <i:Interaction.Triggers>
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenSettingWindow">
-            <l:TransitionInteractionMessageAction WindowType="{x:Type v:PreferenceWindow}" Mode="Modal" IsOwned="True" />
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:PreferenceWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False" />
+        </l:InteractionMessageTrigger>
+
+        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenProgressWindow">
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:ProgressWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False">
+                <l:DirectInteractionMessage>
+                    <l:TransitionMessage TransitionViewModel="{Binding ProgressWindowViewModel,Mode=OneTime}" />
+                </l:DirectInteractionMessage>
+            </l:TransitionInteractionMessageAction>
         </l:InteractionMessageTrigger>
 
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenNewProjectWindow">
-            <l:TransitionInteractionMessageAction WindowType="{x:Type v:NewProjectWindow}" Mode="Modal" IsOwned="True">
+            <l:TransitionInteractionMessageAction WindowType="{x:Type v:NewProjectWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False">
                 <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnNewProjectSelected">
                     <l:TransitionMessage TransitionViewModel="{Binding NewProjectViewModel, Mode=OneTime}" />
                 </l:DirectInteractionMessage>
@@ -30,7 +39,7 @@
         </l:InteractionMessageTrigger>
 
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="SaveProjectDialog">
-            <l:SaveFileDialogInteractionMessageAction>
+            <l:SaveFileDialogInteractionMessageAction InvokeActionOnlyWhenWindowIsActive="False">
                 <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnSaveProjectFileSelected">
                     <l:SavingFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
                 </l:DirectInteractionMessage>
@@ -108,6 +117,25 @@
 
             <Grid Grid.Column="2">
 
+                <ctr:PlotEditor Track="{Binding CurrentTrack, Mode=OneWay}" />
+
+                <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12"
+                        BorderThickness="1" BorderBrush="#AAAA00" Background="#FFFFAA">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="モデル: " Margin="4"
+                                   VerticalAlignment="Center"/>
+
+                        <ComboBox Grid.Column="1" Width="180" Margin="4"
+                                  ItemsSource="{Binding Models, Mode=OneWay}"
+                                  DisplayMemberPath="Name"
+                                  SelectedItem="{Binding SelectedModelInfo, Mode=TwoWay}"/>
+                    </Grid>
+                </Border>
             </Grid>
         </Grid>
 
