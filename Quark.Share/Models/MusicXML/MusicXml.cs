@@ -57,7 +57,7 @@ public record Measure(
 }
 
 public record MeasureAttributes(
-    [property: XmlElement("divisions")] int Divisions,
+    [property: XmlElement("divisions")] int? Divisions,
     [property: XmlElement("key")] MeasureAttributes.AttributeKey Key,
     [property: XmlElement("time")] MeasureAttributes.AttributeTime Time,
     [property: XmlElement("clef")] MeasureAttributes.AttributeClef Clef)

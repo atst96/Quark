@@ -11,6 +11,8 @@ namespace Quark.Utils;
 /// </summary>
 public static class MusicXmlUtil
 {
+    const double DefaultTempo = 100;
+
     const int Unit = 5;
 
     public static MusicXmlPhrase Parse(string xml)
@@ -26,9 +28,9 @@ public static class MusicXmlUtil
 
         foreach (var part in score.Parts)
         {
-            double tempo = -1;
+            double tempo = DefaultTempo;
             float division = -1;
-            decimal tick = -1;
+            decimal tick = (decimal)(60 / DefaultTempo);
             decimal unit = -1;
 
             // 4部音符あたりの時間
@@ -52,20 +54,20 @@ public static class MusicXmlUtil
                 var attributes = measure.Attributes;
                 if (attributes is not null)
                 {
-                    division = attributes.Divisions;
+                    division = attributes.Divisions ?? 1;
                     unit = 1 / (decimal)division;
                     timePerQuarter = unit * tick * 1000;
 
-                    var fifth = attributes.Key.Fifths;
-                    if (attributes.Key.Fifths == 0)
+                    var fifth = attributes.Key?.Fifths;
+                    if (fifth is null || fifth == 0)
                     {
                         keys = null;
                     }
                     else
                     {
-                        if (!FifthCodeRelations.TryGetValue(fifth, out keys))
+                        if (!FifthCodeRelations.TryGetValue(fifth.Value, out keys))
                         {
-                            Debug.WriteLine(attributes.Key.Fifths);
+                            Debug.WriteLine(attributes.Key!.Fifths);
                             Debugger.Break();
                         }
                     }
