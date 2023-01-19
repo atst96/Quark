@@ -95,11 +95,11 @@ public partial class PlotEditor : UserControl
 
     internal NeutrinoTrack? Track
     {
-        get => this.GetValue(MyPropertyProperty) as NeutrinoTrack;
-        set => this.SetValue(MyPropertyProperty, value);
+        get => this.GetValue(TrackProperty) as NeutrinoTrack;
+        set => this.SetValue(TrackProperty, value);
     }
 
-    public static readonly DependencyProperty MyPropertyProperty =
+    public static readonly DependencyProperty TrackProperty =
         DependencyProperty.Register(nameof(Track), typeof(NeutrinoTrack), typeof(PlotEditor), new PropertyMetadata(null, OnPropertyChanged));
 
     private static void OnPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
