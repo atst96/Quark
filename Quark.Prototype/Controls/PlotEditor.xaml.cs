@@ -37,6 +37,7 @@ public partial class PlotEditor : UserControl
     private List<Class1> _dynamics;
     private MusicXmlPhrase _score;
     private float _frameWidth = 0.8f;
+    private double _scaling = 1.0d;
 
     private SKPaint lyricsTypography = new(new SKFont(SKTypeface.FromFamilyName("MS UI Gothic"), 12));
 
@@ -55,6 +56,41 @@ public partial class PlotEditor : UserControl
         hScrollBar1.Maximum = MaxHScrollHeight;
         hScrollBar1.LargeChange = 1;
         hScrollBar1.ViewportSize = MaxHScrollHeight / 10;
+
+        this.Loaded += this.OnContentLoaded;
+
+        this._scaling = VisualTreeHelper.GetDpi(this).DpiScaleX;
+    }
+
+    private void OnContentLoaded(object sender, RoutedEventArgs e)
+    {
+        this.Loaded -= this.OnContentLoaded;
+
+        var window = Window.GetWindow(this);
+        window.DpiChanged += this.OnDpiChnaged;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int ToDisplayPixel(double value) => (int)Math.Round(value * this._scaling);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int ToDisplayPixel(int value) => (int)Math.Round(value * this._scaling);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int ToImagePixel(double value) => (int)Math.Round(value / this._scaling);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int ToImagePixel(int value) => (int)Math.Round(value / this._scaling);
+
+    /// <summary>
+    /// 画面のDPI変更時
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnDpiChnaged(object sender, DpiChangedEventArgs e)
+    {
+        this._scaling = e.NewDpi.DpiScaleX;
+        this.Redraw();
     }
 
     internal NeutrinoTrack? Track
@@ -131,9 +167,9 @@ public partial class PlotEditor : UserControl
         return image;
     }
 
-    private int GetRenderWidth() => (int)this.SKElement.ActualWidth;
+    private int GetRenderWidth() => (int)this.SKElement.CanvasSize.Width;
 
-    private int GetRenderHeight() => (int)this.SKElement.ActualHeight;
+    private int GetRenderHeight() => (int)this.SKElement.CanvasSize.Height;
 
     private void UpdateRenderImage()
     {
