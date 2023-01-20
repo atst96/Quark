@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using Quark.Models.MusicXML;
 using Quark.Projects.Tracks;
 using Quark.Utils;
@@ -28,7 +29,6 @@ public partial class PlotEditor : UserControl
     private SKPaint _whiteKeyGridPaint = new SKPaint { Color = new SKColor(230, 230, 230), StrokeWidth = 1 };
 
     public int KeyHeight = 12;
-    private SKBitmap _pianoBmp;
     private SKBitmap _renderImage;
 
     private bool _isLoaded = false;
@@ -37,15 +37,15 @@ public partial class PlotEditor : UserControl
     private List<Class1> _dynamics;
     private MusicXmlPhrase _score;
     private float _frameWidth = 0.8f;
-    private double _scaling = 1.0d;
+    private ScalingConverter _scaling;
+
+    private int _rulerHeight = 24;
 
     private SKPaint lyricsTypography = new(new SKFont(SKTypeface.FromFamilyName("MS UI Gothic"), 12));
 
     public PlotEditor()
     {
         this.InitializeComponent();
-
-        this._pianoBmp = CreatePianoOctaveBmp(100, KeyHeight);
 
         vScrollBar1.Minimum = 0;
         vScrollBar1.Maximum = MaxVScrollHeight;
@@ -59,7 +59,7 @@ public partial class PlotEditor : UserControl
 
         this.Loaded += this.OnContentLoaded;
 
-        this._scaling = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        this._scaling = new ScalingConverter(VisualTreeHelper.GetDpi(this).DpiScaleX);
     }
 
     private void OnContentLoaded(object sender, RoutedEventArgs e)
@@ -70,18 +70,6 @@ public partial class PlotEditor : UserControl
         window.DpiChanged += this.OnDpiChnaged;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int ToDisplayPixel(double value) => (int)Math.Round(value * this._scaling);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int ToDisplayPixel(int value) => (int)Math.Round(value * this._scaling);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int ToImagePixel(double value) => (int)Math.Round(value / this._scaling);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int ToImagePixel(int value) => (int)Math.Round(value / this._scaling);
-
     /// <summary>
     /// 画面のDPI変更時
     /// </summary>
@@ -89,7 +77,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e"></param>
     private void OnDpiChnaged(object sender, DpiChangedEventArgs e)
     {
-        this._scaling = e.NewDpi.DpiScaleX;
+        this._scaling = new ScalingConverter(e.NewDpi.DpiScaleX);
         this.Redraw();
     }
 
@@ -113,25 +101,32 @@ public partial class PlotEditor : UserControl
         }
     }
 
-    private SKBitmap CreatePianoOctaveBmp(int width, int keyHeight)
+    private (SKBitmap bmp, int width, int height) CreatePianoOctaveBmp(int width, int keyHeight, ScalingConverter scaling)
     {
         const int keys = 12;
 
         int height = keyHeight * keys;
+        int renderHeight = scaling.ToDisplayScaling(height);
+        int renderWidth = scaling.ToDisplayScaling(width);
+        int renderKeyHeight = scaling.ToDisplayScaling(keyHeight);
 
         var whiteKeyBrush = this._whiteKeyPaint;
         var whiteGridPen = this._whiteKeyGridPaint;
         var blackKeyBrush = this._blackKeyPaint;
 
-        var image = new SKBitmap(width, height);
+        var image = new SKBitmap(renderWidth, renderHeight);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int GetYPos(int key) => height - ((key + 1) * keyHeight);
+        int GetYPos(int key) => renderHeight - ((key + 1) * renderKeyHeight);
 
         using (var g = new SKCanvas(image))
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            SKRect DrawRect(int key) => new(0, GetYPos(key), width, keyHeight + GetYPos(key));
+            SKRect DrawRect(int key)
+            {
+                int y = GetYPos(key);
+                return new(0, y, renderWidth, renderKeyHeight + y);
+            };
 
             // 白鍵の描画
             foreach (int key in new int[] {
@@ -160,11 +155,11 @@ public partial class PlotEditor : UserControl
             }
 
             // 白鍵の境界を描画
-            g.DrawLine(0, GetYPos(4), width, GetYPos(4), whiteGridPen);
-            g.DrawLine(0, GetYPos(11), width, GetYPos(11), whiteGridPen);
+            g.DrawLine(0, GetYPos(4), renderWidth, GetYPos(4), whiteGridPen);
+            g.DrawLine(0, GetYPos(11), renderWidth, GetYPos(11), whiteGridPen);
         }
 
-        return image;
+        return (image, width, height);
     }
 
     private int GetRenderWidth() => (int)this.SKElement.CanvasSize.Width;
@@ -206,21 +201,34 @@ public partial class PlotEditor : UserControl
 
     private SKBitmap CreateRenderImage()
     {
-        (int width, int height) = (this.GetRenderWidth(), (KeyHeight * KeyCount));
+        (int rulerHeight, var scaling) = (this._rulerHeight, this._scaling);
 
-        var image = new SKBitmap(width, height);
+        int scoreHeight = KeyHeight * KeyCount;
 
+        // 描画領域
+        int renderWidth = this.GetRenderWidth();
+        int width = scaling.ToRenderImageScaling(renderWidth);
+        int height = rulerHeight + (KeyHeight * KeyCount);
+        int renderHeight = scaling.ToDisplayScaling(height);
 
-        var partImage = this._pianoBmp;
+        int scoreYOffset = scaling.ToDisplayScaling(rulerHeight);
+
+        int scoreRenderWidth = renderWidth;
+        int scoreWidth = width;
+        int scoreRenderHeight = scaling.ToDisplayScaling(scoreHeight);
+
+        var image = new SKBitmap(renderWidth, renderHeight);
+
+        (var partImage, int octWidth, int octHeight) = CreatePianoOctaveBmp(100, KeyHeight, scaling);
 
         using (var g = new SKCanvas(image))
         {
-            int imageWidth = partImage.Width;
-            int imageHeight = partImage.Height;
+            int imageWidth = octWidth;
+            int imageHeight = octHeight;
             int offset = imageHeight - (height % imageHeight);
 
-            int vCount = (int)Math.Ceiling((double)height / imageHeight);
-            int hCount = (int)Math.Ceiling((double)width / imageWidth);
+            int vCount = (int)Math.Ceiling((double)scoreHeight / imageHeight);
+            int hCount = (int)Math.Ceiling((double)scoreWidth / imageWidth);
 
             int[] xList = Enumerable.Range(0, hCount)
                 .Select(x => x * imageWidth)
@@ -232,7 +240,7 @@ public partial class PlotEditor : UserControl
 
                 foreach (int x in xList)
                 {
-                    g.DrawBitmap(partImage, x, y);
+                    g.DrawBitmap(partImage, scaling.ToDisplayScaling(x), scoreYOffset + scaling.ToDisplayScaling(y));
                 }
             }
 
@@ -253,6 +261,10 @@ public partial class PlotEditor : UserControl
                 int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * (totalFrameCount - framesCount));
                 int endFrameIdx = beginFrameIdx + framesCount;
 
+                int offsetTemp = 1;
+                int beginFrameIdxOffsetted = beginFrameIdx - offsetTemp;
+                int endFrameIdxOffsetted = endFrameIdx + offsetTemp;
+
                 // スコアの描画
                 var scores = this._score.Frames.Where(i => i.BeginFrame <= endFrameIdx && i.EndFrame >= beginFrameIdx).ToArray();
                 {
@@ -263,10 +275,14 @@ public partial class PlotEditor : UserControl
                         int beginIndex = score.BeginFrame - beginFrameIdx;
 
                         float y = height - (float)(score.Pitch * KeyHeight);
-                        var rect = SKRect.Create(beginIndex * _frameWidth, height - (score.Pitch * KeyHeight), (score.EndFrame - score.BeginFrame) * _frameWidth, KeyHeight);
+                        var rect = SKRect.Create(
+                            scaling.ToDisplayScaling(beginIndex * _frameWidth),
+                            scoreYOffset + scaling.ToDisplayScaling(height - (score.Pitch * KeyHeight)),
+                            scaling.ToDisplayScaling((score.EndFrame - score.BeginFrame) * _frameWidth),
+                            scaling.ToDisplayScaling(KeyHeight));
+
                         g.DrawRect(rect, new SKPaint
                         {
-
                             Color = SKColors.LightSkyBlue,
                             Style = SKPaintStyle.Fill,
                         });
@@ -277,6 +293,7 @@ public partial class PlotEditor : UserControl
                             StrokeWidth = 1.0f,
                             IsStroke = true,
                         });
+
                         // 歌詞
                         g.DrawText(score.Lyrics, new SKPoint(rect.Left, rect.Top), lyricsTypography);
                     }
@@ -300,7 +317,9 @@ public partial class PlotEditor : UserControl
 
                         for (int i = 0; i < dynamics.Values.Length; ++i)
                         {
-                            points[i] = new SKPoint((i + beginIndex) * _frameWidth, height - dynamicsOffset - (lower + diff * ((dynamics.Values[i] + 4f) / 4f)));
+                            points[i] = new SKPoint(
+                                scaling.ToDisplayScaling((i + beginIndex) * _frameWidth),
+                                scoreYOffset + scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[i] + 4f) / 4f))));
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Blue, StrokeWidth = 1.5f, IsAntialias = true });
@@ -322,7 +341,9 @@ public partial class PlotEditor : UserControl
 
                         for (int i = 0; i < pitch.Values.Length; ++i)
                         {
-                            points[i] = new SKPoint((i + beginIndex) * _frameWidth, height - pitchOffset - ((float)FrequencyToScale(pitch.Values[i]) * KeyHeight));
+                            points[i] = new SKPoint(
+                                scaling.ToDisplayScaling((i + beginIndex) * _frameWidth),
+                                scoreYOffset + scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[i]) * KeyHeight)));
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
