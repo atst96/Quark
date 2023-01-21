@@ -23,9 +23,9 @@ internal class TrackCollection : ObservableCollection<TrackBase>
     /// </summary>
     /// <param name="path">パス</param>
     /// <param name="trackName">トラック名</param>
-    public NeutrinoTrack ImportFromMusicXml(string path, string trackName, ModelInfo model)
+    public NeutrinoV1Track ImportFromMusicXml(string path, string trackName, ModelInfo model)
     {
-        var newTrack = new NeutrinoTrack(this._project, trackName, File.ReadAllText(path, Encoding.UTF8), model);
+        var newTrack = new NeutrinoV1Track(this._project, trackName, File.ReadAllText(path, Encoding.UTF8), model);
 
         this.Add(newTrack);
 
@@ -41,8 +41,13 @@ internal class TrackCollection : ObservableCollection<TrackBase>
         {
             switch (track)
             {
-                case NeutrinoTrackConfig t:
-                    this.Add(new NeutrinoTrack(this._project, t, models));
+                case NeutrinoV1TrackConfig t:
+                    this.Add(new NeutrinoV1Track(this._project, t, models));
+                    break;
+
+
+                case NeutrinoV2TrackConfig t:
+                    this.Add(new NeutrinoV2Track(this._project, t, models));
                     break;
             }
         }

@@ -17,7 +17,7 @@ using Quark.Utils;
 
 namespace Quark.Services;
 
-internal class NeutrinoService
+internal class NeutrinoV2Service
 {
     private Settings _setting;
 
@@ -29,7 +29,7 @@ internal class NeutrinoService
     private static readonly string NsfExe = Path.Combine(BinDirName, "NSF.exe");
     private static readonly string WorldExe = Path.Combine(BinDirName, "WORLD.exe");
 
-    public NeutrinoService(SettingService settingService)
+    public NeutrinoV2Service(SettingService settingService)
     {
         this._setting = settingService.Settings;
     }
@@ -58,7 +58,7 @@ internal class NeutrinoService
 
     private static readonly Encoding TextEncoding = new UTF8Encoding(false);
 
-    public async Task<ConvertScoreToTimingResult?> ConvertMusicXmlToTiming(NeutrinoTrack track)
+    public async Task<ConvertScoreToTimingResult?> ConvertMusicXmlToTiming(NeutrinoV2Track track)
     {
         var procExe = this.GetNeutrinoPath(MusicXmlExe);
 
@@ -158,7 +158,7 @@ internal class NeutrinoService
         return isSuccess;
     }
 
-    public async Task<EstimateTimingResult?> GetTiming(NeutrinoTrack track, AudioFeaturesV2 features, IProgress<ProgressReport>? progress = null)
+    public async Task<EstimateTimingResult?> GetTiming(NeutrinoV2Track track, AudioFeaturesV2 features, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetNeutrinoPath(NeutrinoExe);
 
@@ -216,7 +216,7 @@ internal class NeutrinoService
         return null;
     }
 
-    public async Task<EstimateFeaturesResultV2?> EstimateFeatures(NeutrinoTrack track, AudioFeaturesV2 features, IProgress<ProgressReport>? progress = null)
+    public async Task<EstimateFeaturesResultV2?> EstimateFeatures(NeutrinoV2Track track, AudioFeaturesV2 features, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetNeutrinoPath(NeutrinoExe);
 

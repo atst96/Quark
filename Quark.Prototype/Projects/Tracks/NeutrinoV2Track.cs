@@ -7,7 +7,7 @@ using Quark.Projects.Neutrino;
 
 namespace Quark.Projects.Tracks;
 
-internal class NeutrinoTrack : TrackBase
+internal class NeutrinoV2Track : TrackBase
 {
     public ModelInfo? Singer { get; set; }
 
@@ -22,13 +22,13 @@ internal class NeutrinoTrack : TrackBase
     public bool HasTiming(string modelId)
         => this._audioFeatures.TryGetValue(modelId, out var f) && f.HasTiming();
 
-    public NeutrinoTrack(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
+    public NeutrinoV2Track(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
     {
         this.Singer = model;
         this.MusicXml = musicXml;
     }
 
-    public NeutrinoTrack(Project project, NeutrinoTrackConfig config, IEnumerable<ModelInfo> models)
+    public NeutrinoV2Track(Project project, NeutrinoV2TrackConfig config, IEnumerable<ModelInfo> models)
         : base(project, config)
     {
         var singer = config.Singer;
@@ -61,7 +61,7 @@ internal class NeutrinoTrack : TrackBase
         var features = this._audioFeatures.Select((kvp) =>
         {
             var value = kvp.Value;
-            return new AudioFeaturesConfigV2(value.ModelId)
+            return new AudioFeaturesV2Config(value.ModelId)
             {
                 Timing = value.Timing,
                 F0 = value.F0,
@@ -69,7 +69,7 @@ internal class NeutrinoTrack : TrackBase
             };
         }).ToDictionary(i => i.ModelId);
 
-        return new NeutrinoTrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Id, features);
+        return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Id, features);
     }
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);

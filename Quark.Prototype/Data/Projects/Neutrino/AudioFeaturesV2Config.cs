@@ -3,9 +3,9 @@
 namespace Quark.Data.Projects.Neutrino;
 
 [MemoryPackable]
-public partial class AudioFeaturesConfigV2
+public partial class AudioFeaturesV2Config
 {
-    public AudioFeaturesConfigV2(string modelId)
+    public AudioFeaturesV2Config(string modelId)
     {
         this.ModelId = modelId;
     }

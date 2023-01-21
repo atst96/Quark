@@ -81,20 +81,20 @@ public partial class PlotEditor : UserControl
         this.Redraw();
     }
 
-    internal NeutrinoTrack? Track
+    internal NeutrinoV1Track? Track
     {
-        get => this.GetValue(TrackProperty) as NeutrinoTrack;
+        get => (NeutrinoV1Track)this.GetValue(TrackProperty);
         set => this.SetValue(TrackProperty, value);
     }
 
     public static readonly DependencyProperty TrackProperty =
-        DependencyProperty.Register(nameof(Track), typeof(NeutrinoTrack), typeof(PlotEditor), new PropertyMetadata(null, OnPropertyChanged));
+        DependencyProperty.Register(nameof(Track), typeof(NeutrinoV1Track), typeof(PlotEditor), new PropertyMetadata(null, OnPropertyChanged));
 
     private static void OnPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is PlotEditor editor)
         {
-            if (e.NewValue is NeutrinoTrack track)
+            if (e.NewValue is NeutrinoV1Track track)
             {
                 editor.Load(track);
             }
@@ -165,6 +165,13 @@ public partial class PlotEditor : UserControl
     private int GetRenderWidth() => (int)this.SKElement.CanvasSize.Width;
 
     private int GetRenderHeight() => (int)this.SKElement.CanvasSize.Height;
+
+    private (int width, int height) GetCanvasSize()
+    {
+        var size = this.SKElement.CanvasSize;
+
+        return ((int)size.Width, (int)size.Height);
+    }
 
     private void UpdateRenderImage()
     {
@@ -244,11 +251,15 @@ public partial class PlotEditor : UserControl
                 }
             }
 
+            // ルーラを描画
+            // this.RenderRuler();
+            {
+                g.DrawRect(0, 0, renderWidth, scoreYOffset, new SKPaint() { Color = SKColors.Black });
+            }
+
             if (this._isLoaded)
             {
                 long totalFrameCount = this._framesCount;
-
-                int renderWidth = this.GetRenderWidth();
 
                 int offsetFrames = 1;
 
@@ -319,7 +330,7 @@ public partial class PlotEditor : UserControl
                         {
                             points[i] = new SKPoint(
                                 scaling.ToDisplayScaling((i + beginIndex) * _frameWidth),
-                                scoreYOffset + scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[i] + 4f) / 4f))));
+                                scoreYOffset + scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[i] + 30f) / 30f))));
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Blue, StrokeWidth = 1.5f, IsAntialias = true });
@@ -382,14 +393,14 @@ public partial class PlotEditor : UserControl
 
     }
 
-    private void Load(NeutrinoTrack track)
+    private void Load(NeutrinoV1Track track)
     {
         var features = track.GetFeatures();
 
         // 楽譜情報解析
         this._score = MusicXmlUtil.Parse(track.MusicXml);
         this._pitches = Parse(features.F0!, 0.0f);
-        this._dynamics = Parse(GetDynamicsFromMspec(features.Mspec, features.F0), -3.99f);
+        this._dynamics = Parse(GetDynamicsFromMgc(features.Mgc!, features.F0!), -30d);
         this._framesCount = features.F0!.Length;
         this._isLoaded = true;
 
@@ -408,14 +419,14 @@ public partial class PlotEditor : UserControl
     }
 
 
-    public static List<Class1> Parse(IReadOnlyCollection<float> values, float min)
+    public static List<Class1> Parse(IReadOnlyCollection<double> values, double min)
     {
         var items = new List<Class1>(values.Count());
 
         int idx = 0;
 
         int tempIdx = 0;
-        List<float>? tempItems = null;
+        List<double>? tempItems = null;
 
         foreach (var value in values)
         {
@@ -436,7 +447,7 @@ public partial class PlotEditor : UserControl
 
                 if (tempItems == null)
                 {
-                    tempItems = new List<float>();
+                    tempItems = new List<double>();
                     tempIdx = idx;
                 }
                 tempItems.Add(value);
@@ -474,27 +485,21 @@ public partial class PlotEditor : UserControl
     /// <summary>
     /// 暫定で平均値をしておく
     /// </summary>
-    /// <param name="mspec"></param>
+    /// <param name="mgc"></param>
     /// <param name="f0"></param>
     /// <returns></returns>
-    private IReadOnlyCollection<float> GetDynamicsFromMspec(float[] mspec, float[] f0)
+    private IReadOnlyCollection<double> GetDynamicsFromMgc(double[] mgc, double[] f0)
     {
-        int dimentions = mspec.Length / f0.Length;
+        int dimentions = mgc.Length / f0.Length;
 
-        int length = mspec.Length / dimentions;
-        var list = new float[length];
+        int length = mgc.Length / dimentions;
+        var values = new double[length];
 
-        for (int i = 0; i < length; ++i)
+        for (int idx = 0; idx < length; ++idx)
         {
-            float value = 0.0f;
-            for (int d = 0, start = (i * dimentions); d < dimentions; ++d)
-            {
-                value += mspec[start + d];
-            }
-
-            list[i] = value / dimentions;
+            values[idx] = mgc[idx * dimentions];
         }
 
-        return list;
+        return values;
     }
 }

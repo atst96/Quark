@@ -4,7 +4,8 @@ using MemoryPack;
 namespace Quark.Data.Projects.Tracks;
 
 [MemoryPackable]
-[MemoryPackUnion(1, typeof(NeutrinoTrackConfig))]
+[MemoryPackUnion(1, typeof(NeutrinoV1TrackConfig))]
+[MemoryPackUnion(2, typeof(NeutrinoV2TrackConfig))]
 public abstract partial class TrackBaseConfig
 {
     public string TrackId { get; set; }

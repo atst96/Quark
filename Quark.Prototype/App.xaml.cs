@@ -30,7 +30,8 @@ public partial class App : Application
         ServiceProvider = new ServiceCollection()
             // Service
             .AddSingleton(settingService)
-            .AddSingleton<Services.NeutrinoService>()
+            .AddSingleton<NeutrinoV1Service>()
+            .AddSingleton<NeutrinoV2Service>()
             .AddSingleton<ProjectService>()
             // ViewModel
             .AddTransient<ViewModels.MainWindowViewModel>()

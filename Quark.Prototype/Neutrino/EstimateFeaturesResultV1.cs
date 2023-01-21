@@ -3,7 +3,7 @@
 /// <summary>
 /// </summary>
 /// <param name="F0">F0</param>
-/// <param name="Mspec">メルスペクトログラム</param>
-public record EstimateFeaturesResult(
+public record EstimateFeaturesResultV1(
     double[] F0,
-    double[] Mspec);
+    double[] Mgc,
+    double[] Bap);

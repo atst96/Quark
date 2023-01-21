@@ -17,7 +17,7 @@ namespace Quark.ViewModels;
 
 internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 {
-    private NeutrinoService _neutrino;
+    private NeutrinoV1Service _neutrino;
     private ProjectService _projects;
 
     private Project? _currentProject;
@@ -67,7 +67,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     public NewProjectWindowViewModel NewProjectViewModel
         => this._newProjectViewModel ??= this.AddDisposable(new NewProjectWindowViewModel());
 
-    public MainWindowViewModel(NeutrinoService neutrino, ProjectService projects) : base()
+    public MainWindowViewModel(NeutrinoV1Service neutrino, ProjectService projects) : base()
     {
         this._neutrino = neutrino;
         this._projects = projects;
@@ -127,7 +127,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         {
             this.CurrentProject = this._projects.Open(msg.Response[0], this._neutrino.GetModels());
 
-            if (this.CurrentProject.Tracks.LastOrDefault() is NeutrinoTrack t)
+            if (this.CurrentProject.Tracks.LastOrDefault() is NeutrinoV1Track t)
             {
                 this.LoadTrack(this.CurrentProject, t);
             }
@@ -188,14 +188,14 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
     private const string TempModelId = "KIRITAN";
 
-    private NeutrinoTrack _currentTrack;
-    public NeutrinoTrack CurrentTrack
+    private NeutrinoV1Track _currentTrack;
+    public NeutrinoV1Track CurrentTrack
     {
         get => this._currentTrack;
         set => this.RaisePropertyChangedIfSet(ref this._currentTrack, value);
     }
 
-    public async void LoadTrack(Project project, NeutrinoTrack track)
+    public async void LoadTrack(Project project, NeutrinoV1Track track)
     {
         // Label
         if (!track.HasScoreTiming())
@@ -223,7 +223,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
             features.Timing = result.Timing;
             features.F0 = null;
-            features.Mspec = null;
+            features.Mgc = null;
+            features.Bap = null;
         }
 
         // 推論
@@ -244,7 +245,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             else
             {
                 features.F0 = result.F0;
-                features.Mspec = result.Mspec;
+                features.Mgc = result.Mgc;
+                features.Bap = result.Bap;
 
                 // 進捗ウィンドウを閉じる
                 vm.Close();
