@@ -18,7 +18,6 @@
     <PackageReference Include="LivetCask.Core" Version="4.0.2" />
     <PackageReference Include="LivetCask.Messaging" Version="4.0.2" />
     <PackageReference Include="LivetCask.Mvvm" Version="4.0.2" />
-    <PackageReference Include="MemoryPack" Version="1.9.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.39" />
     <PackageReference Include="SkiaSharp.Views.WPF" Version="2.88.3" />

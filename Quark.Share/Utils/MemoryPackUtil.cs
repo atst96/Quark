@@ -1,6 +1,5 @@
-﻿using System.IO;
-using MemoryPack;
-using ZstdNet;
+﻿using MemoryPack;
+using MemoryPack.Compression;
 
 namespace Quark.Utils;
 
@@ -20,10 +19,10 @@ public static class MemoryPackUtil
 
     public static T DeserializeCompressed<T>(byte[] data)
     {
-        using (var dec = new Decompressor())
-        {
-            return Deserialize<T>(dec.Unwrap(data));
-        };
+        using var decompressor = new BrotliDecompressor();
+        var decompressedBuffer = decompressor.Decompress(data);
+
+        return MemoryPackSerializer.Deserialize<T>(decompressedBuffer)!;
     }
 
     public static T ReadFileCompressed<T>(string path)
@@ -31,10 +30,10 @@ public static class MemoryPackUtil
 
     public static byte[] SerializeCompression<T>(T data)
     {
-        using (var comp = new Compressor(new(CompressionOptions.MaxCompressionLevel)))
-        {
-            return comp.Wrap(MemoryPackSerializer.Serialize(data));
-        }
+        using var compressor = new BrotliCompressor(3);
+        MemoryPackSerializer.Serialize(compressor, data);
+
+        return compressor.ToArray();
     }
 
     public static void WriteFileCompression<T>(string path, T data)
