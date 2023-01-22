@@ -4,8 +4,11 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using Quark.Models.MusicXML;
 using Quark.Projects.Tracks;
@@ -501,5 +504,22 @@ public partial class PlotEditor : UserControl
         }
 
         return values;
+    }
+
+    private void OnScoreMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var targetScrollBar = Keyboard.PrimaryDevice.Modifiers == ModifierKeys.Shift
+            ? this.hScrollBar1 : this.vScrollBar1;
+
+        if (e.Delta > 0)
+        {
+            targetScrollBar.Value -= targetScrollBar.LargeChange;
+            this.Redraw();
+        }
+        else if (e.Delta < 0)
+        {
+            targetScrollBar.Value += targetScrollBar.LargeChange;
+            this.Redraw();
+        }
     }
 }

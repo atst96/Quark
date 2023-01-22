@@ -18,7 +18,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <skia:SKElement x:Name="SKElement" PaintSurface="OnPaintSurface" SizeChanged="OnRenderSizeChanged" />
+            <skia:SKElement x:Name="SKElement" PaintSurface="OnPaintSurface" MouseWheel="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged" />
 
             <ScrollBar x:Name="vScrollBar1" Grid.Column="1" Grid.Row="0" Orientation="Vertical" Scroll="OnVScroll" />
             <ScrollBar x:Name="hScrollBar1" Grid.Column="0" Grid.Row="1" Orientation="Horizontal" Scroll="OnHScroll" />
