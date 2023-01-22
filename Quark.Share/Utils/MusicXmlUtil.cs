@@ -2,7 +2,7 @@
 using System.Xml.Serialization;
 using System.Xml;
 using Quark.Models.MusicXML;
-using static Quark.Models.MusicXML.Direction;
+using static Quark.Models.MusicXML.MeasureItemTypes;
 
 namespace Quark.Utils;
 
@@ -29,7 +29,7 @@ public static class MusicXmlUtil
         foreach (var part in score.Parts)
         {
             double tempo = DefaultTempo;
-            float division = -1;
+            float division = 1;
             decimal tick = (decimal)(60 / DefaultTempo);
             decimal unit = -1;
 
@@ -44,17 +44,13 @@ public static class MusicXmlUtil
 
             foreach (var measure in part.Measures)
             {
-                var direction = measure.Direction;
-                if (direction is { Sound: not null })
-                {
-                    tempo = direction.Sound.Tempo;
-                    tick = 60 / (decimal)tempo;
-                }
-
                 var attributes = measure.Attributes;
                 if (attributes is not null)
                 {
-                    division = attributes.Divisions ?? 1;
+                    if (attributes.Divisions is not null)
+                    {
+                        division = attributes.Divisions.Value;
+                    }
                     unit = 1 / (decimal)division;
                     timePerQuarter = unit * tick * 1000;
 
@@ -73,60 +69,72 @@ public static class MusicXmlUtil
                     }
                 }
 
-                var notes = measure.Notes;
+                var notes = measure.Items;
                 if (notes is not null)
                 {
-                    foreach (var note in notes)
+                    foreach (var item in notes)
                     {
-                        var duration = note.Duration * timePerQuarter;
-                        var pitch = note.Pitch;
-
-                        try
+                        if (item is Direction direction)
                         {
-                            if (note.Rest is not null)
+                            if (direction is { Sound: not null })
                             {
-                                // 休符
-                                continue;
+                                tempo = direction.Sound.Tempo;
+                                tick = 60 / (decimal)tempo;
+                                timePerQuarter = unit * tick * 1000;
                             }
-                            else if (pitch is not null)
+                        }
+                        else if (item is Note note)
+                        {
+                            var duration = note.Duration * timePerQuarter;
+                            var pitch = note.Pitch;
+
+                            try
                             {
-                                var tie = note.Tie;
-                                if (tie is null)
+                                if (note.Rest is not null)
                                 {
-                                    // タイ以外の音符
-                                    items.Add(CreateFrameInfo(note, currentTime, currentTime + duration, keys));
+                                    // 休符
+                                    continue;
                                 }
-                                else
+                                else if (pitch is not null)
                                 {
-                                    if (tie.Type == StartStop.Start)
+                                    var tie = note.Tie;
+                                    if (tie is null)
                                     {
-                                        // タイ記号の始め
-                                        tiedFrame = CreateFrameInfo(note, currentTime, currentTime + duration, keys);
-                                    }
-                                    else if (tie.Type == StartStop.Stop && tiedFrame is not null)
-                                    {
-                                        // タイ記号の終わり
-                                        tiedFrame.SetEndFrame((int)((currentTime + duration) / Unit));
-                                        tiedFrame.SetBreath(GetIsBreath(note));
-                                        items.Add(tiedFrame);
+                                        // タイ以外の音符
+                                        items.Add(CreateFrameInfo(note, currentTime, currentTime + duration, keys));
                                     }
                                     else
                                     {
-                                        Debug.WriteLine(note);
-                                        Debugger.Break();
+                                        if (tie.Type == StartStop.Start)
+                                        {
+                                            // タイ記号の始め
+                                            tiedFrame = CreateFrameInfo(note, currentTime, currentTime + duration, keys);
+                                        }
+                                        else if (tie.Type == StartStop.Stop && tiedFrame is not null)
+                                        {
+                                            // タイ記号の終わり
+                                            tiedFrame.SetEndFrame((int)((currentTime + duration) / Unit));
+                                            tiedFrame.SetBreath(GetIsBreath(note));
+                                            items.Add(tiedFrame);
+                                        }
+                                        else
+                                        {
+                                            Debug.WriteLine(note);
+                                            Debugger.Break();
+                                        }
                                     }
                                 }
+                                else
+                                {
+                                    // 音符じゃない場合？
+                                    Debug.WriteLine(note);
+                                    Debugger.Break();
+                                }
                             }
-                            else
+                            finally
                             {
-                                // 音符じゃない場合？
-                                Debug.WriteLine(note);
-                                Debugger.Break();
+                                currentTime += duration;
                             }
-                        }
-                        finally
-                        {
-                            currentTime += duration;
                         }
                     }
                 }

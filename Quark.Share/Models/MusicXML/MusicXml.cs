@@ -1,9 +1,7 @@
 ﻿#pragma warning disable CS8625 // null リテラルを null 非許容参照型に変換できません。
 
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Xml.Serialization;
-using static Quark.Models.MusicXML.Direction.ArticulationTypes;
+using static Quark.Models.MusicXML.MeasureItemTypes.ArticulationTypes;
 
 namespace Quark.Models.MusicXML;
 
@@ -50,10 +48,12 @@ public record Part(
 public record Measure(
     [property: XmlAttribute("number")] int Number,
     [property: XmlElement("attributes")] MeasureAttributes Attributes,
-    [property: XmlElement("direction")] Direction Direction,
-    [property: XmlElement("note")] List<Direction.Note> Notes)
+    [property:
+            XmlElement("direction", typeof(MeasureItemTypes.Direction)),
+            XmlElement("note", typeof(MeasureItemTypes.Note))]
+        List<object> Items)
 {
-    public Measure() : this(default, default, default, default) { }
+    public Measure() : this(default, default, default) { }
 }
 
 public record MeasureAttributes(
@@ -85,29 +85,32 @@ public record MeasureAttributes(
     }
 }
 
-public record Direction(
-    [property: XmlElement("direction-type")] Direction.Type DirectionType,
-    [property: XmlElement("sound")] Direction.SoundInfo Sound)
+public static class MeasureItemTypes
 {
-    public Direction() : this(default, default) { }
-
-    public record Type(
-        [property: XmlElement("metronome")] Type.MetronmeType Metronome)
+    public record Direction(
+        [property: XmlElement("direction-type")] Direction.Type DirectionType,
+        [property: XmlElement("sound")] Direction.SoundInfo Sound)
     {
-        public Type() : this(default(MetronmeType)) { }
+        public Direction() : this(default, default) { }
 
-        public record MetronmeType(
-            [property: XmlElement("beat-unit")] string Quarter,
-            [property: XmlElement("per-minute")] double PerMinute)
+        public record Type(
+            [property: XmlElement("metronome")] Type.MetronomeType Metronome)
         {
-            public MetronmeType() : this(default, default) { }
-        }
-    }
+            public Type() : this(default(MetronomeType)) { }
 
-    public record SoundInfo(
-        [property: XmlAttribute("tempo")] double Tempo)
-    {
-        public SoundInfo() : this(default(double)) { }
+            public record MetronomeType(
+                [property: XmlElement("beat-unit")] string BeatUnit,
+                [property: XmlElement("per-minute")] double PerMinute)
+            {
+                public MetronomeType() : this(default, default) { }
+            }
+        }
+
+        public record SoundInfo(
+            [property: XmlAttribute("tempo")] double Tempo)
+        {
+            public SoundInfo() : this(default(double)) { }
+        }
     }
 
     public record Note(
