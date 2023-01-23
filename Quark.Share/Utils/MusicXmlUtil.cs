@@ -17,24 +17,27 @@ public static class MusicXmlUtil
 
     public static MusicXmlPhrase Parse(string xml)
     {
+    public static PartScore Parse(string xml)
+    {
         var score = ParseMusicXml(xml);
 
-        var items = new List<MusicXmlPhrase.Frame>(
-            /* TODO: 要素数を指定する(パフォーマンス対策) */);
+        var _notes = new LinkedList<MusicXmlPhrase.Frame>();
+        var tempos = new LinkedList<TempoInfo>();
+        var timeSignatures = new LinkedList<TimeSignature>();
 
         // second
         decimal currentTime = 0;
-        MusicXmlPhrase.Frame? tiedFrame = null;
+        MusicXmlPhrase.Frame? tiedNote = null;
 
         foreach (var part in score.Parts)
         {
             double tempo = DefaultTempo;
             float division = 1;
             decimal tick = (decimal)(60 / DefaultTempo);
-            decimal unit = -1;
+            decimal unit = 1;
 
             // 4部音符あたりの時間
-            decimal timePerQuarter = -1;
+            decimal timePerQuarter = unit * tick * 1000;
             Dictionary<int, int>? keys = null;
 
             if (part.Measures.Count <= 0)
@@ -50,9 +53,15 @@ public static class MusicXmlUtil
                     if (attributes.Divisions is not null)
                     {
                         division = attributes.Divisions.Value;
-                    }
                     unit = 1 / (decimal)division;
                     timePerQuarter = unit * tick * 1000;
+                    }
+
+                    var time = attributes.Time;
+                    if (time is not null)
+                    {
+                        timeSignatures.AddLast(new TimeSignature(currentTime, time.Beats, time.BeatType));
+                    }
 
                     var fifth = attributes.Key?.Fifths;
                     if (fifth is null || fifth == 0)
@@ -81,6 +90,9 @@ public static class MusicXmlUtil
                                 tempo = direction.Sound.Tempo;
                                 tick = 60 / (decimal)tempo;
                                 timePerQuarter = unit * tick * 1000;
+
+                                var metronome = direction.DirectionType.Metronome;
+                                tempos.AddLast(new TempoInfo(true, currentTime, tempo, metronome.BeatUnit, metronome.PerMinute));
                             }
                         }
                         else if (item is Note note)
@@ -97,30 +109,38 @@ public static class MusicXmlUtil
                                 }
                                 else if (pitch is not null)
                                 {
-                                    var tie = note.Tie;
-                                    if (tie is null)
+                                    var ties = note.Tie;
+                                    if (ties is null || ties.Count == 0)
                                     {
                                         // タイ以外の音符
-                                        items.Add(CreateFrameInfo(note, currentTime, currentTime + duration, keys));
+                                        _notes.AddLast(CreateFrameInfo(note, currentTime, currentTime + duration, keys));
                                     }
                                     else
                                     {
-                                        if (tie.Type == StartStop.Start)
+                                        if (ties.All(t => t.Type == StartStop.Start))
                                         {
                                             // タイ記号の始め
-                                            tiedFrame = CreateFrameInfo(note, currentTime, currentTime + duration, keys);
+                                            tiedNote = CreateFrameInfo(note, currentTime, currentTime + duration, keys);
                                         }
-                                        else if (tie.Type == StartStop.Stop && tiedFrame is not null)
+                                        else if (ties.Any(t => t.Type == StartStop.Stop) && tiedNote is not null)
+                                        {
+                                            if (ties.Any(t => t.Type == StartStop.Start))
+                                            {
+                                                // pass
+                                                // 中間のタイは stop&startのtypeが含まれるので無視する
+                                            }
+                                            else
                                         {
                                             // タイ記号の終わり
-                                            tiedFrame.SetEndFrame((int)((currentTime + duration) / Unit));
-                                            tiedFrame.SetBreath(GetIsBreath(note));
-                                            items.Add(tiedFrame);
+                                            tiedNote.SetEndFrame((int)((currentTime + duration) / Unit));
+                                            tiedNote.SetBreath(GetIsBreath(note));
+                                            _notes.AddLast(tiedNote);
+                                        }
                                         }
                                         else
                                         {
                                             Debug.WriteLine(note);
-                                            Debugger.Break();
+                                            // Debugger.Break();
                                         }
                                     }
                                 }
@@ -141,7 +161,19 @@ public static class MusicXmlUtil
             }
         }
 
-        return new MusicXmlPhrase(items);
+        // 先頭のテンポ情報がなければデフォルトを差し込む
+        if (tempos is not { Count: > 0, First.Value.Frame: 0 })
+        {
+            tempos.AddFirst(new TempoInfo(false, 0, DefaultTempo, "quarter", DefaultTempo));
+            }
+
+        // 先頭の小節情報がなければデフォルトを差し込む
+        if (timeSignatures is not { Count: > 0, First.Value.Frame: 0 })
+        {
+            timeSignatures.AddLast(new TimeSignature(currentTime, 4, 4));
+        }
+
+        return new(tempos, timeSignatures, _notes);
     }
 
     private static XmlSerializer _serializer = new XmlSerializer(typeof(MusicXmlObject));
