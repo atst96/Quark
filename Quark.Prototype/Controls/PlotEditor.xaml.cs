@@ -4,13 +4,12 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
-using System.Windows.Automation.Peers;
-using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Quark.Models.MusicXML;
+using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
@@ -19,6 +18,11 @@ namespace Quark.Controls;
 
 /// <summary>
 /// PlotEditor.xaml の相互作用ロジック
+/// 
+/// MEMO:
+/// 　タイムリニア式の描画方法で実装する。
+/// 　　→ そのうち拍／小節リニアにも対応する。(Cubaseとかは拍／小節リニアがデフォルトになっている）
+/// 　縦横の拡大率=100%、テンポ=100、4/4拍子の小節の場合に描画する間隔が340pxとなるようにする。
 /// </summary>
 public partial class PlotEditor : UserControl
 {
@@ -38,7 +42,7 @@ public partial class PlotEditor : UserControl
     private long _framesCount = -1;
     private List<Class1> _pitches;
     private List<Class1> _dynamics;
-    private MusicXmlPhrase _score;
+    private Part _score;
     private float _frameWidth = 0.8f;
     private ScalingConverter _scaling;
 
@@ -280,7 +284,7 @@ public partial class PlotEditor : UserControl
                 int endFrameIdxOffsetted = endFrameIdx + offsetTemp;
 
                 // スコアの描画
-                var scores = this._score.Frames.Where(i => i.BeginFrame <= endFrameIdx && i.EndFrame >= beginFrameIdx).ToArray();
+                var scores = this._score.GetPartRange(beginFrameIdx, endFrameIdx).Phrases.ToArray();
                 {
                     for (int i = 0; i < scores.Length; ++i)
                     {
@@ -401,7 +405,7 @@ public partial class PlotEditor : UserControl
         var features = track.GetFeatures();
 
         // 楽譜情報解析
-        this._score = MusicXmlUtil.Parse(track.MusicXml);
+        this._score = MusicXmlUtil.ParseMusicXml(track.MusicXml).Parts.First();
         this._pitches = Parse(features.F0!, 0.0f);
         this._dynamics = Parse(GetDynamicsFromMgc(features.Mgc!, features.F0!), -30d);
         this._framesCount = features.F0!.Length;
