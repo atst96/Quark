@@ -100,9 +100,10 @@ public static class MeasureItemTypes
 
             public record MetronomeType(
                 [property: XmlElement("beat-unit")] string BeatUnit,
+                [property: XmlElement("beat-unit-dot")] object? BeatUnitDot,
                 [property: XmlElement("per-minute")] double PerMinute)
             {
-                public MetronomeType() : this(default, default) { }
+                public MetronomeType() : this(default, default, default) { }
             }
         }
 
@@ -117,7 +118,7 @@ public static class MeasureItemTypes
         [property: XmlElement("rest")] Rest Rest,
         [property: XmlElement("pitch")] Pitch Pitch,
         [property: XmlElement("duration")] int Duration,
-        [property: XmlElement("tie")] Tie Tie,
+        [property: XmlElement("tie")] List<Tie>? Tie,
         [property: XmlElement("voice")] int Voice,
         [property: XmlElement("type")] string Type,
         [property: XmlElement("stem")] string Stem,
@@ -146,9 +147,11 @@ public static class MeasureItemTypes
 
     public record Notations(
         [property: XmlElement("tied")] NotationTypes.Tied Tied,
-        [property: XmlElement("articulations")] NotationTypes.Articulations Articulations)
+        [property: XmlElement("articulations")] NotationTypes.Articulations Articulations,
+        [property: XmlElement("slur")] NotationTypes.Slur Slur,
+        [property: XmlElement("tuplet")] NotationTypes.Tuplet Tuplet)
     {
-        public Notations() : this(default, default) { }
+        public Notations() : this(default, default, default, default) { }
     }
 
     /// <summary>
@@ -163,10 +166,12 @@ public static class MeasureItemTypes
         /// </summary>
         /// <param name="BreathMark"></param>
         public record Articulations(
-            [property: XmlElement("breath-mark")] BreathMark BreathMark)
+            [property: XmlElement("breath-mark")] BreathMark BreathMark,
+            [property: XmlElement("staccato")] object? Staccato,
+            [property: XmlElement("accent")] object? Accent)
             : INotation
         {
-            public Articulations() : this(default(BreathMark)) { }
+            public Articulations() : this(default, default, default) { }
         }
 
         /// <summary>
@@ -177,6 +182,27 @@ public static class MeasureItemTypes
             [property: XmlAttribute("type")] string Type) : INotation
         {
             public Tied() : this(default(string)) { }
+        }
+
+        public record Tuplet(
+            [property: XmlAttribute("type")] StartStop Type,
+            [property: XmlAttribute("bracket")] string? Bracket)
+        {
+            public Tuplet() : this(default, default) { }
+        }
+
+        /// <summary>
+        /// スラー
+        /// </summary>
+        /// <param name="Type"></param>
+        /// <param name="Placement"></param>
+        /// <param name="Number"></param>
+        public record Slur(
+            [property: XmlAttribute("type")] StartStop Type,
+            [property: XmlAttribute("placement")] string? Placement,
+            [property: XmlAttribute("number")] int Number)
+        {
+            public Slur() : this(default, default, default) { }
         }
     }
 
@@ -234,6 +260,38 @@ public static class MeasureItemTypes
         Single,
 
         Unknown,
+    }
+
+    public static class NoteType
+    {
+        /// <summary>1024分音符</summary>
+        public const string Note1024th = "1024th";
+        /// <summary>512分音符</summary>
+        public const string Note512th = "512th";
+        /// <summary>256分音符</summary>
+        public const string Note256th = "256th";
+        /// <summary>128分音符</summary>
+        public const string Note128th = "128th";
+        /// <summary>64分音符</summary>
+        public const string Note64th = "64th";
+        /// <summary>32分音符</summary>
+        public const string Note32nd = "32nd";
+        /// <summary>16分音符</summary>
+        public const string Note16th = "16th";
+        /// <summary>8分音符</summary>
+        public const string Eighth = "eighth";
+        /// <summary>4分音符</summary>
+        public const string Quarter = "quarter";
+        /// <summary>2分音符</summary>
+        public const string Half = "half";
+        /// <summary>全部音符</summary>
+        public const string Whole = "whole";
+        /// <summary>倍全音符</summary>
+        public const string Breve = "breve";
+        /// <summary>4倍全音符</summary>
+        public const string Long = "long";
+        /// <summary>8倍全音符</summary>
+        public const string Maxima = "maxima";
     }
 }
 
