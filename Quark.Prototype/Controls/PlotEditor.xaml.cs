@@ -26,6 +26,8 @@ namespace Quark.Controls;
 /// </summary>
 public partial class PlotEditor : UserControl
 {
+    private const int FrameUnit = 1000 / 200;
+
     private const int KeyCount = 88;
 
     private const double MaxVScrollHeight = 1000;
@@ -258,12 +260,6 @@ public partial class PlotEditor : UserControl
                 }
             }
 
-            // ルーラを描画
-            // this.RenderRuler();
-            {
-                g.DrawRect(0, 0, renderWidth, scoreYOffset, new SKPaint() { Color = SKColors.Black });
-            }
-
             if (this._isLoaded)
             {
                 long totalFrameCount = this._framesCount;
@@ -284,7 +280,8 @@ public partial class PlotEditor : UserControl
                 int endFrameIdxOffsetted = endFrameIdx + offsetTemp;
 
                 // スコアの描画
-                var scores = this._score.GetPartRange(beginFrameIdx, endFrameIdx).Phrases.ToArray();
+                var result = this._score.GetPartRange(beginFrameIdx, endFrameIdx);
+                var scores = result.Phrases.ToArray();
                 {
                     for (int i = 0; i < scores.Length; ++i)
                     {
@@ -368,11 +365,62 @@ public partial class PlotEditor : UserControl
 
                     }
                 }
+
+                // ルーラを描画
+                // this.RenderRuler();
+                {
+                    g.DrawRect(0, 0, renderWidth, scoreYOffset, new SKPaint() { Color = SKColors.Black });
+
+                    var tempoDic = result.Tempos.ToDictionary(i => (int)i.Frame);
+                    var tsDic = result.TimeSignatures.ToDictionary(i => (int)i.Frame);
+
+                    int beginTime = beginFrameIdx * FrameUnit;
+                    int endTime = endFrameIdx * FrameUnit;
+
+                    var tempo = result.Tempos.First();
+                    var timeSignature = result.TimeSignatures.First();
+
+                    bool changed = true;
+                    decimal unit = 1;
+                    for (decimal time = result.BeginMeasureTime; time <= endTime;)
+                    {
+                        if (tempoDic.TryGetValue((int)time, out var t))
+                        {
+                            tempo = t;
+                            changed = true;
+                        }
+
+                        if (tsDic.TryGetValue((int)time, out var t2))
+                        {
+                            timeSignature = t2;
+                            changed = true;
+                        }
+
+                        if (changed)
+                        {
+                            unit = 60 / (decimal)tempo.Tempo * 1000;
+                            changed = false;
+                        }
+
+                        // 描画範囲内
+                        if (beginTime <= time || time <= endTime)
+                        {
+                            int x = scaling.ToDisplayScaling(TimeToFrame(time - beginTime) * _frameWidth);
+
+                            g.DrawLine(x, 0, x, scoreYOffset, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
+                        }
+
+                        time += unit;
+                    }
+                }
             }
         }
 
         return image;
     }
+
+    private static int FrameToTime(decimal frameIdx) => (int)(frameIdx * FrameUnit);
+    private static int TimeToFrame(decimal time) => (int)(time / FrameUnit);
 
     private void PaintGraphics(SKCanvas g)
     {

@@ -36,6 +36,7 @@ public static class MusicXmlUtil
         MusicXmlPhrase.Frame? tiedNote = null;
         TempoInfo? tempoInfo = null;
         TimeSignature? timeSignature = null;
+        int measurePosition = 0;
 
         {
             double tempo = DefaultTempo;
@@ -50,6 +51,11 @@ public static class MusicXmlUtil
 
             foreach (var measure in part.Measures)
             {
+                if (GetFrameIndex(currentTime) <= beginFrame)
+                {
+                    measurePosition = (int)currentTime;
+                }
+
                 var attributes = measure.Attributes;
                 if (attributes is not null)
                 {
@@ -217,7 +223,7 @@ public static class MusicXmlUtil
             timeSignatures.AddFirst(timeSignature ?? new TimeSignature(0, 4, 4));
         }
 
-        return new(tempos, timeSignatures, _notes);
+        return new(measurePosition, tempos, timeSignatures, _notes);
     }
 
     public static PartScore Parse(string xml)
@@ -376,7 +382,7 @@ public static class MusicXmlUtil
             timeSignatures.AddLast(new TimeSignature(currentTime, 4, 4));
         }
 
-        return new(tempos, timeSignatures, _notes);
+        return new(0, tempos, timeSignatures, _notes);
     }
 
     private static XmlSerializer _serializer = new XmlSerializer(typeof(MusicXmlObject));
