@@ -119,7 +119,7 @@
 
                 <ctr:PlotEditor Track="{Binding CurrentTrack, Mode=OneWay}" />
 
-                <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12"
+                <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12,38,12,12"
                         BorderThickness="1" BorderBrush="#AAAA00" Background="#FFFFAA">
                     <Grid Margin="8">
                         <Grid.ColumnDefinitions>

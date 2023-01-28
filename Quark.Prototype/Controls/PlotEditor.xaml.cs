@@ -39,12 +39,14 @@ public partial class PlotEditor : UserControl
 
     public int KeyHeight = 12;
     private SKBitmap _renderImage;
+    private SKBitmap _rulerImage;
 
     private bool _isLoaded = false;
     private long _framesCount = -1;
     private List<Class1> _pitches;
     private List<Class1> _dynamics;
     private PartScore _score;
+    private PartScore _currentViewScore;
     private float _frameWidth = 0.8f;
     private ScalingConverter _scaling;
 
@@ -189,7 +191,8 @@ public partial class PlotEditor : UserControl
         {
             using (this._renderImage)
             {
-                this._renderImage = CreateRenderImage();
+                this._renderImage = this.CreateRenderImage();
+                this._rulerImage = this.CreateRulerImage();
             }
         }
     }
@@ -224,7 +227,7 @@ public partial class PlotEditor : UserControl
         // 描画領域
         int renderWidth = this.GetRenderWidth();
         int width = scaling.ToRenderImageScaling(renderWidth);
-        int height = rulerHeight + (KeyHeight * KeyCount);
+        int height = KeyHeight * KeyCount;
         int renderHeight = scaling.ToDisplayScaling(height);
 
         int scoreYOffset = scaling.ToDisplayScaling(rulerHeight);
@@ -280,7 +283,7 @@ public partial class PlotEditor : UserControl
                 int endFrameIdxOffsetted = endFrameIdx + offsetTemp;
 
                 // スコアの描画
-                var result = this._score.GetRangeInfo(beginFrameIdx, endFrameIdx);
+                var result = this._currentViewScore = this._score.GetRangeInfo(beginFrameIdx, endFrameIdx);
                 var scores = result.Phrases.ToArray();
                 {
                     for (int i = 0; i < scores.Length; ++i)
@@ -365,66 +368,99 @@ public partial class PlotEditor : UserControl
 
                     }
                 }
+            }
+        }
 
-                // ルーラを描画
-                // this.RenderRuler();
+        return image;
+    }
+
+    private SKBitmap CreateRulerImage()
+    {
+        var scaling = this._scaling;
+
+        long totalFrameCount = this._framesCount;
+
+        int offsetFrames = 1;
+
+
+        int renderWidth = this.GetRenderWidth();
+        int rulerHeight = this._rulerHeight;
+        int renderHeight = scaling.ToDisplayScaling(rulerHeight);
+        var result = this._currentViewScore;
+
+        var image = new SKBitmap(renderWidth, renderHeight);
+
+        (var partImage, int octWidth, int octHeight) = CreatePianoOctaveBmp(100, KeyHeight, scaling);
+
+        using (var g = new SKCanvas(image))
+        {
+
+            // 描画するフレーム数
+            int viewFrames = (int)Math.Ceiling(((double)renderWidth / this._frameWidth));
+            int framesCount = viewFrames + (offsetFrames * 2);
+
+            // 開始フレーム位置
+            int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * (totalFrameCount - framesCount));
+            int endFrameIdx = beginFrameIdx + framesCount;
+
+            g.DrawRect(0, 0, renderWidth, renderHeight, new SKPaint() { Color = SKColors.Black });
+
+            if (this._isLoaded && result is not null)
+            {
+
+                var tempoDic = result.Tempos.ToDictionary(i => (int)i.Frame);
+                var tsDic = result.TimeSignatures.ToDictionary(i => (int)i.Frame);
+
+                int beginTime = beginFrameIdx * FrameUnit;
+                int endTime = endFrameIdx * FrameUnit;
+
+                var tempo = result.Tempos.First();
+                var timeSignature = result.TimeSignatures.First();
+
+                int count = 0;
+
+                bool changed = true;
+                decimal unit = 1;
+                decimal c = 1;
+                for (decimal time = result.BeginMeasureTime; time <= endTime;)
                 {
-                    g.DrawRect(0, 0, renderWidth, scoreYOffset, new SKPaint() { Color = SKColors.Black });
-
-                    var tempoDic = result.Tempos.ToDictionary(i => (int)i.Frame);
-                    var tsDic = result.TimeSignatures.ToDictionary(i => (int)i.Frame);
-
-                    int beginTime = beginFrameIdx * FrameUnit;
-                    int endTime = endFrameIdx * FrameUnit;
-
-                    var tempo = result.Tempos.First();
-                    var timeSignature = result.TimeSignatures.First();
-
-                    int count = 0;
-
-                    bool changed = true;
-                    decimal unit = 1;
-                    decimal c = 1;
-                    for (decimal time = result.BeginMeasureTime; time <= endTime;)
+                    if (tempoDic.TryGetValue((int)time, out var t))
                     {
-                        if (tempoDic.TryGetValue((int)time, out var t))
-                        {
-                            tempo = t;
-                            changed = true;
-                        }
-
-                        if (tsDic.TryGetValue((int)time, out var t2))
-                        {
-                            timeSignature = t2;
-                            count = 0;
-                            changed = true;
-                        }
-
-                        if (changed)
-                        {
-                            decimal quantize = 8m;
-                            c = timeSignature.BeatType / 4m / (quantize / 4m);
-                            unit = 60 / (decimal)tempo.Tempo * 1000 / (quantize / 4m);
-                            changed = false;
-                        }
-
-                        // 描画範囲内
-                        if (beginTime <= time || time <= endTime)
-                        {
-                            int x = scaling.ToDisplayScaling(TimeToFrame(time - beginTime) * _frameWidth);
-
-                            g.DrawLine(x, (count != 0 ? (scoreYOffset / 2) : 0), x, scoreYOffset, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
-                        }
-
-                        ++count;
-
-                        if (count == (timeSignature.Beats / c))
-                        {
-                            count = 0;
-                        }
-
-                        time += unit;
+                        tempo = t;
+                        changed = true;
                     }
+
+                    if (tsDic.TryGetValue((int)time, out var t2))
+                    {
+                        timeSignature = t2;
+                        count = 0;
+                        changed = true;
+                    }
+
+                    if (changed)
+                    {
+                        decimal quantize = 8m;
+                        c = timeSignature.BeatType / 4m / (quantize / 4m);
+                        unit = 60 / (decimal)tempo.Tempo * 1000 / (quantize / 4m);
+                        changed = false;
+                    }
+
+                    // 描画範囲内
+                    if (beginTime <= time || time <= endTime)
+                    {
+                        int x = scaling.ToDisplayScaling(TimeToFrame(time - beginTime) * _frameWidth);
+
+                        g.DrawLine(x, (count != 0 ? (renderHeight / 2) : 0), x, renderHeight, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
+                    }
+
+                    ++count;
+
+                    if (count == (timeSignature.Beats / c))
+                    {
+                        count = 0;
+                    }
+
+                    time += unit;
                 }
             }
         }
@@ -453,11 +489,13 @@ public partial class PlotEditor : UserControl
         // 描画領域の更新
         int renderHeight = KeyHeight * KeyCount;
 
+        var scaling = this._scaling;
+        int rulerHeight = scaling.ToDisplayScaling(this._rulerHeight);
+
         // スクロール位置から描画位置(y)を計算
-        int renderY = (int)Math.Floor(this.GetVerticalScrollCoe() * (renderHeight - height));
-        var rect1 = SKRect.Create(0, renderY, width, height); // test
-        var rect2 = SKRect.Create(0, 0, width, height); // test
-        g.DrawBitmap(keysBackground, SKRect.Create(0, renderY, width, height), SKRect.Create(0, 0, width, height));
+        int renderY = (int)Math.Floor(this.GetVerticalScrollCoe() * (renderHeight - height - rulerHeight));
+        g.DrawBitmap(keysBackground, SKRect.Create(0, rulerHeight + renderY, width, height - rulerHeight), SKRect.Create(0, rulerHeight, width, height - rulerHeight));
+        g.DrawBitmap(this._rulerImage, SKRect.Create(0, 0, width, rulerHeight), SKRect.Create(0, 0, width, rulerHeight));
 
     }
 
