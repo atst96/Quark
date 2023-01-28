@@ -113,7 +113,7 @@ public static class MusicXmlUtil
                                 int currentFrame = GetFrameIndex(currentTime);
 
                                 var metronome = direction.DirectionType.Metronome;
-                                var info = new TempoInfo(true, currentTime, tempo, metronome.BeatUnit, metronome.PerMinute);
+                                var info = new TempoInfo(true, currentTime, tempo, metronome.BeatUnit, metronome.BeatUnitDot is not null, metronome.PerMinute);
                                 if (currentFrame < beginFrame)
                                 {
                                     tempoInfo = info;
@@ -214,7 +214,7 @@ public static class MusicXmlUtil
         // 先頭のテンポ情報がなければデフォルトを差し込む
         if (tempos.Count == 0 || (tempos.First!.Value.Frame > beginFrame))
         {
-            tempos.AddFirst(tempoInfo ?? new TempoInfo(false, 0, DefaultTempo, "quarter", DefaultTempo));
+            tempos.AddFirst(tempoInfo ?? new TempoInfo(false, 0, DefaultTempo, "quarter", false, DefaultTempo));
         }
 
         // 先頭の小節情報がなければデフォルトを差し込む
@@ -301,7 +301,7 @@ public static class MusicXmlUtil
                                 timePerQuarter = unit * tick * 1000;
 
                                 var metronome = direction.DirectionType.Metronome;
-                                tempos.AddLast(new TempoInfo(true, currentTime, tempo, metronome.BeatUnit, metronome.PerMinute));
+                                tempos.AddLast(new TempoInfo(true, currentTime, tempo, metronome.BeatUnit, metronome.BeatUnitDot is not null, metronome.PerMinute));
                             }
                         }
                         else if (item is Note note)
@@ -373,13 +373,13 @@ public static class MusicXmlUtil
         // 先頭のテンポ情報がなければデフォルトを差し込む
         if (tempos is not { Count: > 0, First.Value.Frame: 0 })
         {
-            tempos.AddFirst(new TempoInfo(false, 0, DefaultTempo, "quarter", DefaultTempo));
+            tempos.AddFirst(new TempoInfo(false, 0, DefaultTempo, "quarter", false, DefaultTempo));
         }
 
         // 先頭の小節情報がなければデフォルトを差し込む
         if (timeSignatures is not { Count: > 0, First.Value.Frame: 0 })
         {
-            timeSignatures.AddLast(new TimeSignature(currentTime, 4, 4));
+            timeSignatures.AddFirst(new TimeSignature(0, 4, 4));
         }
 
         return new(0, tempos, timeSignatures, _notes);
