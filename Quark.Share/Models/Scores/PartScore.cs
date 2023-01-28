@@ -39,7 +39,7 @@ public record PartScore(
         {
             TTime elementTime = getTimeFunc.Invoke(element);
 
-            if (beginTime <= elementTime || elementTime >= endTime)
+            if (beginTime <= elementTime || elementTime <= endTime)
             {
                 // 範囲内要素の場合
                 if (oorElement is not null)
