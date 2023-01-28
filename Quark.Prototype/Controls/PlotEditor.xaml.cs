@@ -44,7 +44,7 @@ public partial class PlotEditor : UserControl
     private long _framesCount = -1;
     private List<Class1> _pitches;
     private List<Class1> _dynamics;
-    private Part _score;
+    private PartScore _score;
     private float _frameWidth = 0.8f;
     private ScalingConverter _scaling;
 
@@ -280,7 +280,7 @@ public partial class PlotEditor : UserControl
                 int endFrameIdxOffsetted = endFrameIdx + offsetTemp;
 
                 // スコアの描画
-                var result = this._score.GetPartRange(beginFrameIdx, endFrameIdx);
+                var result = this._score.GetRangeInfo(beginFrameIdx, endFrameIdx);
                 var scores = result.Phrases.ToArray();
                 {
                     for (int i = 0; i < scores.Length; ++i)
@@ -453,7 +453,7 @@ public partial class PlotEditor : UserControl
         var features = track.GetFeatures();
 
         // 楽譜情報解析
-        this._score = MusicXmlUtil.ParseMusicXml(track.MusicXml).Parts.First();
+        this._score = MusicXmlUtil.Parse(track.MusicXml);
         this._pitches = Parse(features.F0!, 0.0f);
         this._dynamics = Parse(GetDynamicsFromMgc(features.Mgc!, features.F0!), -30d);
         this._framesCount = features.F0!.Length;
