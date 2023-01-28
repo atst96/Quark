@@ -380,8 +380,11 @@ public partial class PlotEditor : UserControl
                     var tempo = result.Tempos.First();
                     var timeSignature = result.TimeSignatures.First();
 
+                    int count = 0;
+
                     bool changed = true;
                     decimal unit = 1;
+                    decimal c = 1;
                     for (decimal time = result.BeginMeasureTime; time <= endTime;)
                     {
                         if (tempoDic.TryGetValue((int)time, out var t))
@@ -393,12 +396,15 @@ public partial class PlotEditor : UserControl
                         if (tsDic.TryGetValue((int)time, out var t2))
                         {
                             timeSignature = t2;
+                            count = 0;
                             changed = true;
                         }
 
                         if (changed)
                         {
-                            unit = 60 / (decimal)tempo.Tempo * 1000;
+                            decimal quantize = 8m;
+                            c = timeSignature.BeatType / 4m / (quantize / 4m);
+                            unit = 60 / (decimal)tempo.Tempo * 1000 / (quantize / 4m);
                             changed = false;
                         }
 
@@ -407,7 +413,14 @@ public partial class PlotEditor : UserControl
                         {
                             int x = scaling.ToDisplayScaling(TimeToFrame(time - beginTime) * _frameWidth);
 
-                            g.DrawLine(x, 0, x, scoreYOffset, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
+                            g.DrawLine(x, (count != 0 ? (scoreYOffset / 2) : 0), x, scoreYOffset, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
+                        }
+
+                        ++count;
+
+                        if (count == (timeSignature.Beats / c))
+                        {
+                            count = 0;
                         }
 
                         time += unit;
