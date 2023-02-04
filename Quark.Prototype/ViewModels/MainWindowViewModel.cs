@@ -192,7 +192,29 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     public NeutrinoV1Track CurrentTrack
     {
         get => this._currentTrack;
-        set => this.RaisePropertyChangedIfSet(ref this._currentTrack, value);
+        set
+        {
+            if (this.RaisePropertyChangedIfSet(ref this._currentTrack, value))
+            {
+                this.CurrentTime = TimeSpan.Zero;
+                this.MaximumTime = TimeSpan.FromMilliseconds(value.GetFeatures().F0!.Length * 200);
+            }
+        }
+    }
+
+    private TimeSpan _currentTime = TimeSpan.Zero;
+    public TimeSpan CurrentTime
+    {
+        get => this._currentTime;
+        set => this.RaisePropertyChangedIfSet(ref this._currentTime, value);
+    }
+
+
+    private TimeSpan _maximumTime = TimeSpan.Zero;
+    public TimeSpan MaximumTime
+    {
+        get => this._maximumTime;
+        private set => this.RaisePropertyChangedIfSet(ref this._maximumTime, value);
     }
 
     public async void LoadTrack(Project project, NeutrinoV1Track track)

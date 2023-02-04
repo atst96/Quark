@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -8,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using Quark.Models.MusicXML;
 using Quark.Models.Scores;
 using Quark.Projects.Tracks;
@@ -99,9 +101,9 @@ public partial class PlotEditor : UserControl
     }
 
     public static readonly DependencyProperty TrackProperty =
-        DependencyProperty.Register(nameof(Track), typeof(NeutrinoV1Track), typeof(PlotEditor), new PropertyMetadata(null, OnPropertyChanged));
+        DependencyProperty.Register(nameof(Track), typeof(NeutrinoV1Track), typeof(PlotEditor), new PropertyMetadata(null, OnTrackPropertyChanged));
 
-    private static void OnPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    private static void OnTrackPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is PlotEditor editor)
         {
@@ -109,6 +111,72 @@ public partial class PlotEditor : UserControl
             {
                 editor.Load(track);
             }
+
+            editor.UpdatePointer();
+        }
+    }
+
+    public TimeSpan SelectionTime
+    {
+        get => (TimeSpan)this.GetValue(SelectionTimeProperty);
+        set => this.SetValue(SelectionTimeProperty, value);
+    }
+
+    // Using a DependencyProperty as the backing store for SelectionTime.  This enables animation, styling, binding, etc...
+    public static readonly DependencyProperty SelectionTimeProperty =
+        DependencyProperty.Register(nameof(SelectionTime), typeof(TimeSpan), typeof(PlotEditor), new PropertyMetadata(TimeSpan.Zero, OnSelectionTimePropertyChanged));
+
+    private static void OnSelectionTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((PlotEditor)d).UpdatePointer((TimeSpan)e.NewValue);
+
+    private void UpdatePointer() => this.UpdatePointer(this.SelectionTime);
+
+    private void UpdatePointer(TimeSpan time)
+    {
+        long totalFrameCount = this._framesCount;
+
+        (int rulerHeight, var scaling) = (this._rulerHeight, this._scaling);
+
+        int scoreHeight = KeyHeight * KeyCount;
+
+        // 描画領域
+        int renderWidth = this.GetRenderWidth();
+        int width = scaling.ToRenderImageScaling(renderWidth);
+        int height = KeyHeight * KeyCount;
+        int renderHeight = scaling.ToDisplayScaling(height);
+
+        int scoreYOffset = scaling.ToDisplayScaling(rulerHeight);
+
+        int scoreRenderWidth = renderWidth;
+        int scoreWidth = width;
+        int scoreRenderHeight = scaling.ToDisplayScaling(scoreHeight);
+
+        // 描画するフレーム数
+        int viewFrames = (int)Math.Ceiling(((double)renderWidth / this._frameWidth));
+        int framesCount = viewFrames;
+
+        // 開始フレーム位置
+        int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
+        int endFrameIdx = beginFrameIdx + framesCount;
+
+        int currentFrameIdx = (int)(time.TotalMilliseconds / 200);
+        Debug.WriteLine(time);
+
+        var lineElement = this.PART_SelectionTime;
+        var renderElement = this.SKElement;
+        if (beginFrameIdx <= currentFrameIdx && currentFrameIdx <= endFrameIdx)
+        {
+            double x = scaling.ToDisplayScaling((currentFrameIdx - beginFrameIdx) * _frameWidth);
+
+            lineElement.X1 = lineElement.X2 = x;
+            lineElement.Y1 = 0;
+            lineElement.Y2 = renderElement.ActualHeight;
+
+            lineElement.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            lineElement.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -206,6 +274,7 @@ public partial class PlotEditor : UserControl
     private void OnRenderSizeChanged(object sender, SizeChangedEventArgs e)
     {
         this.Redraw();
+        this.UpdatePointer();
     }
 
     private double GetVerticalScrollCoe()
@@ -397,7 +466,7 @@ public partial class PlotEditor : UserControl
 
             // 描画するフレーム数
             int viewFrames = (int)Math.Ceiling(((double)renderWidth / this._frameWidth));
-            int framesCount = viewFrames + (offsetFrames * 2);
+            int framesCount = viewFrames/* + (offsetFrames * 2)*/;
 
             // 開始フレーム位置
             int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
@@ -407,7 +476,6 @@ public partial class PlotEditor : UserControl
 
             if (this._isLoaded && result is not null)
             {
-
                 var tempoDic = result.Tempos.ToDictionary(i => (int)i.Frame);
                 var tsDic = result.TimeSignatures.ToDictionary(i => (int)i.Frame);
 
@@ -496,7 +564,6 @@ public partial class PlotEditor : UserControl
         int renderY = (int)Math.Floor(this.GetVerticalScrollCoe() * (renderHeight - height - rulerHeight));
         g.DrawBitmap(keysBackground, SKRect.Create(0, rulerHeight + renderY, width, height - rulerHeight), SKRect.Create(0, rulerHeight, width, height - rulerHeight));
         g.DrawBitmap(this._rulerImage, SKRect.Create(0, 0, width, rulerHeight), SKRect.Create(0, 0, width, rulerHeight));
-
     }
 
     private void Load(NeutrinoV1Track track)
@@ -585,6 +652,7 @@ public partial class PlotEditor : UserControl
         if (e.ScrollEventType != ScrollEventType.First)
         {
             this.Redraw();
+            this.UpdatePointer();
         }
     }
 

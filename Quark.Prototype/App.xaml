@@ -10,6 +10,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary>
                     <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityCollapseConverter" />
+                    <conv:TimeSpanToMillisecondConverter x:Key="TimeSpanToMillisecondConverter" />
                 </ResourceDictionary>
                 <ResourceDictionary Source="/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
