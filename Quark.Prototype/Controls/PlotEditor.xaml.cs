@@ -275,7 +275,7 @@ public partial class PlotEditor : UserControl
                 // float renderOffset =  viewFrames * this._frameWidth;
 
                 // 開始フレーム位置
-                int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * (totalFrameCount - framesCount));
+                int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
                 int endFrameIdx = beginFrameIdx + framesCount;
 
                 int offsetTemp = 1;
@@ -400,7 +400,7 @@ public partial class PlotEditor : UserControl
             int framesCount = viewFrames + (offsetFrames * 2);
 
             // 開始フレーム位置
-            int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * (totalFrameCount - framesCount));
+            int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
             int endFrameIdx = beginFrameIdx + framesCount;
 
             g.DrawRect(0, 0, renderWidth, renderHeight, new SKPaint() { Color = SKColors.Black });
