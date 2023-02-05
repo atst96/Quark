@@ -51,6 +51,7 @@ public partial class PlotEditor : UserControl
     private PartScore _currentViewScore;
     private float _frameWidth = 0.8f;
     private ScalingConverter _scaling;
+    private RenderInfo _renderInfo;
 
     private int _rulerHeight = 24;
 
@@ -91,6 +92,7 @@ public partial class PlotEditor : UserControl
     private void OnDpiChnaged(object sender, DpiChangedEventArgs e)
     {
         this._scaling = new ScalingConverter(e.NewDpi.DpiScaleX);
+        this._renderInfo = new RenderInfo(this._scaling, this.GetRenderWidth(), this._frameWidth, 1.0f);
         this.Redraw();
     }
 
@@ -168,7 +170,8 @@ public partial class PlotEditor : UserControl
         {
             double x = scaling.ToDisplayScaling((currentFrameIdx - beginFrameIdx) * _frameWidth);
 
-            lineElement.X1 = lineElement.X2 = x;
+            lineElement.X1 = x;
+            lineElement.X2 = x;
             lineElement.Y1 = 0;
             lineElement.Y2 = renderElement.ActualHeight;
 
@@ -259,8 +262,9 @@ public partial class PlotEditor : UserControl
         {
             using (this._renderImage)
             {
-                this._renderImage = this.CreateRenderImage();
-                this._rulerImage = this.CreateRulerImage();
+                var renderInfo = this._renderInfo = new RenderInfo(this._scaling, width, this._frameWidth, 1.0f);
+                this._renderImage = this.CreateRenderImage(renderInfo);
+                this._rulerImage = this.CreateRulerImage(renderInfo);
             }
         }
     }
@@ -287,25 +291,25 @@ public partial class PlotEditor : UserControl
         return (double)hScrollBar1.Value / MaxHScrollHeight;
     }
 
-    private SKBitmap CreateRenderImage()
+    private SKBitmap CreateRenderImage(RenderInfo renderInfo)
     {
         (int rulerHeight, var scaling) = (this._rulerHeight, this._scaling);
 
-        int scoreHeight = KeyHeight * KeyCount;
+        int scoreHeight = renderInfo.ScoreHeight;
 
         // 描画領域
-        int renderWidth = this.GetRenderWidth();
-        int width = scaling.ToRenderImageScaling(renderWidth);
-        int height = KeyHeight * KeyCount;
-        int renderHeight = scaling.ToDisplayScaling(height);
+        int renderWidth = renderInfo.RenderWidth;
+        int width = renderInfo.ImageWidth;
+        int height = renderInfo.ImageHeight;
+        int renderHeight = renderInfo.RenderHeight;
 
-        int scoreYOffset = scaling.ToDisplayScaling(rulerHeight);
+        int scoreYOffset = renderInfo.RenderRulerHeight;
 
         int scoreRenderWidth = renderWidth;
         int scoreWidth = width;
-        int scoreRenderHeight = scaling.ToDisplayScaling(scoreHeight);
+        int scoreRenderHeight = renderInfo.ScoreRenderWidth;
 
-        var image = new SKBitmap(renderWidth, renderHeight);
+        var image = new SKBitmap(renderInfo.RenderWidth, renderInfo.RenderHeight);
 
         (var partImage, int octWidth, int octHeight) = CreatePianoOctaveBmp(100, KeyHeight, scaling);
 
@@ -443,18 +447,18 @@ public partial class PlotEditor : UserControl
         return image;
     }
 
-    private SKBitmap CreateRulerImage()
+    private SKBitmap CreateRulerImage(RenderInfo renderInfo)
     {
-        var scaling = this._scaling;
+        var scaling = renderInfo.Scaling;
 
         long totalFrameCount = this._framesCount;
 
         int offsetFrames = 1;
 
 
-        int renderWidth = this.GetRenderWidth();
+        int renderWidth = renderInfo.RenderWidth;
         int rulerHeight = this._rulerHeight;
-        int renderHeight = scaling.ToDisplayScaling(rulerHeight);
+        int renderHeight = renderInfo.RenderRulerHeight;
         var result = this._currentViewScore;
 
         var image = new SKBitmap(renderWidth, renderHeight);
@@ -465,7 +469,7 @@ public partial class PlotEditor : UserControl
         {
 
             // 描画するフレーム数
-            int viewFrames = (int)Math.Ceiling(((double)renderWidth / this._frameWidth));
+            int viewFrames = renderInfo.GetRenderFrames();
             int framesCount = viewFrames/* + (offsetFrames * 2)*/;
 
             // 開始フレーム位置
@@ -557,8 +561,8 @@ public partial class PlotEditor : UserControl
         // 描画領域の更新
         int renderHeight = KeyHeight * KeyCount;
 
-        var scaling = this._scaling;
-        int rulerHeight = scaling.ToDisplayScaling(this._rulerHeight);
+        var renderInfo = this._renderInfo;
+        int rulerHeight = renderInfo.RenderRulerHeight;
 
         // スクロール位置から描画位置(y)を計算
         int renderY = (int)Math.Floor(this.GetVerticalScrollCoe() * (renderHeight - height - rulerHeight));
