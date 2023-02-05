@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Resources;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -129,11 +131,11 @@ public partial class PlotEditor : UserControl
         DependencyProperty.Register(nameof(SelectionTime), typeof(TimeSpan), typeof(PlotEditor), new PropertyMetadata(TimeSpan.Zero, OnSelectionTimePropertyChanged));
 
     private static void OnSelectionTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((PlotEditor)d).UpdatePointer((TimeSpan)e.NewValue);
+        => ((PlotEditor)d).UpdatePointer((TimeSpan)e.NewValue, (TimeSpan)e.OldValue);
 
     private void UpdatePointer() => this.UpdatePointer(this.SelectionTime);
 
-    private void UpdatePointer(TimeSpan time)
+    private void UpdatePointer(TimeSpan time, TimeSpan? prevTime = null)
     {
         long totalFrameCount = this._framesCount;
 
@@ -162,11 +164,10 @@ public partial class PlotEditor : UserControl
         int endFrameIdx = beginFrameIdx + framesCount;
 
         int currentFrameIdx = (int)(time.TotalMilliseconds / 200);
-        Debug.WriteLine(time);
 
         var lineElement = this.PART_SelectionTime;
         var renderElement = this.SKElement;
-        if (beginFrameIdx <= currentFrameIdx && currentFrameIdx <= endFrameIdx)
+        if (beginFrameIdx <= currentFrameIdx && currentFrameIdx < endFrameIdx)
         {
             double x = scaling.ToDisplayScaling((currentFrameIdx - beginFrameIdx) * _frameWidth);
 
@@ -179,7 +180,32 @@ public partial class PlotEditor : UserControl
         }
         else
         {
-            lineElement.Visibility = Visibility.Collapsed;
+            bool isAutoScroll = true;
+            if (isAutoScroll)
+            {
+                double value;
+                if (prevTime.HasValue && prevTime < time)
+                {
+                    // 前方向への移動
+                    value = (time.TotalMilliseconds / (totalFrameCount * 200)) * MaxHScrollHeight;
+                }
+                else
+                {
+                    // 後方向への移動
+                    value = ((time.TotalMilliseconds - (viewFrames * 200)) / (totalFrameCount * 200)) * MaxHScrollHeight;
+                }
+
+                Debug.WriteLine(value);
+
+                this.hScrollBar1.Value = value;
+                this.Redraw();
+
+                return;
+            }
+            else
+            {
+                lineElement.Visibility = Visibility.Collapsed;
+            }
         }
     }
 
@@ -343,7 +369,7 @@ public partial class PlotEditor : UserControl
                 int offsetFrames = 1;
 
                 // 描画するフレーム数
-                int viewFrames = (int)Math.Ceiling(((double)renderWidth / this._frameWidth));
+                int viewFrames = renderInfo.GetRenderFrames();
                 int framesCount = viewFrames + (offsetFrames * 2);
                 // float renderOffset =  viewFrames * this._frameWidth;
 
@@ -463,11 +489,8 @@ public partial class PlotEditor : UserControl
 
         var image = new SKBitmap(renderWidth, renderHeight);
 
-        (var partImage, int octWidth, int octHeight) = CreatePianoOctaveBmp(100, KeyHeight, scaling);
-
         using (var g = new SKCanvas(image))
         {
-
             // 描画するフレーム数
             int viewFrames = renderInfo.GetRenderFrames();
             int framesCount = viewFrames/* + (offsetFrames * 2)*/;
