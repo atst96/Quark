@@ -134,9 +134,10 @@ public static class MeasureItemTypes
 
     public record Pitch(
         [property: XmlElement("step")] string Step,
+        [property: XmlElement("alter")] decimal? Alter,
         [property: XmlElement("octave")] int Octave)
     {
-        public Pitch() : this(default, default) { }
+        public Pitch() : this(default, null, default) { }
     }
 
     public record Tie(

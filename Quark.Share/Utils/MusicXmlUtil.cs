@@ -152,7 +152,7 @@ public static class MusicXmlUtil
                                         if (IsRange(beginFrame, endFrame, _beginFrame, _endFrame))
                                         {
                                             // タイ以外の音符
-                                            _notes.AddLast(CreateFrameInfo(note, currentTime, currentTime + duration, keys));
+                                            _notes.AddLast(CreateFrameInfo(note, currentTime, currentTime + duration));
                                         }
                                     }
                                     else
@@ -160,7 +160,7 @@ public static class MusicXmlUtil
                                         if (ties.All(t => t.Type == StartStop.Start))
                                         {
                                             // タイ記号の始め
-                                            tiedNote = CreateFrameInfo(note, currentTime, currentTime + duration, keys);
+                                            tiedNote = CreateFrameInfo(note, currentTime, currentTime + duration);
                                         }
                                         else if (ties.Any(t => t.Type == StartStop.Stop) && tiedNote is not null)
                                         {
@@ -322,14 +322,14 @@ public static class MusicXmlUtil
                                     if (ties is null || ties.Count == 0)
                                     {
                                         // タイ以外の音符
-                                        _notes.AddLast(CreateFrameInfo(note, currentTime, currentTime + duration, keys));
+                                        _notes.AddLast(CreateFrameInfo(note, currentTime, currentTime + duration));
                                     }
                                     else
                                     {
                                         if (ties.All(t => t.Type == StartStop.Start))
                                         {
                                             // タイ記号の始め
-                                            tiedNote = CreateFrameInfo(note, currentTime, currentTime + duration, keys);
+                                            tiedNote = CreateFrameInfo(note, currentTime, currentTime + duration);
                                         }
                                         else if (ties.Any(t => t.Type == StartStop.Stop) && tiedNote is not null)
                                         {
@@ -396,15 +396,11 @@ public static class MusicXmlUtil
         }
     }
 
-    static int GetCode(Dictionary<int, int>? keys, Pitch pitch)
+    static int GetCode(Pitch pitch)
     {
         int timble = KeyCodeForStep[pitch.Step];
-        if (keys?.TryGetValue(timble, out int correction) ?? false)
-        {
-            timble = correction;
-        }
 
-        return (pitch.Octave * 12) + timble + 13;
+        return (int)((pitch.Octave * 12) + (pitch.Alter ?? 0) + timble + 13);
     }
 
     private static bool GetIsBreath(Note note)
@@ -421,11 +417,11 @@ public static class MusicXmlUtil
         => beginFrame < elementEndFrame || endFrame >= elementBeginFrame;
 
     private static MusicXmlPhrase.Frame CreateFrameInfo(
-        Note note, decimal startTime, decimal endTime, Dictionary<int, int>? keys)
+        Note note, decimal startTime, decimal endTime)
         => new MusicXmlPhrase.Frame(
             (int)(startTime / Unit),
             (int)(endTime / Unit),
-            note.Lyric.Text, GetCode(keys, note.Pitch), GetIsBreath(note));
+            note.Lyric.Text, GetCode(note.Pitch), GetIsBreath(note));
 
     private const int KeyCodeC = 0;
     private const int KeyCodeCSharp = 1;
@@ -453,74 +449,93 @@ public static class MusicXmlUtil
 
     private static Dictionary<int, Dictionary<int, int>> FifthCodeRelations = new()
     {
+        [-7] = new() // ♭7つ
+        {
+            [KeyCodeF] = KeyCodeF - 1,
+            [KeyCodeE] = KeyCodeE - 1,
+            [KeyCodeD] = KeyCodeD - 1,
+            [KeyCodeC] = KeyCodeC - 1,
+            [KeyCodeB] = KeyCodeB - 1,
+            [KeyCodeA] = KeyCodeA - 1,
+            [KeyCodeG] = KeyCodeG - 1,
+        },
         [-6] = new() // ♭6つ
         {
-            [KeyCodeC] = KeyCodeB,
-            [KeyCodeE] = KeyCodeDSharp,
-            [KeyCodeD] = KeyCodeCSharp,
-            [KeyCodeB] = KeyCodeASharp,
-            [KeyCodeA] = KeyCodeGSharp,
-            [KeyCodeG] = KeyCodeFSharp,
+            [KeyCodeE] = KeyCodeE - 1,
+            [KeyCodeD] = KeyCodeD - 1,
+            [KeyCodeC] = KeyCodeC - 1,
+            [KeyCodeB] = KeyCodeB - 1,
+            [KeyCodeA] = KeyCodeA - 1,
+            [KeyCodeG] = KeyCodeG - 1,
         },
         [-5] = new() // ♭5つ
         {
-            [KeyCodeE] = KeyCodeDSharp,
-            [KeyCodeD] = KeyCodeCSharp,
-            [KeyCodeB] = KeyCodeASharp,
-            [KeyCodeA] = KeyCodeGSharp,
-            [KeyCodeG] = KeyCodeFSharp,
+            [KeyCodeE] = KeyCodeE - 1,
+            [KeyCodeD] = KeyCodeD - 1,
+            [KeyCodeB] = KeyCodeB - 1,
+            [KeyCodeA] = KeyCodeA - 1,
+            [KeyCodeG] = KeyCodeG - 1,
         },
         [-4] = new() // ♭4つ
         {
-            [KeyCodeE] = KeyCodeDSharp,
-            [KeyCodeD] = KeyCodeCSharp,
-            [KeyCodeB] = KeyCodeASharp,
-            [KeyCodeA] = KeyCodeGSharp,
+            [KeyCodeE] = KeyCodeE - 1,
+            [KeyCodeD] = KeyCodeD - 1,
+            [KeyCodeB] = KeyCodeB - 1,
+            [KeyCodeA] = KeyCodeA - 1,
         },
         [-3] = new() // ♭3つ
         {
-            [KeyCodeE] = KeyCodeDSharp,
-            [KeyCodeB] = KeyCodeASharp,
-            [KeyCodeA] = KeyCodeGSharp,
+            [KeyCodeE] = KeyCodeE - 1,
+            [KeyCodeB] = KeyCodeB - 1,
+            [KeyCodeA] = KeyCodeA - 1,
         },
         [-2] = new() // ♭2つ
         {
-            [KeyCodeE] = KeyCodeDSharp,
-            [KeyCodeB] = KeyCodeASharp,
+            [KeyCodeE] = KeyCodeE - 1,
+            [KeyCodeB] = KeyCodeB - 1,
         },
         [-1] = new() // ♭1つ
         {
-            [KeyCodeB] = KeyCodeASharp,
+            [KeyCodeB] = KeyCodeB - 1,
         },
         [1] = new() // ♯1つ
         {
-            [KeyCodeF] = KeyCodeFSharp,
+            [KeyCodeF] = KeyCodeF + 1,
         },
         [2] = new() // ♯2つ
         {
-            [KeyCodeF] = KeyCodeFSharp,
-            [KeyCodeC] = KeyCodeCSharp,
+            [KeyCodeF] = KeyCodeF + 1,
+            [KeyCodeC] = KeyCodeC + 1,
         },
         [3] = new()// ♯3つ
         {
-            [KeyCodeG] = KeyCodeGSharp,
-            [KeyCodeF] = KeyCodeFSharp,
-            [KeyCodeC] = KeyCodeCSharp,
+            [KeyCodeG] = KeyCodeG + 1,
+            [KeyCodeF] = KeyCodeF + 1,
+            [KeyCodeC] = KeyCodeC + 1,
         },
         [4] = new()// ♯4つ
         {
-            [KeyCodeG] = KeyCodeGSharp,
-            [KeyCodeF] = KeyCodeFSharp,
-            [KeyCodeD] = KeyCodeDSharp,
-            [KeyCodeC] = KeyCodeCSharp,
+            [KeyCodeG] = KeyCodeG + 1,
+            [KeyCodeF] = KeyCodeF + 1,
+            [KeyCodeD] = KeyCodeD + 1,
+            [KeyCodeC] = KeyCodeC + 1,
         },
         [5] = new()// ♯5つ
         {
-            [KeyCodeG] = KeyCodeGSharp,
-            [KeyCodeF] = KeyCodeFSharp,
-            [KeyCodeD] = KeyCodeDSharp,
-            [KeyCodeC] = KeyCodeCSharp,
-            [KeyCodeA] = KeyCodeASharp,
+            [KeyCodeG] = KeyCodeG + 1,
+            [KeyCodeF] = KeyCodeF + 1,
+            [KeyCodeD] = KeyCodeD + 1,
+            [KeyCodeC] = KeyCodeC + 1,
+            [KeyCodeA] = KeyCodeA + 1,
+        },
+        [6] = new()// ♯6つ
+        {
+            [KeyCodeG] = KeyCodeG + 1,
+            [KeyCodeF] = KeyCodeF + 1,
+            [KeyCodeD] = KeyCodeD + 1,
+            [KeyCodeC] = KeyCodeC + 1,
+            [KeyCodeB] = KeyCodeB + 1,
+            [KeyCodeA] = KeyCodeA + 1,
         },
     };
 }
