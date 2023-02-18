@@ -1,18 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Diagnostics.Eventing.Reader;
 using System.Linq;
-using System.Resources;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Shapes;
-using Quark.Models.MusicXML;
 using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
@@ -35,7 +30,7 @@ public partial class PlotEditor : UserControl
     private const int KeyCount = 88;
 
     private const double MaxVScrollHeight = 1000;
-    private const double MaxHScrollHeight = 1000;
+    private double MaxHScrollHeight = 1000;
 
     private SKPaint _whiteKeyPaint = new SKPaint { Color = new SKColor(255, 255, 255) };
     private SKPaint _blackKeyPaint = new SKPaint { Color = new SKColor(230, 230, 230) };
@@ -52,7 +47,7 @@ public partial class PlotEditor : UserControl
     private PartScore _score;
     private PartScore _currentViewScore;
     private float _frameWidth = 0.8f;
-    private ScalingConverter _scaling;
+    private RenderScaleInfo _scaling;
     private RenderInfo _renderInfo;
 
     private int _rulerHeight = 24;
@@ -63,19 +58,30 @@ public partial class PlotEditor : UserControl
     {
         this.InitializeComponent();
 
-        vScrollBar1.Minimum = 0;
-        vScrollBar1.Maximum = MaxVScrollHeight;
-        vScrollBar1.LargeChange = 1;
-        vScrollBar1.ViewportSize = MaxVScrollHeight / 10;
-
-        hScrollBar1.Minimum = 0;
-        hScrollBar1.Maximum = MaxHScrollHeight;
-        hScrollBar1.LargeChange = 1;
-        hScrollBar1.ViewportSize = MaxHScrollHeight / 10;
-
         this.Loaded += this.OnContentLoaded;
 
-        this._scaling = new ScalingConverter(VisualTreeHelper.GetDpi(this).DpiScaleX);
+        this._scaling = new RenderScaleInfo(VisualTreeHelper.GetDpi(this).DpiScaleX);
+    }
+
+    private void UpdateScrollLayout()
+    {
+        int dataLength = this.Track!.GetFeatures().F0!.Length;
+
+        // ########## 縦スクロールの設定
+        var vScrollBar = this.vScrollBar1;
+        vScrollBar.Minimum = 0;
+        vScrollBar.Maximum = MaxVScrollHeight;
+        vScrollBar.LargeChange = 1;
+        vScrollBar.ViewportSize = MaxVScrollHeight / 10;
+
+        // ########## 横スクロールの設定
+        long duration = (dataLength + 1) * FrameUnit;
+        this.MaxHScrollHeight = duration;
+        var hScrollBar = this.hScrollBar1;
+        hScrollBar.Minimum = 0;
+        hScrollBar.Maximum = this.MaxHScrollHeight;
+        hScrollBar.LargeChange = 1;
+        hScrollBar.ViewportSize = this.MaxHScrollHeight / 10;
     }
 
     private void OnContentLoaded(object sender, RoutedEventArgs e)
@@ -83,7 +89,7 @@ public partial class PlotEditor : UserControl
         this.Loaded -= this.OnContentLoaded;
 
         var window = Window.GetWindow(this);
-        window.DpiChanged += this.OnDpiChnaged;
+        window.DpiChanged += this.OnDpiChanged;
     }
 
     /// <summary>
@@ -91,9 +97,9 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="e"></param>
-    private void OnDpiChnaged(object sender, DpiChangedEventArgs e)
+    private void OnDpiChanged(object sender, DpiChangedEventArgs e)
     {
-        this._scaling = new ScalingConverter(e.NewDpi.DpiScaleX);
+        this._scaling = new RenderScaleInfo(e.NewDpi.DpiScaleX);
         this._renderInfo = new RenderInfo(this._scaling, this.GetRenderWidth(), this._frameWidth, 1.0f);
         this.Redraw();
     }
@@ -116,6 +122,7 @@ public partial class PlotEditor : UserControl
                 editor.Load(track);
             }
 
+            editor.UpdateScrollLayout();
             editor.UpdatePointer();
         }
     }
@@ -195,8 +202,6 @@ public partial class PlotEditor : UserControl
                     value = ((time.TotalMilliseconds - (viewFrames * 200)) / (totalFrameCount * 200)) * MaxHScrollHeight;
                 }
 
-                Debug.WriteLine(value);
-
                 this.hScrollBar1.Value = value;
                 this.Redraw();
 
@@ -209,7 +214,7 @@ public partial class PlotEditor : UserControl
         }
     }
 
-    private (SKBitmap bmp, int width, int height) CreatePianoOctaveBmp(int width, int keyHeight, ScalingConverter scaling)
+    private (SKBitmap bmp, int width, int height) CreatePianoOctaveBmp(int width, int keyHeight, RenderScaleInfo scaling)
     {
         const int keys = 12;
 

@@ -2,9 +2,12 @@
 
 namespace Quark.Controls;
 
+/// <summary>
+/// スケーリング100%時の1pxを1msとする。
+/// </summary>
 internal class RenderInfo
 {
-    public ScalingConverter Scaling { get; }
+    public RenderScaleInfo Scaling { get; }
     /// <summary>
     /// スケーリング100%時の画像サイズ(幅)
     /// </summary>
@@ -40,9 +43,15 @@ internal class RenderInfo
         public const int DefaultKeyHeight = 12;
 
         public const int DefaultRulerHeight = 24;
+
+        /// <summary>フレーム間隔(ms)</summary>
+        public const int FramePeriod = 5;
+
+        /// <summary>1秒あたりのフレーム数</summary>
+        public const int FramesPerSecond = 1000 / FramePeriod;
     }
 
-    public RenderInfo(ScalingConverter scaling, int renderWidth, float widthStretch = 0.8f, float heightStretch = 1.0f)
+    public RenderInfo(RenderScaleInfo scaling, int renderWidth, float widthStretch = 0.8f, float heightStretch = 1.0f)
     {
         this.Scaling = scaling;
         this.RenderWidth = renderWidth;
@@ -61,5 +70,5 @@ internal class RenderInfo
     }
 
     public int GetRenderFrames()
-        => (int)Math.Ceiling((double)this.RenderWidth / this.WidthStretch);
+    => (int)Math.Ceiling((decimal)this.RenderWidth / (decimal)this.WidthStretch);
 }

@@ -3,31 +3,31 @@ using System.Runtime.CompilerServices;
 
 namespace Quark.Controls;
 
-internal class ScalingConverter
+internal class RenderScaleInfo
 {
     /// <summary>
     /// スケーリング
     /// </summary>
-    private double _scaling;
+    private double _scale;
 
-    public ScalingConverter(double displayScaling)
+    public RenderScaleInfo(double displayScale)
     {
-        this._scaling = displayScaling;
+        this._scale = displayScale;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ToDisplayScaling(double value)
-        => (int)Math.Round(value * this._scaling);
+        => (int)Math.Round(value * this._scale);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ToDisplayScaling(int value)
-        => (int)Math.Round(value * this._scaling);
+        => (int)Math.Round(value * this._scale);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ToRenderImageScaling(double value)
-        => (int)Math.Round(value / this._scaling);
+        => (int)Math.Round(value / this._scale);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ToRenderImageScaling(int value)
-        => (int)Math.Round(value / this._scaling);
+        => (int)Math.Round(value / this._scale);
 }
