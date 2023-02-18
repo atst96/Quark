@@ -235,37 +235,25 @@ public partial class PlotEditor : UserControl
         using (var g = new SKCanvas(image))
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            SKRect DrawRect(int key)
+            void DrawRect(int key, SKPaint brush)
             {
                 int y = GetYPos(key);
-                return new(0, y, renderWidth, renderKeyHeight + y);
-            };
-
-            // 白鍵の描画
-            foreach (int key in new int[] {
-                0, // C#
-                2, // D#
-                4, // F#
-                5, // G#
-                7, // A#
-                9, // A#
-                11, // A#
-            })
-            {
-                g.DrawRect(DrawRect(key), whiteKeyBrush);
+                g.DrawRect(new(0, y, renderWidth, renderKeyHeight + y), brush);
             }
 
-            // 黒鍵の描画
-            foreach (int key in new int[] {
-                1, // C#
-                3, // D#
-                6, // F#
-                8, // G#
-                10, // A#
-            })
-            {
-                g.DrawRect(DrawRect(key), blackKeyBrush);
-            }
+            // ストライプの描画
+            DrawRect(0, whiteKeyBrush); // C
+            DrawRect(1, blackKeyBrush); // C#
+            DrawRect(2, whiteKeyBrush); // D
+            DrawRect(3, blackKeyBrush); // D#
+            DrawRect(4, whiteKeyBrush); // E
+            DrawRect(5, whiteKeyBrush); // F
+            DrawRect(6, blackKeyBrush); // F#
+            DrawRect(7, whiteKeyBrush); // G
+            DrawRect(8, blackKeyBrush); // G#
+            DrawRect(9, whiteKeyBrush); // A
+            DrawRect(10, blackKeyBrush); // A#
+            DrawRect(11, whiteKeyBrush); // B
 
             // 白鍵の境界を描画
             g.DrawLine(0, GetYPos(4), renderWidth, GetYPos(4), whiteGridPen);
@@ -333,6 +321,10 @@ public partial class PlotEditor : UserControl
         int width = renderInfo.ImageWidth;
         int height = renderInfo.ImageHeight;
         int renderHeight = renderInfo.RenderHeight;
+
+        // 予備フレーム数
+        // 折れ線の前後が途切れないように前後1データ多めに描画しておく
+        const int marginFrames = 1;
 
         int scoreYOffset = renderInfo.RenderRulerHeight;
 
@@ -433,15 +425,18 @@ public partial class PlotEditor : UserControl
 
                     foreach (var dynamics in dynaicsValues)
                     {
-                        // TODO: 範囲外の描画を行わないようにする
-                        int beginIndex = dynamics.Index - beginFrameIdx;
-                        var points = new SKPoint[dynamics.Values.Length];
+                        // 描画開始／終了インデックス
+                        (int beginIdx, int endIdx) = GetDrawRange(dynamics.Index, dynamics.Values.Length, beginFrameIdx, endFrameIdx, marginFrames);
 
-                        for (int i = 0; i < dynamics.Values.Length; ++i)
+                        var points = new SKPoint[endIdx - beginIdx];
+
+                        for (int idx = 0; idx < points.Length; ++idx)
                         {
-                            points[i] = new SKPoint(
-                                scaling.ToDisplayScaling((i + beginIndex) * _frameWidth),
-                                scoreYOffset + scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[i] + 30f) / 30f))));
+                            int frameIdx = beginIdx + idx;
+
+                            points[idx] = new SKPoint(
+                                scaling.ToDisplayScaling((frameIdx - beginFrameIdx) * _frameWidth),
+                                scoreYOffset + scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[frameIdx - dynamics.Index] + 30f) / 30f))));
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Blue, StrokeWidth = 1.5f, IsAntialias = true });
@@ -457,15 +452,18 @@ public partial class PlotEditor : UserControl
 
                     foreach (var pitch in pitches)
                     {
-                        // TODO: 範囲外の描画を行わないようにする
-                        int beginIndex = pitch.Index - beginFrameIdx;
-                        var points = new SKPoint[pitch.Values.Length];
+                        // 描画開始／終了インデックス
+                        (int beginIdx, int endIdx) = GetDrawRange(pitch.Index, pitch.Values.Length, beginFrameIdx, endFrameIdx, marginFrames);
 
-                        for (int i = 0; i < pitch.Values.Length; ++i)
+                        var points = new SKPoint[endIdx - beginIdx];
+
+                        for (int idx = 0; idx < points.Length; ++idx)
                         {
-                            points[i] = new SKPoint(
-                                scaling.ToDisplayScaling((i + beginIndex) * _frameWidth),
-                                scoreYOffset + scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[i]) * KeyHeight)));
+                            int frameIdx = beginIdx + idx;
+
+                            points[idx] = new SKPoint(
+                                scaling.ToDisplayScaling((frameIdx - beginFrameIdx) * _frameWidth),
+                                scoreYOffset + scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[frameIdx - pitch.Index]) * KeyHeight)));
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
@@ -477,6 +475,20 @@ public partial class PlotEditor : UserControl
 
         return image;
     }
+
+    /// <summary>
+    /// 描画範囲を取得する
+    /// </summary>
+    /// <param name="dataBeginIdx">データの開智位置</param>
+    /// <param name="dataCount">データ数</param>
+    /// <param name="rangeBeginIdx">範囲開始位置</param>
+    /// <param name="rangeEndIdx">範囲終了位置</param>
+    /// <param name="margin">前後のマージン</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static (int beginIdx, int endIdx) GetDrawRange(int dataBeginIdx, int dataCount, int rangeBeginIdx, int rangeEndIdx, int margin)
+        => (Math.Max(dataBeginIdx, rangeBeginIdx - margin),
+            Math.Min(dataBeginIdx + dataCount, rangeEndIdx + margin));
 
     private SKBitmap CreateRulerImage(RenderInfo renderInfo)
     {
