@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -150,9 +151,9 @@ public partial class PlotEditor : UserControl
     public static readonly DependencyProperty IsAutoScrollProperty =
         DependencyProperty.Register(nameof(IsAutoScroll), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false));
 
-    private void UpdatePointer() => this.UpdatePointer(this.SelectionTime);
+    private void UpdatePointer(bool isRecursive = false) => this.UpdatePointer(this.SelectionTime, isRecursive: isRecursive);
 
-    private void UpdatePointer(TimeSpan time, TimeSpan? prevTime = null)
+    private void UpdatePointer(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
     {
         long totalFrameCount = this._framesCount;
 
@@ -161,11 +162,8 @@ public partial class PlotEditor : UserControl
         // 描画領域
         int renderWidth = this.GetRenderWidth();
 
-        // 描画するフレーム数
-        int viewFrames = (int)Math.Ceiling(((double)renderWidth / this._frameWidth));
-
         // 開始フレーム位置
-        int beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod)) + RenderConfig.FramePeriod;
+        int beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod));
         int endTime = beginTime + (int)(scaling.ToRenderImageScaling(renderWidth) / this._frameWidth);
         int currentTime = (int)time.TotalMilliseconds;
 
@@ -191,16 +189,20 @@ public partial class PlotEditor : UserControl
                 if (prevTime.HasValue && prevTime < time)
                 {
                     // 前方向への移動
-                    value = (time.TotalMilliseconds / (totalFrameCount * 5)) * MaxHScrollHeight;
+                    value = Math.Ceiling((time.TotalMilliseconds / (totalFrameCount * 5)) * MaxHScrollHeight);
                 }
                 else
                 {
                     // 後方向への移動
-                    value = ((time.TotalMilliseconds - (viewFrames * 5)) / (totalFrameCount * 5)) * MaxHScrollHeight;
+                    value = Math.Ceiling(((time.TotalMilliseconds - (endTime - beginTime)) / (totalFrameCount * 5)) * MaxHScrollHeight);
                 }
 
-                this.hScrollBar1.Value = value;
-                this.Redraw();
+                if (!isRecursive)
+                {
+                    this.hScrollBar1.Value = value;
+                    this.UpdatePointer(TimeSpan.FromMilliseconds(value), time, true);
+                    this.Redraw();
+                }
 
                 return;
             }
