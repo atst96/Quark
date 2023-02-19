@@ -117,8 +117,19 @@
 
             <Grid Grid.Column="2">
 
-                <ctr:PlotEditor Track="{Binding CurrentTrack, Mode=OneWay}"
-                                SelectionTime="{Binding CurrentTime, Mode=OneWay}" />
+                <ctr:PlotEditor
+                    x:Name="PloatEditor1"
+                    Track="{Binding CurrentTrack, Mode=OneWay}"
+                    SelectionTime="{Binding CurrentTime, Mode=OneWay}" />
+
+                <CheckBox
+                    Padding="4"
+                    VerticalAlignment="Bottom"
+                    HorizontalAlignment="Left"
+                    Cursor="Hand"
+                    Margin="0,0,0,36"
+                    Content="スクロールを追従"
+                    IsChecked="{Binding ElementName=PloatEditor1, Path=IsAutoScroll, Mode=TwoWay}" />
 
                 <ScrollBar
                     Orientation="Horizontal"

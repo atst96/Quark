@@ -141,6 +141,15 @@ public partial class PlotEditor : UserControl
     private static void OnSelectionTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         => ((PlotEditor)d).UpdatePointer((TimeSpan)e.NewValue, (TimeSpan)e.OldValue);
 
+    public bool IsAutoScroll
+    {
+        get => (bool)this.GetValue(IsAutoScrollProperty);
+        set => this.SetValue(IsAutoScrollProperty, value);
+    }
+
+    public static readonly DependencyProperty IsAutoScrollProperty =
+        DependencyProperty.Register(nameof(IsAutoScroll), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false));
+
     private void UpdatePointer() => this.UpdatePointer(this.SelectionTime);
 
     private void UpdatePointer(TimeSpan time, TimeSpan? prevTime = null)
@@ -175,7 +184,7 @@ public partial class PlotEditor : UserControl
         }
         else
         {
-            bool isAutoScroll = true;
+            bool isAutoScroll = this.IsAutoScroll;
             if (isAutoScroll)
             {
                 double value;
