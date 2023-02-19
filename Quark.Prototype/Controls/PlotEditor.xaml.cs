@@ -48,7 +48,6 @@ public partial class PlotEditor : UserControl
     private List<Class1> _dynamics;
     private PartScore _score;
     private PartScore _currentViewScore;
-    private float _frameWidth = 0.2f;
     private RenderScaleInfo _scaling;
     private RenderInfo _renderInfo;
 
@@ -102,8 +101,14 @@ public partial class PlotEditor : UserControl
     private void OnDpiChanged(object sender, DpiChangedEventArgs e)
     {
         this._scaling = new RenderScaleInfo(e.NewDpi.DpiScaleX);
-        this._renderInfo = new RenderInfo(this._scaling, this.GetRenderWidth(), this._frameWidth, 1.0f);
+        this.OnLayoutChanged();
+    }
+
+    public void OnLayoutChanged()
+    {
+        this._renderInfo = new RenderInfo(this._scaling, this.GetRenderWidth(), this.ScaleX, 1.0f);
         this.Redraw();
+        this.UpdatePointer();
     }
 
     internal NeutrinoV1Track? Track
@@ -151,6 +156,36 @@ public partial class PlotEditor : UserControl
     public static readonly DependencyProperty IsAutoScrollProperty =
         DependencyProperty.Register(nameof(IsAutoScroll), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false));
 
+    public double ScaleX
+    {
+        get => (double)this.GetValue(ScaleXProperty);
+        set => this.SetValue(ScaleXProperty, value);
+    }
+
+    public static readonly DependencyProperty ScaleXProperty =
+        DependencyProperty.Register(nameof(ScaleX), typeof(double), typeof(PlotEditor), new PropertyMetadata(1.0d, OnScaleXChanged));
+
+    private static void OnScaleXChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var editor = (PlotEditor)d;
+        editor.OnLayoutChanged();
+    }
+
+    public double ScaleY
+    {
+        get => (double)this.GetValue(ScaleYProperty);
+        set => this.SetValue(ScaleYProperty, value);
+    }
+
+    public static readonly DependencyProperty ScaleYProperty =
+        DependencyProperty.Register(nameof(ScaleY), typeof(double), typeof(PlotEditor), new PropertyMetadata(1.0d, OnScaleYChanged));
+
+    private static void OnScaleYChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var editor = (PlotEditor)d;
+        editor.OnLayoutChanged();
+    }
+
     private void UpdatePointer(bool isRecursive = false) => this.UpdatePointer(this.SelectionTime, isRecursive: isRecursive);
 
     private void UpdatePointer(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
@@ -164,14 +199,14 @@ public partial class PlotEditor : UserControl
 
         // 開始フレーム位置
         int beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod));
-        int endTime = beginTime + (int)(scaling.ToRenderImageScaling(renderWidth) / this._frameWidth);
+        int endTime = beginTime + (int)(scaling.ToRenderImageScaling(renderWidth) / this.ScaleX);
         int currentTime = (int)time.TotalMilliseconds;
 
         var lineElement = this.PART_SelectionTime;
         var renderElement = this.SKElement;
         if (beginTime <= currentTime && currentTime < endTime)
         {
-            double x = scaling.ToDisplayScaling((currentTime - beginTime) * _frameWidth);
+            double x = scaling.ToDisplayScaling((currentTime - beginTime) * this.ScaleX);
 
             lineElement.X1 = x;
             lineElement.X2 = x;
@@ -280,7 +315,7 @@ public partial class PlotEditor : UserControl
         {
             using (this._renderImage)
             {
-                var renderInfo = this._renderInfo = new RenderInfo(this._scaling, width, this._frameWidth, 1.0f);
+                var renderInfo = this._renderInfo = new RenderInfo(this._scaling, width, this.ScaleX, 1.0f);
                 this._renderImage = this.CreateRenderImage(renderInfo);
                 this._rulerImage = this.CreateRulerImage(renderInfo);
             }
@@ -564,7 +599,7 @@ public partial class PlotEditor : UserControl
                     // 描画範囲内
                     if (beginTime <= time || time <= endTime)
                     {
-                        int x = scaling.ToDisplayScaling((offsetX + TimeToFrame(time - beginTime)) * RenderConfig.FramePeriod * _frameWidth);
+                        int x = scaling.ToDisplayScaling((offsetX + TimeToFrame(time - beginTime)) * RenderConfig.FramePeriod * ScaleX);
 
                         g.DrawLine(x, (count != 0 ? (renderHeight / 2) : 0), x, renderHeight, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
                     }
@@ -730,7 +765,7 @@ public partial class PlotEditor : UserControl
         var targetScrollBar = Keyboard.PrimaryDevice.Modifiers == ModifierKeys.Shift
             ? this.hScrollBar1 : this.vScrollBar1;
 
-        int chnage = (int)(targetScrollBar.LargeChange / this._frameWidth) * 20;
+        int chnage = (int)(targetScrollBar.LargeChange / this.ScaleX) * 20;
         if (e.Delta > 0)
         {
             targetScrollBar.Value -= chnage;

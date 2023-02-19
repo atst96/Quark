@@ -11,6 +11,7 @@
     xmlns:v="clr-namespace:Quark.Views"
     xmlns:vm="clr-namespace:Quark.ViewModels"
     xmlns:ctr="clr-namespace:Quark.Controls"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib"
     mc:Ignorable="d"
     Title="MainWindow" Height="450" Width="800"
     lb:ViewModelBehavior.Type="{x:Type vm:MainWindowViewModel}"
@@ -122,22 +123,44 @@
                     Track="{Binding CurrentTrack, Mode=OneWay}"
                     SelectionTime="{Binding CurrentTime, Mode=OneWay}" />
 
-                <CheckBox
-                    Padding="4"
+                <StackPanel
+                    Margin="0,0,0,18"
                     VerticalAlignment="Bottom"
-                    HorizontalAlignment="Left"
-                    Cursor="Hand"
-                    Margin="0,0,0,36"
-                    Content="スクロールを追従"
-                    IsChecked="{Binding ElementName=PloatEditor1, Path=IsAutoScroll, Mode=TwoWay}" />
+                    HorizontalAlignment="Stretch">
 
-                <ScrollBar
-                    Orientation="Horizontal"
-                    VerticalAlignment="Bottom"
-                    Margin="0,0,18,18"
-                    Minimum="0" ViewportSize="10000" SmallChange="5" LargeChange="5"
-                    Value="{Binding CurrentTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=TwoWay}"
-                    Maximum="{Binding MaximumTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=OneWay}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        
+                        <CheckBox
+                            Padding="4"
+                            VerticalAlignment="Bottom"
+                            HorizontalAlignment="Left"
+                            Cursor="Hand"
+                            Content="スクロールを追従"
+                            IsChecked="{Binding ElementName=PloatEditor1, Path=IsAutoScroll, Mode=TwoWay}" />
+
+                        <ComboBox Grid.Column="2" Width="120" IsEditable="False"
+                                  SelectedValue="{Binding ElementName=PloatEditor1, Path=ScaleX, Mode=TwoWay}">
+                            <sys:Double>1.0</sys:Double>
+                            <sys:Double>0.5</sys:Double>
+                            <sys:Double>0.25</sys:Double>
+                            <sys:Double>0.1</sys:Double>
+                            <sys:Double>0.05</sys:Double>
+                            <sys:Double>0.01</sys:Double>
+                            <sys:Double>0.005</sys:Double>
+                        </ComboBox>
+                    </Grid>
+
+                    <ScrollBar
+                        Orientation="Horizontal"
+                        Minimum="0" ViewportSize="10000" SmallChange="5" LargeChange="5"
+                        Value="{Binding CurrentTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=TwoWay}"
+                        Maximum="{Binding MaximumTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=OneWay}" />
+                </StackPanel>
 
                 <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12,38,12,12"
                         BorderThickness="1" BorderBrush="#AAAA00" Background="#FFFFAA">

@@ -31,8 +31,8 @@ internal class RenderInfo
     public int ScoreRenderWidth { get; }
     public int ScoreRenderHeight { get; }
 
-    public float WidthStretch { get; }
-    public float HeightStretch { get; }
+    public double WidthStretch { get; }
+    public double HeightStretch { get; }
 
     public static class RenderConfig
     {
@@ -51,7 +51,7 @@ internal class RenderInfo
         public const int FramesPerSecond = 1000 / FramePeriod;
     }
 
-    public RenderInfo(RenderScaleInfo scaling, int renderWidth, float widthStretch = 0.8f, float heightStretch = 1.0f)
+    public RenderInfo(RenderScaleInfo scaling, int renderWidth, double widthStretch = 0.8f, double heightStretch = 1.0f)
     {
         this.Scaling = scaling;
         this.RenderWidth = renderWidth;
