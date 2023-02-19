@@ -12,6 +12,7 @@ using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
+using static Quark.Controls.RenderInfo;
 
 namespace Quark.Controls;
 
@@ -46,7 +47,7 @@ public partial class PlotEditor : UserControl
     private List<Class1> _dynamics;
     private PartScore _score;
     private PartScore _currentViewScore;
-    private float _frameWidth = 0.8f;
+    private float _frameWidth = 0.2f;
     private RenderScaleInfo _scaling;
     private RenderInfo _renderInfo;
 
@@ -146,37 +147,24 @@ public partial class PlotEditor : UserControl
     {
         long totalFrameCount = this._framesCount;
 
-        (int rulerHeight, var scaling) = (this._rulerHeight, this._scaling);
-
-        int scoreHeight = KeyHeight * KeyCount;
+        var scaling = this._scaling;
 
         // 描画領域
         int renderWidth = this.GetRenderWidth();
-        int width = scaling.ToRenderImageScaling(renderWidth);
-        int height = KeyHeight * KeyCount;
-        int renderHeight = scaling.ToDisplayScaling(height);
-
-        int scoreYOffset = scaling.ToDisplayScaling(rulerHeight);
-
-        int scoreRenderWidth = renderWidth;
-        int scoreWidth = width;
-        int scoreRenderHeight = scaling.ToDisplayScaling(scoreHeight);
 
         // 描画するフレーム数
         int viewFrames = (int)Math.Ceiling(((double)renderWidth / this._frameWidth));
-        int framesCount = viewFrames;
 
         // 開始フレーム位置
-        int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
-        int endFrameIdx = beginFrameIdx + framesCount;
-
-        int currentFrameIdx = (int)(time.TotalMilliseconds / 200);
+        int beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod)) + RenderConfig.FramePeriod;
+        int endTime = beginTime + (int)(scaling.ToRenderImageScaling(renderWidth) / this._frameWidth);
+        int currentTime = (int)time.TotalMilliseconds;
 
         var lineElement = this.PART_SelectionTime;
         var renderElement = this.SKElement;
-        if (beginFrameIdx <= currentFrameIdx && currentFrameIdx < endFrameIdx)
+        if (beginTime <= currentTime && currentTime < endTime)
         {
-            double x = scaling.ToDisplayScaling((currentFrameIdx - beginFrameIdx) * _frameWidth);
+            double x = scaling.ToDisplayScaling((currentTime - beginTime) * _frameWidth);
 
             lineElement.X1 = x;
             lineElement.X2 = x;
@@ -194,12 +182,12 @@ public partial class PlotEditor : UserControl
                 if (prevTime.HasValue && prevTime < time)
                 {
                     // 前方向への移動
-                    value = (time.TotalMilliseconds / (totalFrameCount * 200)) * MaxHScrollHeight;
+                    value = (time.TotalMilliseconds / (totalFrameCount * 5)) * MaxHScrollHeight;
                 }
                 else
                 {
                     // 後方向への移動
-                    value = ((time.TotalMilliseconds - (viewFrames * 200)) / (totalFrameCount * 200)) * MaxHScrollHeight;
+                    value = ((time.TotalMilliseconds - (viewFrames * 5)) / (totalFrameCount * 5)) * MaxHScrollHeight;
                 }
 
                 this.hScrollBar1.Value = value;
@@ -374,9 +362,10 @@ public partial class PlotEditor : UserControl
                 int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
                 int endFrameIdx = beginFrameIdx + framesCount;
 
-                int offsetTemp = 1;
-                int beginFrameIdxOffsetted = beginFrameIdx - offsetTemp;
-                int endFrameIdxOffsetted = endFrameIdx + offsetTemp;
+                // 描画開始位置のオフセットを計算
+                int frameBasedTime = beginFrameIdx * RenderConfig.FramePeriod;
+                int beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod)) + RenderConfig.FramePeriod;
+                int offsetX = frameBasedTime - beginTime;
 
                 // スコアの描画
                 var result = this._currentViewScore = this._score.GetRangeInfo(beginFrameIdx, endFrameIdx);
@@ -390,9 +379,9 @@ public partial class PlotEditor : UserControl
 
                         float y = height - (float)(score.Pitch * KeyHeight);
                         var rect = SKRect.Create(
-                            scaling.ToDisplayScaling(beginIndex * _frameWidth),
+                            scaling.ToDisplayScaling((offsetX + beginIndex * RenderConfig.FramePeriod) * renderInfo.WidthStretch),
                             scoreYOffset + scaling.ToDisplayScaling(height - (score.Pitch * KeyHeight)),
-                            scaling.ToDisplayScaling((score.EndFrame - score.BeginFrame) * _frameWidth),
+                            scaling.ToDisplayScaling((score.EndFrame - score.BeginFrame) * renderInfo.WidthStretch * RenderConfig.FramePeriod),
                             scaling.ToDisplayScaling(KeyHeight));
 
                         g.DrawRect(rect, new SKPaint
@@ -435,7 +424,7 @@ public partial class PlotEditor : UserControl
                             int frameIdx = beginIdx + idx;
 
                             points[idx] = new SKPoint(
-                                scaling.ToDisplayScaling((frameIdx - beginFrameIdx) * _frameWidth),
+                                scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
                                 scoreYOffset + scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[frameIdx - dynamics.Index] + 30f) / 30f))));
                         }
 
@@ -462,7 +451,7 @@ public partial class PlotEditor : UserControl
                             int frameIdx = beginIdx + idx;
 
                             points[idx] = new SKPoint(
-                                scaling.ToDisplayScaling((frameIdx - beginFrameIdx) * _frameWidth),
+                                scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
                                 scoreYOffset + scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[frameIdx - pitch.Index]) * KeyHeight)));
                         }
 
@@ -498,7 +487,6 @@ public partial class PlotEditor : UserControl
 
         int offsetFrames = 1;
 
-
         int renderWidth = renderInfo.RenderWidth;
         int rulerHeight = this._rulerHeight;
         int renderHeight = renderInfo.RenderRulerHeight;
@@ -515,6 +503,11 @@ public partial class PlotEditor : UserControl
             // 開始フレーム位置
             int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
             int endFrameIdx = beginFrameIdx + framesCount;
+
+            // 描画開始位置のオフセットを計算
+            int frameBasedTime = beginFrameIdx * RenderConfig.FramePeriod;
+            int _beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod)) + RenderConfig.FramePeriod;
+            int offsetX = frameBasedTime - _beginTime;
 
             g.DrawRect(0, 0, renderWidth, renderHeight, new SKPaint() { Color = SKColors.Black });
 
@@ -560,7 +553,7 @@ public partial class PlotEditor : UserControl
                     // 描画範囲内
                     if (beginTime <= time || time <= endTime)
                     {
-                        int x = scaling.ToDisplayScaling(TimeToFrame(time - beginTime) * _frameWidth);
+                        int x = scaling.ToDisplayScaling((offsetX + TimeToFrame(time - beginTime)) * RenderConfig.FramePeriod * _frameWidth);
 
                         g.DrawLine(x, (count != 0 ? (renderHeight / 2) : 0), x, renderHeight, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
                     }
@@ -726,14 +719,15 @@ public partial class PlotEditor : UserControl
         var targetScrollBar = Keyboard.PrimaryDevice.Modifiers == ModifierKeys.Shift
             ? this.hScrollBar1 : this.vScrollBar1;
 
+        int chnage = (int)(targetScrollBar.LargeChange / this._frameWidth) * 20;
         if (e.Delta > 0)
         {
-            targetScrollBar.Value -= targetScrollBar.LargeChange;
+            targetScrollBar.Value -= chnage;
             this.Redraw();
         }
         else if (e.Delta < 0)
         {
-            targetScrollBar.Value += targetScrollBar.LargeChange;
+            targetScrollBar.Value += chnage;
             this.Redraw();
         }
     }

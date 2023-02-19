@@ -70,5 +70,5 @@ internal class RenderInfo
     }
 
     public int GetRenderFrames()
-    => (int)Math.Ceiling((decimal)this.RenderWidth / (decimal)this.WidthStretch);
+        => (int)Math.Ceiling((decimal)this.RenderWidth / RenderConfig.FramePeriod / (decimal)this.WidthStretch);
 }

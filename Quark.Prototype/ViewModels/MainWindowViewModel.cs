@@ -197,7 +197,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             if (this.RaisePropertyChangedIfSet(ref this._currentTrack, value))
             {
                 this.CurrentTime = TimeSpan.Zero;
-                this.MaximumTime = TimeSpan.FromMilliseconds(value.GetFeatures().F0!.Length * 200);
+                this.MaximumTime = TimeSpan.FromMilliseconds(value.GetFeatures().F0!.Length * 5);
             }
         }
     }

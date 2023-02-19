@@ -124,7 +124,7 @@
                     Orientation="Horizontal"
                     VerticalAlignment="Bottom"
                     Margin="0,0,18,18"
-                    Minimum="0" ViewportSize="1000000" SmallChange="100" LargeChange="100"
+                    Minimum="0" ViewportSize="10000" SmallChange="5" LargeChange="5"
                     Value="{Binding CurrentTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=TwoWay}"
                     Maximum="{Binding MaximumTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=OneWay}" />
 
