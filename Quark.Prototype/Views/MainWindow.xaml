@@ -144,15 +144,9 @@
                             IsChecked="{Binding ElementName=PloatEditor1, Path=IsAutoScroll, Mode=TwoWay}" />
 
                         <ComboBox Grid.Column="2" Width="120" IsEditable="False"
-                                  SelectedValue="{Binding ElementName=PloatEditor1, Path=ScaleX, Mode=TwoWay}">
-                            <sys:Double>1.0</sys:Double>
-                            <sys:Double>0.5</sys:Double>
-                            <sys:Double>0.25</sys:Double>
-                            <sys:Double>0.1</sys:Double>
-                            <sys:Double>0.05</sys:Double>
-                            <sys:Double>0.01</sys:Double>
-                            <sys:Double>0.005</sys:Double>
-                        </ComboBox>
+                                  SelectedValue="{Binding ElementName=PloatEditor1, Path=ScaleX, Mode=TwoWay}"
+                                  ItemsSource="{x:Static ctr:PlotEditor.HorizontalZoomLevels}" />
+
                     </Grid>
 
                     <ScrollBar

@@ -6,7 +6,8 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.WPF;assembly=SkiaSharp.Views.WPF"
              xmlns:local="clr-namespace:Quark.Controls"
              mc:Ignorable="d"
-             d:DesignHeight="450" d:DesignWidth="800">
+             d:DesignHeight="450" d:DesignWidth="800"
+             Loaded="OnLoaded">
     <Grid>
         <Grid>
             <Grid.ColumnDefinitions>

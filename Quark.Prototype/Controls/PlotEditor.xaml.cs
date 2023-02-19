@@ -51,6 +51,12 @@ public partial class PlotEditor : UserControl
     private RenderScaleInfo _scaling;
     private RenderInfo _renderInfo;
 
+    public static readonly double[] HorizontalZoomLevels =
+    {
+        1.0, 0.8, 0.6, 0.4, 0.3, 0.2, 0.125,
+        0.1, 0.08, 0.06, 0.04, 0.03, 0.02, 0.0125, 0.01,
+    };
+
     private int _rulerHeight = 24;
 
     private SKPaint lyricsTypography = new(new SKFont(SKTypeface.FromFamilyName("MS UI Gothic"), 12));
@@ -59,11 +65,156 @@ public partial class PlotEditor : UserControl
     {
         this.InitializeComponent();
 
-        this.Loaded += this.OnContentLoaded;
-
         this._scaling = new RenderScaleInfo(VisualTreeHelper.GetDpi(this).DpiScaleX);
     }
 
+    /// <summary>
+    /// コントロール読み込み完了時
+    /// </summary>
+    /// <param name="sender">イベント発火元</param>
+    /// <param name="e">イベント情報</param>
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        var window = Window.GetWindow(this);
+        window.DpiChanged += this.OnDpiChanged;
+    }
+
+    /// <summary>
+    /// 画面のDPI変更時
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnDpiChanged(object sender, DpiChangedEventArgs e)
+    {
+        this._scaling = new RenderScaleInfo(e.NewDpi.DpiScaleX);
+        this.OnLayoutChanged();
+    }
+
+    /// <summary>トラック情報</summary>
+    internal NeutrinoV1Track? Track
+    {
+        get => (NeutrinoV1Track)this.GetValue(TrackProperty);
+        set => this.SetValue(TrackProperty, value);
+    }
+
+    /// <summary><see cref="Track"/>プロパティ</summary>
+    public static readonly DependencyProperty TrackProperty =
+        DependencyProperty.Register(nameof(Track), typeof(NeutrinoV1Track), typeof(PlotEditor), new PropertyMetadata(null, OnTrackPropertyChanged));
+
+    /// <summary>シークバーの選択位置</summary>
+    public TimeSpan SelectionTime
+    {
+        get => (TimeSpan)this.GetValue(SelectionTimeProperty);
+        set => this.SetValue(SelectionTimeProperty, value);
+    }
+
+    /// <summary><see cref="SelectionTime"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty SelectionTimeProperty =
+        DependencyProperty.Register(nameof(SelectionTime), typeof(TimeSpan), typeof(PlotEditor), new PropertyMetadata(TimeSpan.Zero, OnSelectionTimePropertyChanged));
+
+    /// <summary>
+    /// <seealso cref="SelectionTime"/>プロパティ変更時
+    /// </summary>
+    private static void OnSelectionTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((PlotEditor)d).RelocateSeekBar((TimeSpan)e.NewValue, (TimeSpan)e.OldValue);
+
+    /// <summary>
+    /// スクロール追従の有効／無効
+    /// </summary>
+    public bool IsAutoScroll
+    {
+        get => (bool)this.GetValue(IsAutoScrollProperty);
+        set => this.SetValue(IsAutoScrollProperty, value);
+    }
+
+    /// <summary>
+    /// <seealso cref="IsAutoScroll"/>の依存関係プロパティ
+    /// </summary>
+    public static readonly DependencyProperty IsAutoScrollProperty =
+        DependencyProperty.Register(nameof(IsAutoScroll), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false));
+
+    /// <summary>横方向のズームレベル</summary>
+    public double ScaleX
+    {
+        get => (double)this.GetValue(ScaleXProperty);
+        set => this.SetValue(ScaleXProperty, value);
+    }
+
+    /// <summary><seealso cref="ScaleX"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty ScaleXProperty =
+        DependencyProperty.Register(nameof(ScaleX), typeof(double), typeof(PlotEditor), new PropertyMetadata(0.125d, OnScaleXChanged));
+
+    /// <summary>縦方向のズームレベル</summary>
+    public double ScaleY
+    {
+        get => (double)this.GetValue(ScaleYProperty);
+        set => this.SetValue(ScaleYProperty, value);
+    }
+
+    /// <summary><seealso cref="ScaleY"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty ScaleYProperty =
+        DependencyProperty.Register(nameof(ScaleY), typeof(double), typeof(PlotEditor), new PropertyMetadata(1.0d, OnScaleYChanged));
+
+    /// <summary>
+    /// <seealso cref="Track"/>プロパティ変更時
+    /// </summary>
+    /// <param name="d">プロパティ変更時</param>
+    /// <param name="e">イベント情報</param>
+    private static void OnTrackPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PlotEditor editor)
+        {
+            if (e.NewValue is NeutrinoV1Track track)
+            {
+                editor.LoadTrack(track);
+            }
+
+            editor.UpdateScrollLayout();
+            editor.RelocateSeekBar();
+        }
+    }
+
+    /// <summary>
+    /// <seealso cref="ScaleX"/>プロパティ変更時
+    /// </summary>
+    /// <param name="d">プロパティ変更要素</param>
+    /// <param name="e">イベント情報</param>
+    private static void OnScaleXChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var editor = (PlotEditor)d;
+        editor.OnLayoutChanged();
+    }
+
+    /// <summary>
+    /// <seealso cref="ScaleY"/>プロパティ変更時
+    /// </summary>
+    /// <param name="d">プロパティ変更要素</param>
+    /// <param name="e">イベント情報</param>
+    private static void OnScaleYChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var editor = (PlotEditor)d;
+        editor.OnLayoutChanged();
+    }
+
+    /// <summary>
+    /// トラック情報を読み込む
+    /// </summary>
+    /// <param name="track">トラック情報</param>
+    private void LoadTrack(NeutrinoV1Track track)
+    {
+        var features = track.GetFeatures();
+
+        // 楽譜情報解析
+        this._score = MusicXmlUtil.Parse(track.MusicXml);
+        this._pitches = Parse(features.F0!, 0.0f);
+        this._dynamics = Parse(GetDynamicsFromMgc(features.Mgc!, features.F0!), -30d);
+        this._framesCount = features.F0!.Length;
+        this._isLoaded = true;
+
+        this.Redraw();
+    }
+
+    /// <summary>スクロールバーの状態を更新する</summary>
     private void UpdateScrollLayout()
     {
         int dataLength = this.Track!.GetFeatures().F0!.Length;
@@ -85,117 +236,40 @@ public partial class PlotEditor : UserControl
         hScrollBar.ViewportSize = this.MaxHScrollHeight / 10;
     }
 
-    private void OnContentLoaded(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// 画面レイアウトの変更時
+    /// </summary>
+    public void OnLayoutChanged()
     {
-        this.Loaded -= this.OnContentLoaded;
+        int renderWidth = (int)this.SKElement.CanvasSize.Width;
 
-        var window = Window.GetWindow(this);
-        window.DpiChanged += this.OnDpiChanged;
+        this._renderInfo = new RenderInfo(this._scaling, renderWidth, this.ScaleX, 1.0f);
+        this.Redraw();
+        this.RelocateSeekBar();
     }
 
     /// <summary>
-    /// 画面のDPI変更時
+    /// シークバーの位置を補正する
     /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="e"></param>
-    private void OnDpiChanged(object sender, DpiChangedEventArgs e)
-    {
-        this._scaling = new RenderScaleInfo(e.NewDpi.DpiScaleX);
-        this.OnLayoutChanged();
-    }
+    /// <param name="isRecursive"></param>
+    private void RelocateSeekBar(bool isRecursive = false) => this.RelocateSeekBar(this.SelectionTime, isRecursive: isRecursive);
 
-    public void OnLayoutChanged()
-    {
-        this._renderInfo = new RenderInfo(this._scaling, this.GetRenderWidth(), this.ScaleX, 1.0f);
-        this.Redraw();
-        this.UpdatePointer();
-    }
-
-    internal NeutrinoV1Track? Track
-    {
-        get => (NeutrinoV1Track)this.GetValue(TrackProperty);
-        set => this.SetValue(TrackProperty, value);
-    }
-
-    public static readonly DependencyProperty TrackProperty =
-        DependencyProperty.Register(nameof(Track), typeof(NeutrinoV1Track), typeof(PlotEditor), new PropertyMetadata(null, OnTrackPropertyChanged));
-
-    private static void OnTrackPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        if (d is PlotEditor editor)
-        {
-            if (e.NewValue is NeutrinoV1Track track)
-            {
-                editor.Load(track);
-            }
-
-            editor.UpdateScrollLayout();
-            editor.UpdatePointer();
-        }
-    }
-
-    public TimeSpan SelectionTime
-    {
-        get => (TimeSpan)this.GetValue(SelectionTimeProperty);
-        set => this.SetValue(SelectionTimeProperty, value);
-    }
-
-    // Using a DependencyProperty as the backing store for SelectionTime.  This enables animation, styling, binding, etc...
-    public static readonly DependencyProperty SelectionTimeProperty =
-        DependencyProperty.Register(nameof(SelectionTime), typeof(TimeSpan), typeof(PlotEditor), new PropertyMetadata(TimeSpan.Zero, OnSelectionTimePropertyChanged));
-
-    private static void OnSelectionTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((PlotEditor)d).UpdatePointer((TimeSpan)e.NewValue, (TimeSpan)e.OldValue);
-
-    public bool IsAutoScroll
-    {
-        get => (bool)this.GetValue(IsAutoScrollProperty);
-        set => this.SetValue(IsAutoScrollProperty, value);
-    }
-
-    public static readonly DependencyProperty IsAutoScrollProperty =
-        DependencyProperty.Register(nameof(IsAutoScroll), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false));
-
-    public double ScaleX
-    {
-        get => (double)this.GetValue(ScaleXProperty);
-        set => this.SetValue(ScaleXProperty, value);
-    }
-
-    public static readonly DependencyProperty ScaleXProperty =
-        DependencyProperty.Register(nameof(ScaleX), typeof(double), typeof(PlotEditor), new PropertyMetadata(1.0d, OnScaleXChanged));
-
-    private static void OnScaleXChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        var editor = (PlotEditor)d;
-        editor.OnLayoutChanged();
-    }
-
-    public double ScaleY
-    {
-        get => (double)this.GetValue(ScaleYProperty);
-        set => this.SetValue(ScaleYProperty, value);
-    }
-
-    public static readonly DependencyProperty ScaleYProperty =
-        DependencyProperty.Register(nameof(ScaleY), typeof(double), typeof(PlotEditor), new PropertyMetadata(1.0d, OnScaleYChanged));
-
-    private static void OnScaleYChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        var editor = (PlotEditor)d;
-        editor.OnLayoutChanged();
-    }
-
-    private void UpdatePointer(bool isRecursive = false) => this.UpdatePointer(this.SelectionTime, isRecursive: isRecursive);
-
-    private void UpdatePointer(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
+    /// <summary>
+    /// シークバーの位置を補正する
+    /// </summary>
+    /// <param name="time">現在時刻</param>
+    /// <param name="prevTime">前の時刻</param>
+    /// <param name="isRecursive">再帰呼び出しフラグ</param>
+    private void RelocateSeekBar(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
     {
         long totalFrameCount = this._framesCount;
 
         var scaling = this._scaling;
 
+        var renderInfo = this._renderInfo;
+
         // 描画領域
-        int renderWidth = this.GetRenderWidth();
+        int renderWidth = renderInfo.RenderWidth;
 
         // 開始フレーム位置
         int beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod));
@@ -235,7 +309,7 @@ public partial class PlotEditor : UserControl
                 if (!isRecursive)
                 {
                     this.hScrollBar1.Value = value;
-                    this.UpdatePointer(TimeSpan.FromMilliseconds(value), time, true);
+                    this.RelocateSeekBar(TimeSpan.FromMilliseconds(value), time, true);
                     this.Redraw();
                 }
 
@@ -248,6 +322,13 @@ public partial class PlotEditor : UserControl
         }
     }
 
+    /// <summary>
+    /// 12音階の画像を生成する
+    /// </summary>
+    /// <param name="width">画像幅</param>
+    /// <param name="keyHeight">1音あたりの高さ</param>
+    /// <param name="scaling">スケーリング情報</param>
+    /// <returns></returns>
     private (SKBitmap bmp, int width, int height) CreatePianoOctaveBmp(int width, int keyHeight, RenderScaleInfo scaling)
     {
         const int keys = 12;
@@ -297,10 +378,11 @@ public partial class PlotEditor : UserControl
         return (image, width, height);
     }
 
-    private int GetRenderWidth() => (int)this.SKElement.CanvasSize.Width;
-
-    private int GetRenderHeight() => (int)this.SKElement.CanvasSize.Height;
-
+    /// <summary>
+    /// 描画領域のサイズを取得する
+    /// </summary>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private (int width, int height) GetCanvasSize()
     {
         var size = this.SKElement.CanvasSize;
@@ -308,9 +390,12 @@ public partial class PlotEditor : UserControl
         return ((int)size.Width, (int)size.Height);
     }
 
+    /// <summary>
+    /// 描画する内容を再生成する
+    /// </summary>
     private void UpdateRenderImage()
     {
-        (int width, int height) = (this.GetRenderWidth(), this.GetRenderHeight());
+        (int width, int height) = this.GetCanvasSize();
         if (width > 0 && height > 0)
         {
             using (this._renderImage)
@@ -322,28 +407,39 @@ public partial class PlotEditor : UserControl
         }
     }
 
+    /// <summary>
+    /// 画面を再描画する
+    /// </summary>
     private void Redraw()
     {
         this.UpdateRenderImage();
         this.SKElement.InvalidateVisual();
     }
 
+    /// <summary>
+    /// 描画領域のサイズ変更時
+    /// </summary>
+    /// <param name="sender">イベント発火元</param>
+    /// <param name="e">イベント情報</param>
     private void OnRenderSizeChanged(object sender, SizeChangedEventArgs e)
     {
         this.Redraw();
-        this.UpdatePointer();
+        this.RelocateSeekBar();
     }
 
+    /// <summary>縦スクロール位置(0-100%)を取得する</summary>
     private double GetVerticalScrollCoe()
-    {
-        return (double)vScrollBar1.Value / MaxVScrollHeight;
-    }
+        => (double)this.vScrollBar1.Value / MaxVScrollHeight;
 
+    /// <summary>横スクロール位置(0-100%)を取得する</summary>
     private double GetHorizontalScrollCore()
-    {
-        return (double)hScrollBar1.Value / MaxHScrollHeight;
-    }
+        => (double)this.hScrollBar1.Value / this.MaxHScrollHeight;
 
+    /// <summary>
+    /// 画面内容を描画する
+    /// </summary>
+    /// <param name="renderInfo">描画情報</param>
+    /// <returns>描画内容</returns>
     private SKBitmap CreateRenderImage(RenderInfo renderInfo)
     {
         (int rulerHeight, var scaling) = (this._rulerHeight, this._scaling);
@@ -525,13 +621,16 @@ public partial class PlotEditor : UserControl
         => (Math.Max(dataBeginIdx, rangeBeginIdx - margin),
             Math.Min(dataBeginIdx + dataCount, rangeEndIdx + margin));
 
+    /// <summary>
+    /// ルーラを描画する
+    /// </summary>
+    /// <param name="renderInfo">描画情報</param>
+    /// <returns>描画内容</returns>
     private SKBitmap CreateRulerImage(RenderInfo renderInfo)
     {
         var scaling = renderInfo.Scaling;
 
         long totalFrameCount = this._framesCount;
-
-        int offsetFrames = 1;
 
         int renderWidth = renderInfo.RenderWidth;
         int rulerHeight = this._rulerHeight;
@@ -599,7 +698,7 @@ public partial class PlotEditor : UserControl
                     // 描画範囲内
                     if (beginTime <= time || time <= endTime)
                     {
-                        int x = scaling.ToDisplayScaling((offsetX + TimeToFrame(time - beginTime)) * RenderConfig.FramePeriod * ScaleX);
+                        int x = scaling.ToDisplayScaling((offsetX + MsToFrameIndex(time - beginTime)) * RenderConfig.FramePeriod * ScaleX);
 
                         g.DrawLine(x, (count != 0 ? (renderHeight / 2) : 0), x, renderHeight, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
                     }
@@ -619,59 +718,64 @@ public partial class PlotEditor : UserControl
         return image;
     }
 
-    private static int FrameToTime(decimal frameIdx) => (int)(frameIdx * FrameUnit);
-    private static int TimeToFrame(decimal time) => (int)(time / FrameUnit);
+    /// <summary>
+    /// フレーム位置を時間(ミリ秒)に変換する
+    /// </summary>
+    /// <param name="frameIdx">フレームのインデックス</param>
+    /// <returns>時間(ミリ秒)</returns>
+    private static int FrameIndexToMs(decimal frameIdx) => (int)(frameIdx * FrameUnit);
 
-    private void PaintGraphics(SKCanvas g)
+    /// <summary>
+    /// 時間(ミリ秒)をフレーム数に変換する
+    /// </summary>
+    /// <param name="time">時間(ミリ秒)</param>
+    /// <returns>フレーム位置</returns>
+    private static int MsToFrameIndex(decimal time) => (int)(time / FrameUnit);
+
+    /// <summary>
+    /// 再描画要求時
+    /// </summary>
+    /// <param name="sender">イベント発火時</param>
+    /// <param name="e">イベント情報</param>
+    private void OnPaintSurface(object sender, SkiaSharp.Views.Desktop.SKPaintSurfaceEventArgs e)
     {
+        // 描画先
+        var g = e.Surface.Canvas;
+
         if (DesignerProperties.GetIsInDesignMode(this))
         {
             // デザインモード時は描画処理を行わない
             return;
         }
 
-        (int width, int height) = (this.GetRenderWidth(), this.GetRenderHeight());
-        var keysBackground = this._renderImage;
-        if (width <= 0 || height <= 0 || keysBackground is null)
+        var renderInfo = this._renderInfo;
+        if (renderInfo is null)
         {
             return;
         }
 
+        (int width, int height) = (renderInfo.RenderWidth, renderInfo.RenderHeight);
+
         // 描画領域の更新
         int renderHeight = KeyHeight * KeyCount;
 
-        var renderInfo = this._renderInfo;
         int rulerHeight = renderInfo.RenderRulerHeight;
 
         // スクロール位置から描画位置(y)を計算
         int renderY = (int)Math.Floor(this.GetVerticalScrollCoe() * (renderHeight - height - rulerHeight));
-        g.DrawBitmap(keysBackground, SKRect.Create(0, rulerHeight + renderY, width, height - rulerHeight), SKRect.Create(0, rulerHeight, width, height - rulerHeight));
+        g.DrawBitmap(this._renderImage, SKRect.Create(0, rulerHeight + renderY, width, height - rulerHeight), SKRect.Create(0, rulerHeight, width, height - rulerHeight));
         g.DrawBitmap(this._rulerImage, SKRect.Create(0, 0, width, rulerHeight), SKRect.Create(0, 0, width, rulerHeight));
     }
 
-    private void Load(NeutrinoV1Track track)
-    {
-        var features = track.GetFeatures();
-
-        // 楽譜情報解析
-        this._score = MusicXmlUtil.Parse(track.MusicXml);
-        this._pitches = Parse(features.F0!, 0.0f);
-        this._dynamics = Parse(GetDynamicsFromMgc(features.Mgc!, features.F0!), -30d);
-        this._framesCount = features.F0!.Length;
-        this._isLoaded = true;
-
-        this.Redraw();
-    }
-
-    private void OnPaintSurface(object sender, SkiaSharp.Views.Desktop.SKPaintSurfaceEventArgs e)
-    {
-        this.PaintGraphics(e.Surface.Canvas);
-    }
-
-    private static double FrequencyToScale(double freqency)
+    /// <summary>
+    /// 周波数値を12音階律のスケールに変換する
+    /// </summary>
+    /// <param name="frequency">周波数</param>
+    /// <returns>12音階率</returns>
+    private static double FrequencyToScale(double frequency)
     {
         // http://signalprocess.binarized.work/2019/03/26/convert_frequency_to_cent/
-        return 12 * Math.Log2(freqency / 440) + 69;
+        return 12 * Math.Log2(frequency / 440) + 69;
     }
 
 
@@ -722,6 +826,11 @@ public partial class PlotEditor : UserControl
         return items;
     }
 
+    /// <summary>
+    /// 縦スクロール時
+    /// </summary>
+    /// <param name="sender">イベント発火元</param>
+    /// <param name="e">イベント情報</param>
     private void OnVScroll(object sender, ScrollEventArgs e)
     {
         if (e.ScrollEventType != ScrollEventType.First)
@@ -730,12 +839,17 @@ public partial class PlotEditor : UserControl
         }
     }
 
+    /// <summary>
+    /// 横スクロール時
+    /// </summary>
+    /// <param name="sender">イベント発火元</param>
+    /// <param name="e">イベント情報</param>
     private void OnHScroll(object sender, ScrollEventArgs e)
     {
         if (e.ScrollEventType != ScrollEventType.First)
         {
             this.Redraw();
-            this.UpdatePointer();
+            this.RelocateSeekBar();
         }
     }
 
@@ -760,6 +874,11 @@ public partial class PlotEditor : UserControl
         return values;
     }
 
+    /// <summary>
+    /// マウスホイールイベント発火時
+    /// </summary>
+    /// <param name="sender">イベント発火元</param>
+    /// <param name="e">イベント情報</param>
     private void OnScoreMouseWheel(object sender, MouseWheelEventArgs e)
     {
         var targetScrollBar = Keyboard.PrimaryDevice.Modifiers == ModifierKeys.Shift
