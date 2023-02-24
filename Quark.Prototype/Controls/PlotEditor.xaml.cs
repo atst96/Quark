@@ -51,6 +51,9 @@ public partial class PlotEditor : UserControl
     private RenderScaleInfo _scaling;
     private RenderInfo _renderInfo;
 
+    /// <summary>横伸長率の初期値</summary>
+    private const double DefaultScaleX = 0.125;
+
     public static readonly double[] HorizontalZoomLevels =
     {
         1.0, 0.8, 0.6, 0.4, 0.3, 0.2, 0.125,
@@ -133,16 +136,19 @@ public partial class PlotEditor : UserControl
     public static readonly DependencyProperty IsAutoScrollProperty =
         DependencyProperty.Register(nameof(IsAutoScroll), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false));
 
+    /// <summary>横伸長率の一時変数</summary>
+    private double _tempScaleX = DefaultScaleX;
+
     /// <summary>横方向のズームレベル</summary>
     public double ScaleX
     {
         get => (double)this.GetValue(ScaleXProperty);
-        set => this.SetValue(ScaleXProperty, value);
+        set => this.SetValue(ScaleXProperty, this._tempScaleX = value);
     }
 
     /// <summary><seealso cref="ScaleX"/>の依存関係プロパティ</summary>
     public static readonly DependencyProperty ScaleXProperty =
-        DependencyProperty.Register(nameof(ScaleX), typeof(double), typeof(PlotEditor), new PropertyMetadata(0.125d, OnScaleXChanged));
+        DependencyProperty.Register(nameof(ScaleX), typeof(double), typeof(PlotEditor), new PropertyMetadata(DefaultScaleX, OnScaleXChanged));
 
     /// <summary>縦方向のズームレベル</summary>
     public double ScaleY
@@ -182,7 +188,27 @@ public partial class PlotEditor : UserControl
     private static void OnScaleXChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var editor = (PlotEditor)d;
-        editor.OnLayoutChanged();
+        if (editor.UpdateInternalScaleX((double)e.NewValue))
+        {
+            editor.OnLayoutChanged();
+        }
+    }
+
+    /// <summary>
+    /// 内部的に保持している横伸長率を更新する
+    /// </summary>
+    /// <param name="newScale"></param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool UpdateInternalScaleX(double newScale)
+    {
+        if (this._tempScaleX == newScale)
+        {
+            return false;
+        }
+
+        this._tempScaleX = newScale;
+        return true;
     }
 
     /// <summary>
@@ -232,7 +258,6 @@ public partial class PlotEditor : UserControl
         var hScrollBar = this.hScrollBar1;
         hScrollBar.Minimum = 0;
         hScrollBar.Maximum = this.MaxHScrollHeight;
-        hScrollBar.LargeChange = 1;
         hScrollBar.ViewportSize = this.MaxHScrollHeight / 10;
     }
 
@@ -272,7 +297,7 @@ public partial class PlotEditor : UserControl
         int renderWidth = renderInfo.RenderWidth;
 
         // 開始フレーム位置
-        int beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod));
+        int beginTime = this.GetRenderBeginFrameIdx() * RenderConfig.FramePeriod;
         int endTime = beginTime + (int)(scaling.ToRenderImageScaling(renderWidth) / this.ScaleX);
         int currentTime = (int)time.TotalMilliseconds;
 
@@ -308,7 +333,7 @@ public partial class PlotEditor : UserControl
 
                 if (!isRecursive)
                 {
-                    this.hScrollBar1.Value = value;
+                    this.SetRenderBeginMs((int)value);
                     this.RelocateSeekBar(TimeSpan.FromMilliseconds(value), time, true);
                     this.Redraw();
                 }
@@ -431,9 +456,56 @@ public partial class PlotEditor : UserControl
     private double GetVerticalScrollCoe()
         => (double)this.vScrollBar1.Value / MaxVScrollHeight;
 
-    /// <summary>横スクロール位置(0-100%)を取得する</summary>
-    private double GetHorizontalScrollCore()
-        => (double)this.hScrollBar1.Value / this.MaxHScrollHeight;
+    /// <summary>描画開始時間</summary>
+    private int _renderBeginTime = 0;
+
+    /// <summary>描画開始時間を取得する</summary>
+    /// <returns></returns>
+    private int GetRenderBeginTimeMs()
+        => this._renderBeginTime;
+
+    /// <summary>描画開始フレーム番号を取得する</summary>
+    /// <returns></returns>
+    private int GetRenderBeginFrameIdx()
+        => (int)Math.Ceiling((double)this.GetRenderBeginTimeMs() / RenderConfig.FramePeriod);
+
+    /// <summary>描画開始位置を変更する</summary>
+    /// <param name="time"></param>
+    private void SetRenderBeginMs(int time)
+    {
+        time = Math.Max(0, time);
+
+        this._renderBeginTime = time;
+        if ((int)this.hScrollBar1.Value != time)
+        {
+            this.hScrollBar1.Value = time;
+        }
+    }
+
+    /// <summary>描画開始位置を変更する</summary>
+    /// <param name="time"></param>
+    private void OnRenderBeginMsChanged(int time)
+        => this._renderBeginTime = time;
+
+    /// <summary>描画開始位置を変更する</summary>
+    /// <param name="time"></param>
+    private void SetRenderBeginMsOffset(int time)
+        => this.SetRenderBeginMs(this.GetRenderBeginTimeMs() + time);
+
+    /// <summary>描画開始位置を変更する</summary>
+    /// <param name="time"></param>
+    private void SetVerticalPosition(double time)
+    {
+        if ((int)this.vScrollBar1.Value != (int)time)
+        {
+            this.vScrollBar1.Value = time;
+        }
+    }
+
+    /// <summary>描画開始位置を変更する</summary>
+    /// <param name="time"></param>
+    private void SetVerticalPositionOffset(double time)
+        => this.SetVerticalPosition((int)(this.vScrollBar1.Value + time));
 
     /// <summary>
     /// 画面内容を描画する
@@ -501,12 +573,12 @@ public partial class PlotEditor : UserControl
                 // float renderOffset =  viewFrames * this._frameWidth;
 
                 // 開始フレーム位置
-                int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
+                int beginFrameIdx = this.GetRenderBeginFrameIdx();
                 int endFrameIdx = beginFrameIdx + framesCount;
 
                 // 描画開始位置のオフセットを計算
                 int frameBasedTime = beginFrameIdx * RenderConfig.FramePeriod;
-                int beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod)) + RenderConfig.FramePeriod;
+                int beginTime = (this.GetRenderBeginFrameIdx() * RenderConfig.FramePeriod) + RenderConfig.FramePeriod;
                 int offsetX = frameBasedTime - beginTime;
 
                 // スコアの描画
@@ -646,12 +718,12 @@ public partial class PlotEditor : UserControl
             int framesCount = viewFrames/* + (offsetFrames * 2)*/;
 
             // 開始フレーム位置
-            int beginFrameIdx = (int)Math.Ceiling(this.GetHorizontalScrollCore() * totalFrameCount);
+            int beginFrameIdx = this.GetRenderBeginFrameIdx();
             int endFrameIdx = beginFrameIdx + framesCount;
 
             // 描画開始位置のオフセットを計算
             int frameBasedTime = beginFrameIdx * RenderConfig.FramePeriod;
-            int _beginTime = (int)Math.Floor((this.GetHorizontalScrollCore() * totalFrameCount * RenderConfig.FramePeriod)) + RenderConfig.FramePeriod;
+            int _beginTime = (this.GetRenderBeginFrameIdx() * RenderConfig.FramePeriod) + RenderConfig.FramePeriod;
             int offsetX = frameBasedTime - _beginTime;
 
             g.DrawRect(0, 0, renderWidth, renderHeight, new SKPaint() { Color = SKColors.Black });
@@ -846,8 +918,15 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnHScroll(object sender, ScrollEventArgs e)
     {
+        int time = (int)e.NewValue;
+        if (this.GetRenderBeginTimeMs() == time)
+        {
+            return;
+        }
+
         if (e.ScrollEventType != ScrollEventType.First)
         {
+            this.OnRenderBeginMsChanged(time);
             this.Redraw();
             this.RelocateSeekBar();
         }
@@ -881,19 +960,101 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnScoreMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        var targetScrollBar = Keyboard.PrimaryDevice.Modifiers == ModifierKeys.Shift
-            ? this.hScrollBar1 : this.vScrollBar1;
+        var modifiers = Keyboard.Modifiers;
 
-        int chnage = (int)(targetScrollBar.LargeChange / this.ScaleX) * 20;
-        if (e.Delta > 0)
+        if (modifiers == ModifierKeys.Control)
         {
-            targetScrollBar.Value -= chnage;
-            this.Redraw();
+            // Ctrl+スクロール時
+            // 横倍率を変更
+
+            double zoomLevel = this.ScaleX;
+
+            if (e.Delta > 0)
+            {
+                // 拡大
+                this.ChangeHorizontalScale(HorizontalZoomLevels.Where(i => i > zoomLevel).Order().FirstOrDefault(zoomLevel));
+            }
+            else if (e.Delta < 0)
+            {
+                // 縮小
+                this.ChangeHorizontalScale(HorizontalZoomLevels.Where(i => i < zoomLevel).Order().LastOrDefault(zoomLevel));
+            }
         }
-        else if (e.Delta < 0)
+        else if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
         {
-            targetScrollBar.Value += chnage;
-            this.Redraw();
+            // Ctrl+Shift+スクロール時
+            // 縦倍率を変更
         }
+        else
+        {
+            // キー操作がない場合
+            bool isHorizontal = modifiers == ModifierKeys.Shift;
+            var targetScrollBar = isHorizontal
+                ? this.hScrollBar1
+                : this.vScrollBar1;
+
+            int change = (int)(targetScrollBar.LargeChange / this.ScaleX) * 20;
+            if (e.Delta > 0)
+            {
+                if (isHorizontal)
+                {
+                    this.SetRenderBeginMsOffset(-change);
+                }
+                else
+                {
+                    this.SetVerticalPositionOffset(-change);
+                }
+                this.Redraw();
+            }
+            else if (e.Delta < 0)
+            {
+                if (isHorizontal)
+                {
+                    this.SetRenderBeginMsOffset(change);
+                }
+                else
+                {
+                    this.SetVerticalPositionOffset(change);
+                }
+                this.Redraw();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 横の拡大率を変更する
+    /// </summary>
+    /// <param name="newZoomLevel"></param>
+    private void ChangeHorizontalScale(double newZoomLevel)
+    {
+        var scaling = this._scaling;
+
+        double oldZoomLevel = this.ScaleX;
+        if (oldZoomLevel == newZoomLevel)
+        {
+            // 変更がない場合は処理をスキップする
+            return;
+        }
+
+        var element = this.SKElement;
+
+        var mousePosition = Mouse.GetPosition(element);
+
+        (double width, _) = this.GetCanvasSize();
+        width = scaling.ToRenderImageScaling(width);
+
+        // マウス位置(%)
+        double percentage = mousePosition.X / element.ActualWidth;
+
+        // 現在の伸長率の尺を取得する
+        double oldDuration = width * percentage / oldZoomLevel;
+        // 変更後の伸長率の尺を計算する
+        double newDuration = width * percentage / newZoomLevel;
+
+        int diff = (int)Math.Round(oldDuration - newDuration);
+
+        this.ScaleX = newZoomLevel;
+        this.SetRenderBeginMsOffset(diff);
+        this.OnLayoutChanged();
     }
 }
