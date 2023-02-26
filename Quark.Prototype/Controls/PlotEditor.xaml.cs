@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using Quark.Extensions;
 using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
@@ -54,6 +55,7 @@ public partial class PlotEditor : UserControl
     /// <summary>横伸長率の初期値</summary>
     private const double DefaultScaleX = 0.125;
 
+    /// <summary>横伸長率のリスト</summary>
     public static readonly double[] HorizontalZoomLevels =
     {
         1.0, 0.8, 0.6, 0.4, 0.3, 0.2, 0.125,
@@ -971,13 +973,15 @@ public partial class PlotEditor : UserControl
 
             if (e.Delta > 0)
             {
-                // 拡大
-                this.ChangeHorizontalScale(HorizontalZoomLevels.Where(i => i > zoomLevel).Order().FirstOrDefault(zoomLevel));
+                // 横伸長率リストから次に大きい拡大率(拡大方向)を取得して適用する
+                this.ChangeHorizontalScale(
+                    HorizontalZoomLevels.GetNextUpper(zoomLevel));
             }
             else if (e.Delta < 0)
             {
-                // 縮小
-                this.ChangeHorizontalScale(HorizontalZoomLevels.Where(i => i < zoomLevel).Order().LastOrDefault(zoomLevel));
+                // 横伸長率リストから次に小さい拡大率(縮小方向)を取得して適用する
+                this.ChangeHorizontalScale(
+                    HorizontalZoomLevels.GetNextLower(zoomLevel));
             }
         }
         else if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift))

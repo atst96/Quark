@@ -186,8 +186,6 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
     }
 
-    private const string TempModelId = "KIRITAN";
-
     private NeutrinoV1Track _currentTrack;
     public NeutrinoV1Track CurrentTrack
     {

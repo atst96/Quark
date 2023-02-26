@@ -124,7 +124,7 @@
                     SelectionTime="{Binding CurrentTime, Mode=OneWay}" />
 
                 <StackPanel
-                    Margin="0,0,0,18"
+                    Margin="0,0,18,18"
                     VerticalAlignment="Bottom"
                     HorizontalAlignment="Stretch">
 
