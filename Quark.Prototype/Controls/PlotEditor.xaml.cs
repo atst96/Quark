@@ -530,8 +530,6 @@ public partial class PlotEditor : UserControl
         // 折れ線の前後が途切れないように前後1データ多めに描画しておく
         const int marginFrames = 1;
 
-        int scoreYOffset = renderInfo.RenderRulerHeight;
-
         int scoreRenderWidth = renderWidth;
         int scoreWidth = width;
         int scoreRenderHeight = renderInfo.ScoreRenderWidth;
@@ -559,7 +557,7 @@ public partial class PlotEditor : UserControl
 
                 foreach (int x in xList)
                 {
-                    g.DrawBitmap(partImage, scaling.ToDisplayScaling(x), scoreYOffset + scaling.ToDisplayScaling(y));
+                    g.DrawBitmap(partImage, scaling.ToDisplayScaling(x), scaling.ToDisplayScaling(y));
                 }
             }
 
@@ -596,7 +594,7 @@ public partial class PlotEditor : UserControl
                         float y = height - (float)(score.Pitch * KeyHeight);
                         var rect = SKRect.Create(
                             scaling.ToDisplayScaling((offsetX + beginIndex * RenderConfig.FramePeriod) * renderInfo.WidthStretch),
-                            scoreYOffset + scaling.ToDisplayScaling(height - (score.Pitch * KeyHeight)),
+                            scaling.ToDisplayScaling(height - (score.Pitch * KeyHeight)),
                             scaling.ToDisplayScaling((score.EndFrame - score.BeginFrame) * renderInfo.WidthStretch * RenderConfig.FramePeriod),
                             scaling.ToDisplayScaling(KeyHeight));
 
@@ -641,7 +639,7 @@ public partial class PlotEditor : UserControl
 
                             points[idx] = new SKPoint(
                                 scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
-                                scoreYOffset + scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[frameIdx - dynamics.Index] + 30f) / 30f))));
+                                scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[frameIdx - dynamics.Index] + 30f) / 30f))));
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Blue, StrokeWidth = 1.5f, IsAntialias = true });
@@ -668,7 +666,7 @@ public partial class PlotEditor : UserControl
 
                             points[idx] = new SKPoint(
                                 scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
-                                scoreYOffset + scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[frameIdx - pitch.Index]) * KeyHeight)));
+                                scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[frameIdx - pitch.Index]) * KeyHeight)));
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
