@@ -39,9 +39,6 @@ internal class RenderInfo
         /// <summary>描画するキー数</summary>
         public const int KeyCount = 88;
 
-        /// <summary>初期のキー描画幅</summary>
-        public const int DefaultKeyHeight = 12;
-
         public const int DefaultRulerHeight = 24;
 
         /// <summary>フレーム間隔(ms)</summary>
@@ -51,12 +48,12 @@ internal class RenderInfo
         public const int FramesPerSecond = 1000 / FramePeriod;
     }
 
-    public RenderInfo(RenderScaleInfo scaling, int renderWidth, double widthStretch = 0.8f, double heightStretch = 1.0f)
+    public RenderInfo(RenderScaleInfo scaling, int keyHeight, int renderWidth, double widthStretch = 0.8f, double heightStretch = 1.0f)
     {
         this.Scaling = scaling;
         this.RenderWidth = renderWidth;
         this.ImageWidth = scaling.ToRenderImageScaling(renderWidth);
-        this.KeyHeight = RenderConfig.DefaultKeyHeight;
+        this.KeyHeight = keyHeight;
         this.ImageHeight = this.KeyHeight * RenderConfig.KeyCount;
         this.RenderHeight = scaling.ToDisplayScaling(this.ImageHeight);
         this.RulerHeight = RenderConfig.DefaultRulerHeight;
@@ -71,4 +68,7 @@ internal class RenderInfo
 
     public int GetRenderFrames()
         => (int)Math.Ceiling((decimal)this.RenderWidth / RenderConfig.FramePeriod / (decimal)this.WidthStretch);
+
+    public int GetDrawScoreHeight(double height)
+        => this.Scaling.ToRenderImageScaling(height) - this.RulerHeight;
 }

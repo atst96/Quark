@@ -30,16 +30,12 @@ public partial class PlotEditor : UserControl
 {
     private const int FrameUnit = 1000 / 200;
 
-    private const int KeyCount = 88;
-
-    private const double MaxVScrollHeight = 1000;
     private double MaxHScrollHeight = 1000;
 
     private SKPaint _whiteKeyPaint = new SKPaint { Color = new SKColor(255, 255, 255) };
     private SKPaint _blackKeyPaint = new SKPaint { Color = new SKColor(230, 230, 230) };
     private SKPaint _whiteKeyGridPaint = new SKPaint { Color = new SKColor(230, 230, 230), StrokeWidth = 1 };
 
-    public int KeyHeight = 12;
     private SKBitmap _renderImage;
     private SKBitmap _rulerImage;
 
@@ -60,6 +56,15 @@ public partial class PlotEditor : UserControl
     {
         1.0, 0.8, 0.6, 0.4, 0.3, 0.2, 0.125,
         0.1, 0.08, 0.06, 0.04, 0.03, 0.02, 0.0125, 0.01,
+    };
+
+    /// <summary>キー描画高の初期値</summary>
+    private const int DefaultKeyHeight = 12;
+
+    /// <summary>キー高のリスト</summary>
+    public static readonly int[] KeySizes =
+    {
+        5, 7, 12, 15, 19, 25
     };
 
     private int _rulerHeight = 24;
@@ -152,16 +157,19 @@ public partial class PlotEditor : UserControl
     public static readonly DependencyProperty ScaleXProperty =
         DependencyProperty.Register(nameof(ScaleX), typeof(double), typeof(PlotEditor), new PropertyMetadata(DefaultScaleX, OnScaleXChanged));
 
-    /// <summary>縦方向のズームレベル</summary>
-    public double ScaleY
+    /// <summary>キー描画高の一時変数</summary>
+    private int _tempKeyHeight = DefaultKeyHeight;
+
+    /// <summary>1キーあたりの高さ(px)</summary>
+    public int KeyHeight
     {
-        get => (double)this.GetValue(ScaleYProperty);
-        set => this.SetValue(ScaleYProperty, value);
+        get => (int)this.GetValue(KeyHeightProperty);
+        set => this.SetValue(KeyHeightProperty, this._tempKeyHeight = value);
     }
 
-    /// <summary><seealso cref="ScaleY"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty ScaleYProperty =
-        DependencyProperty.Register(nameof(ScaleY), typeof(double), typeof(PlotEditor), new PropertyMetadata(1.0d, OnScaleYChanged));
+    /// <summary><seealso cref="KeyHeight"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty KeyHeightProperty =
+        DependencyProperty.Register(nameof(KeyHeight), typeof(int), typeof(PlotEditor), new PropertyMetadata(DefaultKeyHeight, OnKeyHeightChanged));
 
     /// <summary>
     /// <seealso cref="Track"/>プロパティ変更時
@@ -214,14 +222,38 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>
-    /// <seealso cref="ScaleY"/>プロパティ変更時
+    /// <seealso cref="KeyHeight"/>プロパティ変更時
     /// </summary>
     /// <param name="d">プロパティ変更要素</param>
     /// <param name="e">イベント情報</param>
-    private static void OnScaleYChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    private static void OnKeyHeightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var editor = (PlotEditor)d;
-        editor.OnLayoutChanged();
+
+        if (editor.UpdateInternalKeyHeight((int)e.NewValue))
+        {
+            editor.SetVScrollPosition((int)(editor.GetVScrollPosition() * ((double)(int)e.NewValue / (int)e.OldValue)));
+
+            // 内部で変更済み出ない場合
+            editor.OnLayoutChanged();
+        }
+    }
+
+    /// <summary>
+    /// 内部的に保持している横伸長率を更新する
+    /// </summary>
+    /// <param name="newValue"></param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool UpdateInternalKeyHeight(int newValue)
+    {
+        if (this._tempKeyHeight == newValue)
+        {
+            return false;
+        }
+
+        this._tempKeyHeight = newValue;
+        return true;
     }
 
     /// <summary>
@@ -245,14 +277,26 @@ public partial class PlotEditor : UserControl
     /// <summary>スクロールバーの状態を更新する</summary>
     private void UpdateScrollLayout()
     {
+        if (!this._isLoaded)
+        {
+            return;
+        }
+
         int dataLength = this.Track!.GetFeatures().F0!.Length;
+
+        var renderInfo = this._renderInfo;
+
+        (_, double height) = this.GetCanvasSize();
 
         // ########## 縦スクロールの設定
         var vScrollBar = this.vScrollBar1;
+        int renderHeight = renderInfo.GetDrawScoreHeight(height);
+        double scaledKeyHeight = this._scaling.ToDisplayScaling(this.KeyHeight);
         vScrollBar.Minimum = 0;
-        vScrollBar.Maximum = MaxVScrollHeight;
-        vScrollBar.LargeChange = 1;
-        vScrollBar.ViewportSize = MaxVScrollHeight / 10;
+        vScrollBar.Maximum = renderInfo.ScoreHeight - renderHeight;
+        vScrollBar.SmallChange = scaledKeyHeight;
+        vScrollBar.LargeChange = scaledKeyHeight;
+        vScrollBar.ViewportSize = renderHeight;
 
         // ########## 横スクロールの設定
         long duration = (dataLength + 1) * FrameUnit;
@@ -260,6 +304,7 @@ public partial class PlotEditor : UserControl
         var hScrollBar = this.hScrollBar1;
         hScrollBar.Minimum = 0;
         hScrollBar.Maximum = this.MaxHScrollHeight;
+        hScrollBar.LargeChange = 5 / this.ScaleX * 20;
         hScrollBar.ViewportSize = this.MaxHScrollHeight / 10;
     }
 
@@ -268,10 +313,11 @@ public partial class PlotEditor : UserControl
     /// </summary>
     public void OnLayoutChanged()
     {
-        int renderWidth = (int)this.SKElement.CanvasSize.Width;
+        (_, double renderWidth) = this.GetCanvasSize();
 
-        this._renderInfo = new RenderInfo(this._scaling, renderWidth, this.ScaleX, 1.0f);
+        this._renderInfo = new RenderInfo(this._scaling, this.KeyHeight, (int)renderWidth, this.ScaleX, 1.0f);
         this.Redraw();
+        this.UpdateScrollLayout();
         this.RelocateSeekBar();
     }
 
@@ -427,7 +473,7 @@ public partial class PlotEditor : UserControl
         {
             using (this._renderImage)
             {
-                var renderInfo = this._renderInfo = new RenderInfo(this._scaling, width, this.ScaleX, 1.0f);
+                var renderInfo = this._renderInfo = new RenderInfo(this._scaling, this.KeyHeight, width, this.ScaleX, 1.0f);
                 this._renderImage = this.CreateRenderImage(renderInfo);
                 this._rulerImage = this.CreateRulerImage(renderInfo);
             }
@@ -451,12 +497,23 @@ public partial class PlotEditor : UserControl
     private void OnRenderSizeChanged(object sender, SizeChangedEventArgs e)
     {
         this.Redraw();
+        this.UpdateScrollLayout();
         this.RelocateSeekBar();
     }
 
-    /// <summary>縦スクロール位置(0-100%)を取得する</summary>
-    private double GetVerticalScrollCoe()
-        => (double)this.vScrollBar1.Value / MaxVScrollHeight;
+    /// <summary>縦スクロール位置を取得する</summary>
+    private int GetVScrollPosition()
+        => (int)this.vScrollBar1.Value;
+
+    /// <summary>縦スクロール位置を設定する</summary>
+    /// <param name="position">スクロール位置(px)</param>
+    private void SetVScrollPosition(int position)
+        => this.vScrollBar1.Value = position;
+
+    /// <summary>縦スクロール位置を設定する</summary>
+    /// <param name="offset">スクロール位置(px)</param>
+    private void SetVScrollPositionOffset(int offset)
+        => this.SetVScrollPosition(this.GetVScrollPosition() + offset);
 
     /// <summary>描画開始時間</summary>
     private int _renderBeginTime = 0;
@@ -826,17 +883,26 @@ public partial class PlotEditor : UserControl
             return;
         }
 
-        (int width, int height) = (renderInfo.RenderWidth, renderInfo.RenderHeight);
+        (int scaledWidth, _) = (renderInfo.RenderWidth, renderInfo.RenderHeight);
+
+        (_, int h) = this.GetCanvasSize();
 
         // 描画領域の更新
-        int renderHeight = KeyHeight * KeyCount;
-
-        int rulerHeight = renderInfo.RenderRulerHeight;
+        int scaledRulerHeight = renderInfo.RenderRulerHeight;
+        int scaledScoreHeight = Math.Min(renderInfo.RenderHeight, h - scaledRulerHeight);
 
         // スクロール位置から描画位置(y)を計算
-        int renderY = (int)Math.Floor(this.GetVerticalScrollCoe() * (renderHeight - height - rulerHeight));
-        g.DrawBitmap(this._renderImage, SKRect.Create(0, rulerHeight + renderY, width, height - rulerHeight), SKRect.Create(0, rulerHeight, width, height - rulerHeight));
-        g.DrawBitmap(this._rulerImage, SKRect.Create(0, 0, width, rulerHeight), SKRect.Create(0, 0, width, rulerHeight));
+        int scaledScoreY = renderInfo.Scaling.ToDisplayScaling(this.GetVScrollPosition());
+        g.DrawBitmap(this._rulerImage, SKRect.Create(0, 0, scaledWidth, scaledRulerHeight), SKRect.Create(0, 0, scaledWidth, scaledRulerHeight));
+        g.DrawBitmap(this._renderImage,
+            SKRect.Create(0, scaledScoreY, scaledWidth, scaledScoreHeight),
+            SKRect.Create(0, scaledRulerHeight, scaledWidth, scaledScoreHeight));
+
+        double renderedY = scaledRulerHeight + scaledScoreHeight;
+        if (renderedY < h)
+        {
+            g.DrawRect(SKRect.Create(0, (float)renderedY, scaledWidth, (float)(h - renderedY)), this._whiteKeyPaint);
+        }
     }
 
     /// <summary>
@@ -986,6 +1052,19 @@ public partial class PlotEditor : UserControl
         {
             // Ctrl+Shift+スクロール時
             // 縦倍率を変更
+            int currentHeight = this.KeyHeight;
+            if (e.Delta > 0)
+            {
+                // 横伸長率リストから次に大きい拡大率(拡大方向)を取得して適用する
+                this.ChangeKeyHeightSize(
+                    KeySizes.GetNextUpper(currentHeight));
+            }
+            else if (e.Delta < 0)
+            {
+                // 横伸長率リストから次に小さい拡大率(縮小方向)を取得して適用する
+                this.ChangeKeyHeightSize(
+                    KeySizes.GetNextLower(currentHeight));
+            }
         }
         else
         {
@@ -995,7 +1074,7 @@ public partial class PlotEditor : UserControl
                 ? this.hScrollBar1
                 : this.vScrollBar1;
 
-            int change = (int)(targetScrollBar.LargeChange / this.ScaleX) * 20;
+            int change = (int)targetScrollBar.LargeChange;
             if (e.Delta > 0)
             {
                 if (isHorizontal)
@@ -1058,5 +1137,68 @@ public partial class PlotEditor : UserControl
         this.ScaleX = newZoomLevel;
         this.SetRenderBeginMsOffset(diff);
         this.OnLayoutChanged();
+    }
+
+    /// <summary>
+    /// 横の拡大率を変更する
+    /// </summary>
+    /// <param name="newHeight"></param>
+    private void ChangeKeyHeightSize(int newHeight)
+    {
+        var renderInfo = this._renderInfo;
+        var scaling = renderInfo.Scaling;
+
+        int oldHeight = this.KeyHeight;
+        if (oldHeight == newHeight)
+        {
+            // 変更がない場合は処理をスキップする
+            return;
+        }
+
+        var element = this.SKElement;
+        var mousePosition = Mouse.GetPosition(element);
+
+        (_, double height) = this.GetCanvasSize();
+        height = scaling.ToRenderImageScaling(height);
+
+        // マウス位置(%)
+        double posY = mousePosition.Y;
+        int rulerHeight = this._renderInfo.RulerHeight;
+        double percentage = CalcRatioWithLowerOffset(posY, rulerHeight, height);
+
+        double zoom = (double)newHeight / oldHeight;
+
+        // 現在の伸長率の尺を取得する
+        double oldDuration = height * percentage;
+        // 変更後の伸長率の尺を計算する
+        double newDuration = oldDuration * zoom;
+
+        int diff = (int)Math.Round(newDuration - oldDuration);
+
+        this.KeyHeight = newHeight;
+        this.SetVScrollPosition((int)((this.GetVScrollPosition() * zoom) + diff));
+        this.OnLayoutChanged();
+    }
+
+    /// <summary>範囲内の値の位置(%)を計算する(オフセット対応)</summary>
+    /// <param name="value">現在の値</param>
+    /// <param name="lowerOffset">下限オフセット</param>
+    /// <param name="upperLimit">上限</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static double CalcRatioWithLowerOffset(double value, int lowerOffset, double upperLimit)
+    {
+        if (value <= lowerOffset)
+        {
+            return 0.0d;
+        }
+        else if (value > upperLimit)
+        {
+            return 1.0d;
+        }
+        else
+        {
+            return (value - lowerOffset) / (upperLimit - lowerOffset);
+        }
     }
 }
