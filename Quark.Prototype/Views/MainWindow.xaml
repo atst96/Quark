@@ -165,14 +165,14 @@
                         BorderThickness="1" BorderBrush="#AAAA00" Background="#FFFFAA">
                     <Grid Margin="8">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="80" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="モデル: " Margin="4"
+                        <TextBlock Grid.Column="0" Text="Singer: " Margin="4"
                                    VerticalAlignment="Center"/>
 
-                        <ComboBox Grid.Column="1" Width="180" Margin="4"
+                        <ComboBox Grid.Column="1" Width="160" Margin="4"
                                   ItemsSource="{Binding Models, Mode=OneWay}"
                                   DisplayMemberPath="Name"
                                   SelectedItem="{Binding SelectedModelInfo, Mode=TwoWay}"/>
