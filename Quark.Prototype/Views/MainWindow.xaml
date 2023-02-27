@@ -146,7 +146,7 @@
                             IsChecked="{Binding ElementName=PloatEditor1, Path=IsAutoScroll, Mode=TwoWay}" />
 
                         <TextBlock Grid.Column="2" IsHitTestVisible="False"
-                                   Text="{Binding CurrentTime, StringFormat='{}{0:hh\\:mm\\:ss\\.fff}', Mode=OneWay}"
+                                   Text="{Binding SelectionTime, ElementName=PloatEditor1, StringFormat='{}{0:hh\\:mm\\:ss\\.fff}', Mode=OneWay}"
                                    d:Text="00:00:00.000"
                                    VerticalAlignment="Center" Margin="12,0" />
 

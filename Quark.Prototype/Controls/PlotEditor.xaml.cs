@@ -1201,4 +1201,89 @@ public partial class PlotEditor : UserControl
             return (value - lowerOffset) / (upperLimit - lowerOffset);
         }
     }
+
+    private bool _mouseSeek = false;
+
+    private void OnMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        Debug.WriteLine("Mouse down.");
+
+        var renderInfo = this._renderInfo;
+        var scaling = renderInfo.Scaling;
+        var element = (UIElement)sender;
+
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            Debug.WriteLine("Mouse captured.");
+            Mouse.Capture(this.SKElement);
+
+            var mousePos = e.GetPosition(element);
+            if (mousePos.Y <= renderInfo.RenderRulerHeight)
+            {
+                this._mouseSeek = true;
+            }
+        }
+    }
+
+    private void OnMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed
+            || e.RightButton == MouseButtonState.Pressed
+            || e.MiddleButton == MouseButtonState.Pressed
+            || e.XButton1 == MouseButtonState.Pressed
+            || e.XButton2 == MouseButtonState.Pressed)
+        {
+            Debug.WriteLine($"Mouse move. Left: {e.LeftButton}");
+        }
+
+        var renderInfo = this._renderInfo;
+        var scaling = renderInfo.Scaling;
+
+        if (this._mouseSeek)
+        {
+            (double width, _) = this.GetCanvasSize();
+            width = scaling.ToRenderImageScaling(width);
+
+            double posX = e.GetPosition(this).X;
+
+            double scaleX = this.ScaleX;
+            if (posX < 0)
+            {
+                int degree = (int)posX;
+                this.SetRenderBeginMs(Math.Max(0, this.GetRenderBeginTimeMs() + (int)(degree / scaleX)));
+                // TODO: 再レンダリングの処理を見直す
+                this.Redraw();
+            }
+            else if (width < posX)
+            {
+                int degree = (int)(posX - width);
+                this.SetRenderBeginMsOffset((int)(degree / scaleX));
+                // TODO: 再レンダリングの処理を見直す
+                this.Redraw();
+            }
+            else
+            {
+                double percentageX = posX / width;
+                int conditionTime = this.GetRenderBeginTimeMs() + (int)(width * percentageX / scaleX);
+
+                this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
+            }
+        }
+    }
+
+    private void OnMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        Debug.WriteLine("Mouse up.");
+
+        if (e.LeftButton == MouseButtonState.Released)
+        {
+            this.SKElement.ReleaseMouseCapture();
+            Debug.WriteLine("Mouse released.");
+
+            if (this._mouseSeek)
+            {
+                this._mouseSeek = false;
+            }
+        }
+    }
 }
