@@ -21,7 +21,7 @@
 
             <skia:SKElement Focusable="True" x:Name="SKElement" PaintSurface="OnPaintSurface" MouseWheel="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
                             MouseDown="OnMouseDown" MouseMove="OnMouseMove" MouseUp="OnMouseUp"/>
-            <Line x:Name="PART_SelectionTime" X1="0" X2="0" Y1="0" Y2="0" Stroke="Green" StrokeThickness="1" RenderOptions.EdgeMode="Aliased" />
+            <Line x:Name="PART_SelectionTime" X1="0" X2="0" Y1="0" Y2="0" Stroke="Green" StrokeThickness="1" RenderOptions.EdgeMode="Aliased" IsHitTestVisible="False" />
 
             <ScrollBar x:Name="vScrollBar1" Grid.Column="1" Grid.Row="0" Orientation="Vertical" Scroll="OnVScroll" />
             <ScrollBar x:Name="hScrollBar1" Grid.Column="0" Grid.Row="1" Orientation="Horizontal" Scroll="OnHScroll" />
