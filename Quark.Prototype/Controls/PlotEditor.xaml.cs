@@ -644,30 +644,30 @@ public partial class PlotEditor : UserControl
 
                 foreach (var score in result.Phrases)
                 {
-                        float y = height - (float)(score.Pitch * KeyHeight);
+                    float y = height - (float)(score.Pitch * KeyHeight);
 
-                        var rect = SKRect.Create(
+                    var rect = SKRect.Create(
                         scaling.ToDisplayScaling((score.BeginTime - beginTime) * renderInfo.WidthStretch),
-                            scaling.ToDisplayScaling(height - (score.Pitch * KeyHeight)),
+                        scaling.ToDisplayScaling(height - (score.Pitch * KeyHeight)),
                         scaling.ToDisplayScaling((score.EndTime - score.BeginTime) * renderInfo.WidthStretch),
-                            scaling.ToDisplayScaling(KeyHeight));
+                        scaling.ToDisplayScaling(KeyHeight));
 
-                        g.DrawRect(rect, new SKPaint
-                        {
-                            Color = SKColors.LightSkyBlue,
-                            Style = SKPaintStyle.Fill,
-                        });
-                        g.DrawRect(rect, new SKPaint
-                        {
-                            Color = SKColors.DarkBlue,
-                            Style = SKPaintStyle.Stroke,
-                            StrokeWidth = 1.0f,
-                            IsStroke = true,
-                        });
+                    g.DrawRect(rect, new SKPaint
+                    {
+                        Color = SKColors.LightSkyBlue,
+                        Style = SKPaintStyle.Fill,
+                    });
+                    g.DrawRect(rect, new SKPaint
+                    {
+                        Color = SKColors.DarkBlue,
+                        Style = SKPaintStyle.Stroke,
+                        StrokeWidth = 1.0f,
+                        IsStroke = true,
+                    });
 
-                        // 歌詞
-                        g.DrawText(score.Lyrics, new SKPoint(rect.Left, rect.Top), lyricsTypography);
-                    }
+                    // 歌詞
+                    g.DrawText(score.Lyrics, new SKPoint(rect.Left, rect.Top), lyricsTypography);
+                }
 
                 // 声量の描画
                 {
@@ -817,7 +817,7 @@ public partial class PlotEditor : UserControl
                     // 描画範囲内
                     if (beginTime <= time || time <= endTime)
                     {
-                        int x = scaling.ToDisplayScaling((offsetX + MsToFrameIndex(time - beginTime)) * RenderConfig.FramePeriod * ScaleX);
+                        int x = scaling.ToDisplayScaling((double)(time - beginTime) * ScaleX);
 
                         g.DrawLine(x, (count != 0 ? (renderHeight / 2) : 0), x, renderHeight, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
                     }
