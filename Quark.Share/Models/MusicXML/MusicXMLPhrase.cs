@@ -9,12 +9,12 @@ public record MusicXmlPhrase(IList<MusicXmlPhrase.Frame> Frames)
         /// <summary>
         /// 開始フレーム
         /// </summary>
-        public int BeginFrame { get; init; }
+        public int BeginTime { get; init; }
 
         /// <summary>
         /// 終了フレーム
         /// </summary>
-        public int EndFrame { get; private set; }
+        public int EndTime { get; private set; }
 
         /// <summary>
         /// 歌詞
@@ -33,8 +33,8 @@ public record MusicXmlPhrase(IList<MusicXmlPhrase.Frame> Frames)
 
         public Frame(int beginFrame, int endFrame, string lyrics, int pitch, bool breath)
         {
-            this.BeginFrame = beginFrame;
-            this.EndFrame = endFrame;
+            this.BeginTime = beginFrame;
+            this.EndTime = endFrame;
             this.Lyrics = lyrics;
             this.Pitch = pitch;
             this.Breath = breath;
@@ -42,7 +42,7 @@ public record MusicXmlPhrase(IList<MusicXmlPhrase.Frame> Frames)
 
         public void SetEndFrame(int endFrame)
         {
-            this.EndFrame = endFrame;
+            this.EndTime = endFrame;
         }
 
         public void SetBreath(bool breath)

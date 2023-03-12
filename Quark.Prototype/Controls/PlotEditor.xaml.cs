@@ -627,32 +627,29 @@ public partial class PlotEditor : UserControl
                 // 描画するフレーム数
                 int viewFrames = renderInfo.GetRenderFrames();
                 int framesCount = viewFrames + (offsetFrames * 2);
-                // float renderOffset =  viewFrames * this._frameWidth;
 
-                // 開始フレーム位置
-                int beginFrameIdx = this.GetRenderBeginFrameIdx();
+                // 描画開始・終了位置
+                int beginTime = this.GetRenderBeginTimeMs();
+                int endTime = beginTime + (framesCount * RenderConfig.FramePeriod);
+
+                // フレームの描画範囲
+                int beginFrameIdx = beginTime / RenderConfig.FramePeriod;
                 int endFrameIdx = beginFrameIdx + framesCount;
 
                 // 描画開始位置のオフセットを計算
-                int frameBasedTime = beginFrameIdx * RenderConfig.FramePeriod;
-                int beginTime = (this.GetRenderBeginFrameIdx() * RenderConfig.FramePeriod) + RenderConfig.FramePeriod;
-                int offsetX = frameBasedTime - beginTime;
+                int offsetX = (beginFrameIdx * RenderConfig.FramePeriod) - beginTime;
 
                 // スコアの描画
-                var result = this._currentViewScore = this._score.GetRangeInfo(beginFrameIdx, endFrameIdx);
-                var scores = result.Phrases.ToArray();
+                var result = this._currentViewScore = this._score.GetRangeInfo(beginTime, endTime);
+
+                foreach (var score in result.Phrases)
                 {
-                    for (int i = 0; i < scores.Length; ++i)
-                    {
-                        var score = scores[i];
-
-                        int beginIndex = score.BeginFrame - beginFrameIdx;
-
                         float y = height - (float)(score.Pitch * KeyHeight);
+
                         var rect = SKRect.Create(
-                            scaling.ToDisplayScaling((offsetX + beginIndex * RenderConfig.FramePeriod) * renderInfo.WidthStretch),
+                        scaling.ToDisplayScaling((score.BeginTime - beginTime) * renderInfo.WidthStretch),
                             scaling.ToDisplayScaling(height - (score.Pitch * KeyHeight)),
-                            scaling.ToDisplayScaling((score.EndFrame - score.BeginFrame) * renderInfo.WidthStretch * RenderConfig.FramePeriod),
+                        scaling.ToDisplayScaling((score.EndTime - score.BeginTime) * renderInfo.WidthStretch),
                             scaling.ToDisplayScaling(KeyHeight));
 
                         g.DrawRect(rect, new SKPaint
@@ -671,7 +668,6 @@ public partial class PlotEditor : UserControl
                         // 歌詞
                         g.DrawText(score.Lyrics, new SKPoint(rect.Left, rect.Top), lyricsTypography);
                     }
-                }
 
                 // 声量の描画
                 {
@@ -770,28 +766,22 @@ public partial class PlotEditor : UserControl
 
         using (var g = new SKCanvas(image))
         {
-            // 描画するフレーム数
-            int viewFrames = renderInfo.GetRenderFrames();
-            int framesCount = viewFrames/* + (offsetFrames * 2)*/;
-
-            // 開始フレーム位置
-            int beginFrameIdx = this.GetRenderBeginFrameIdx();
-            int endFrameIdx = beginFrameIdx + framesCount;
-
-            // 描画開始位置のオフセットを計算
-            int frameBasedTime = beginFrameIdx * RenderConfig.FramePeriod;
-            int _beginTime = (this.GetRenderBeginFrameIdx() * RenderConfig.FramePeriod) + RenderConfig.FramePeriod;
-            int offsetX = frameBasedTime - _beginTime;
-
             g.DrawRect(0, 0, renderWidth, renderHeight, new SKPaint() { Color = SKColors.Black });
 
             if (this._isLoaded && result is not null)
             {
                 var tempoDic = result.Tempos.ToDictionary(i => (int)i.Frame);
-                var tsDic = result.TimeSignatures.ToDictionary(i => (int)i.Frame);
+                var tsDic = result.TimeSignatures.ToDictionary(i => (int)i.Time);
 
-                int beginTime = beginFrameIdx * FrameUnit;
-                int endTime = endFrameIdx * FrameUnit;
+                int offsetFrames = 1;
+
+                // 描画するフレーム数
+                int viewFrames = renderInfo.GetRenderFrames();
+                int framesCount = viewFrames + (offsetFrames * 2);
+
+                // 描画開始・終了位置
+                int beginTime = this.GetRenderBeginTimeMs();
+                int endTime = beginTime + (framesCount * RenderConfig.FramePeriod);
 
                 var tempo = result.Tempos.First();
                 var timeSignature = result.TimeSignatures.First();

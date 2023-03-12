@@ -14,15 +14,15 @@ public record PartScore(
     /// <summary>
     /// 指定範囲内に含まれる楽譜情報を取得する
     /// </summary>
-    /// <param name="beginIdx"></param>
-    /// <param name="endIdx"></param>
+    /// <param name="beginTime"></param>
+    /// <param name="endTime"></param>
     /// <returns>開始位置/終了位置が範囲外であっても、区間として被っていれば本情報に含まれる。</returns>
-    public PartScore GetRangeInfo(int beginIdx, int endIdx)
+    public PartScore GetRangeInfo(int beginTime, int endTime)
     {
-        var tempos = GetRangeElement(this.Tempos, f => (int)f.Frame, beginIdx, endIdx);
-        var timeSignatures = GetRangeElement(this.TimeSignatures, f => (int)f.Frame, beginIdx, endIdx);
-        var notes = GetRangeElement(this.Phrases, f => f.BeginFrame, f => f.EndFrame, beginIdx, endIdx);
-        int beginMeasureTime = (int)((timeSignatures.First?.Value.Frame ?? 0) / Unit);
+        var tempos = GetRangeElement(this.Tempos, f => (int)f.Frame, beginTime, endTime);
+        var timeSignatures = GetRangeElement(this.TimeSignatures, f => (int)f.Time, beginTime, endTime);
+        var notes = GetRangeElement(this.Phrases, f => f.BeginTime, f => f.EndTime, beginTime, endTime);
+        int beginMeasureTime = (int)(timeSignatures.First?.Value.Time ?? 0);
 
         return new(beginMeasureTime, tempos, timeSignatures, notes);
     }

@@ -1,3 +1,3 @@
 ﻿namespace Quark.Models.Scores;
 
-public record TimeSignature(decimal Frame, int Beats, int BeatType);
+public record TimeSignature(decimal Time, int Beats, int BeatType);

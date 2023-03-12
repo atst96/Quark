@@ -171,12 +171,12 @@ public static class MusicXmlUtil
                                             }
                                             else
                                             {
-                                                (_beginFrame, _endFrame) = GetFrameIndices(tiedNote.BeginFrame, currentTime + duration);
+                                                (_beginFrame, _endFrame) = GetFrameIndices(tiedNote.BeginTime, currentTime + duration);
 
                                                 if (IsRange(beginFrame, endFrame, _beginFrame, _endFrame))
                                                 {
                                                     // タイ記号の終わり
-                                                    tiedNote.SetEndFrame((int)((currentTime + duration) / Unit));
+                                                    tiedNote.SetEndFrame((int)(currentTime + duration));
                                                     tiedNote.SetBreath(GetIsBreath(note));
                                                     _notes.AddLast(tiedNote);
                                                 }
@@ -218,7 +218,7 @@ public static class MusicXmlUtil
         }
 
         // 先頭の小節情報がなければデフォルトを差し込む
-        if (timeSignatures.Count == 0 || (timeSignatures.First!.Value.Frame > beginFrame))
+        if (timeSignatures.Count == 0 || (timeSignatures.First!.Value.Time > beginFrame))
         {
             timeSignatures.AddFirst(timeSignature ?? new TimeSignature(0, 4, 4));
         }
@@ -341,7 +341,7 @@ public static class MusicXmlUtil
                                             else
                                             {
                                                 // タイ記号の終わり
-                                                tiedNote.SetEndFrame((int)((currentTime + duration) / Unit));
+                                                tiedNote.SetEndFrame((int)(currentTime + duration));
                                                 tiedNote.SetBreath(GetIsBreath(note));
                                                 _notes.AddLast(tiedNote);
                                             }
@@ -377,7 +377,7 @@ public static class MusicXmlUtil
         }
 
         // 先頭の小節情報がなければデフォルトを差し込む
-        if (timeSignatures is not { Count: > 0, First.Value.Frame: 0 })
+        if (timeSignatures is not { Count: > 0, First.Value.Time: 0 })
         {
             timeSignatures.AddFirst(new TimeSignature(0, 4, 4));
         }
@@ -419,8 +419,7 @@ public static class MusicXmlUtil
     private static MusicXmlPhrase.Frame CreateFrameInfo(
         Note note, decimal startTime, decimal endTime)
         => new MusicXmlPhrase.Frame(
-            (int)(startTime / Unit),
-            (int)(endTime / Unit),
+            (int)startTime, (int)endTime,
             note.Lyric.Text, GetCode(note.Pitch), GetIsBreath(note));
 
     private const int KeyCodeC = 0;
