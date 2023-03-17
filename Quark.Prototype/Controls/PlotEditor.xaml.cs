@@ -4,11 +4,13 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Quark.Extensions;
 using Quark.Models.Scores;
 using Quark.Projects.Tracks;
@@ -31,6 +33,8 @@ public partial class PlotEditor : UserControl
     private const int FrameUnit = 1000 / 200;
 
     private double MaxHScrollHeight = 1000;
+
+    private DispatcherTimer _mouseTimer;
 
     private SKPaint _whiteKeyPaint = new SKPaint { Color = new SKColor(255, 255, 255) };
     private SKPaint _blackKeyPaint = new SKPaint { Color = new SKColor(230, 230, 230) };
@@ -67,6 +71,12 @@ public partial class PlotEditor : UserControl
         5, 7, 12, 15, 19, 25
     };
 
+    /// <summary>自動スクロール用の内側領域の幅</summary>
+    private const double AutoScrollInnerWidth = 100;
+
+    /// <summary>自動スクロール用の外側領域の幅</summary>
+    private const double AutoScrollOuterWidth = 400;
+
     private int _rulerHeight = 24;
 
     private SKPaint lyricsTypography = new(new SKFont(SKTypeface.FromFamilyName("MS UI Gothic"), 12));
@@ -74,8 +84,14 @@ public partial class PlotEditor : UserControl
     public PlotEditor()
     {
         this.InitializeComponent();
-
         this._scaling = new RenderScaleInfo(VisualTreeHelper.GetDpi(this).DpiScaleX);
+
+        // マウス操作時のタイマー
+        this._mouseTimer = new(
+            TimeSpan.FromMilliseconds(20d), DispatcherPriority.Render, this.OnMouseTimerTicked, this.Dispatcher)
+        {
+            IsEnabled = false,
+        };
     }
 
     /// <summary>
@@ -1217,14 +1233,14 @@ public partial class PlotEditor : UserControl
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
-        if (e.LeftButton == MouseButtonState.Pressed
-            || e.RightButton == MouseButtonState.Pressed
-            || e.MiddleButton == MouseButtonState.Pressed
-            || e.XButton1 == MouseButtonState.Pressed
-            || e.XButton2 == MouseButtonState.Pressed)
-        {
-            Debug.WriteLine($"Mouse move. Left: {e.LeftButton}");
-        }
+        //if (e.LeftButton == MouseButtonState.Pressed
+        //    || e.RightButton == MouseButtonState.Pressed
+        //    || e.MiddleButton == MouseButtonState.Pressed
+        //    || e.XButton1 == MouseButtonState.Pressed
+        //    || e.XButton2 == MouseButtonState.Pressed)
+        //{
+        //    Debug.WriteLine($"Mouse move. Left: {e.LeftButton}");
+        //}
 
         var renderInfo = this._renderInfo;
         var scaling = renderInfo.Scaling;
@@ -1237,33 +1253,25 @@ public partial class PlotEditor : UserControl
             double posX = e.GetPosition(this).X;
 
             double scaleX = this.ScaleX;
-            if (posX < 0)
+            if (posX < AutoScrollInnerWidth)
             {
-                int degree = (int)posX;
-                this.SetRenderBeginMs(Math.Max(0, this.GetRenderBeginTimeMs() + (int)(degree / scaleX)));
-                // TODO: 再レンダリングの処理を見直す
-                this.Redraw();
+                this._mouseTimer.Start();
             }
-            else if (width < posX)
+            else if ((width - AutoScrollInnerWidth) < posX)
             {
-                int degree = (int)(posX - width);
-                this.SetRenderBeginMsOffset((int)(degree / scaleX));
-                // TODO: 再レンダリングの処理を見直す
-                this.Redraw();
+                this._mouseTimer.Start();
             }
-            else
-            {
-                double percentageX = posX / width;
-                int conditionTime = this.GetRenderBeginTimeMs() + (int)(width * percentageX / scaleX);
 
-                this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
-            }
+            double percentageX = posX / width;
+            int conditionTime = Math.Max(0, this.GetRenderBeginTimeMs() + (int)(width * percentageX / scaleX));
+
+            this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
         }
     }
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
-        Debug.WriteLine("Mouse up.");
+        //Debug.WriteLine("Mouse up.");
 
         if (e.LeftButton == MouseButtonState.Released)
         {
@@ -1273,7 +1281,46 @@ public partial class PlotEditor : UserControl
             if (this._mouseSeek)
             {
                 this._mouseSeek = false;
+                this._mouseTimer.Stop();
             }
+        }
+    }
+
+    /// <summary>
+    /// マウス操作用タイマーTick時
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnMouseTimerTicked(object? sender, EventArgs e)
+    {
+        if (!this._mouseSeek)
+        {
+            ((Timer)sender!).Stop();
+            return;
+        }
+
+        var renderInfo = this._renderInfo;
+        var scaling = renderInfo.Scaling;
+
+        (double width, _) = this.GetCanvasSize();
+        width = scaling.ToRenderImageScaling(width);
+
+        double posX = Mouse.GetPosition(this).X;
+
+        double scaleX = this.ScaleX;
+        if (posX < AutoScrollInnerWidth)
+        {
+            int degree = (int)((posX >= -AutoScrollOuterWidth) ? (posX - AutoScrollInnerWidth) : -(AutoScrollInnerWidth + AutoScrollOuterWidth));
+            this.SetRenderBeginMs(Math.Max(0, this.GetRenderBeginTimeMs() + (int)(degree / scaleX)));
+            // TODO: 再レンダリングの処理を見直す
+            this.Redraw();
+        }
+        else if ((width - AutoScrollInnerWidth) < posX)
+        {
+            int degree = (int)((posX <= (width + AutoScrollOuterWidth)) ? (posX - width + AutoScrollInnerWidth) : (AutoScrollInnerWidth + AutoScrollOuterWidth));
+            this.SetRenderBeginMsOffset((int)(degree / scaleX));
+            // TODO: 再レンダリングの処理を見直す
+            this.Redraw();
         }
     }
 }
