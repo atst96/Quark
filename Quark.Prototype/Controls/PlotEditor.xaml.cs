@@ -345,7 +345,7 @@ public partial class PlotEditor : UserControl
         int renderWidth = renderInfo.RenderWidth;
 
         // 開始フレーム位置
-        int beginTime = this.GetRenderBeginFrameIdx() * RenderConfig.FramePeriod;
+        int beginTime = this.GetRenderBeginTimeMs();
         int endTime = beginTime + (int)(scaling.ToRenderImageScaling(renderWidth) / this.ScaleX);
         int currentTime = (int)time.TotalMilliseconds;
 
