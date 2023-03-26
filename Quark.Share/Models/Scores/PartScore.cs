@@ -19,7 +19,7 @@ public record PartScore(
     /// <returns>開始位置/終了位置が範囲外であっても、区間として被っていれば本情報に含まれる。</returns>
     public PartScore GetRangeInfo(int beginTime, int endTime)
     {
-        var tempos = GetRangeElement(this.Tempos, f => (int)f.Frame, beginTime, endTime);
+        var tempos = GetRangeElement(this.Tempos, f => (int)f.Time, beginTime, endTime);
         var timeSignatures = GetRangeElement(this.TimeSignatures, f => (int)f.Time, beginTime, endTime);
         var notes = GetRangeElement(this.Phrases, f => f.BeginTime, f => f.EndTime, beginTime, endTime);
         int beginMeasureTime = (int)(timeSignatures.First?.Value.Time ?? 0);

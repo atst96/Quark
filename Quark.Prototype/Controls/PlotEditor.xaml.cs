@@ -655,9 +655,21 @@ public partial class PlotEditor : UserControl
                 // 描画開始位置のオフセットを計算
                 int offsetX = (beginFrameIdx * RenderConfig.FramePeriod) - beginTime;
 
-                // スコアの描画
+                // 描画範囲の情報を取得
                 var result = this._currentViewScore = this._score.GetRangeInfo(beginTime, endTime);
 
+                // 罫線の描画
+                var timeSignatureLines = this.GetVerticalLines(beginTime, endTime);
+                foreach (int lineTime in timeSignatureLines)
+                {
+                    float scaledX = scaling.ToDisplayScaling((lineTime - beginTime) * renderInfo.WidthStretch);
+                    g.DrawLine(
+                        scaledX, 0,
+                        scaledX, scaling.ToDisplayScaling(renderInfo.ImageHeight),
+                        new SKPaint { Color = SKColors.Black, StrokeWidth = 1 });
+                }
+
+                // スコアの描画
                 foreach (var score in result.Phrases)
                 {
                     float y = height - (float)(score.Pitch * KeyHeight);
@@ -739,7 +751,6 @@ public partial class PlotEditor : UserControl
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
-
                     }
                 }
             }
@@ -786,7 +797,7 @@ public partial class PlotEditor : UserControl
 
             if (this._isLoaded && result is not null)
             {
-                var tempoDic = result.Tempos.ToDictionary(i => (int)i.Frame);
+                var tempoDic = result.Tempos.ToDictionary(i => (int)i.Time);
                 var tsDic = result.TimeSignatures.ToDictionary(i => (int)i.Time);
 
                 int offsetFrames = 1;
@@ -851,6 +862,106 @@ public partial class PlotEditor : UserControl
         }
 
         return image;
+    }
+
+    /// <summary>
+    /// </summary>
+    /// <param name="beginTime">開始時刻(ミリ秒)</param>
+    /// <param name="duration">尺(ミリ秒)</param>
+    private LinkedList<int> GetVerticalLines(int beginTime, int endTime)
+    {
+        // TODO: ここに拍の解析を入れ込む？
+
+        var timeList = new LinkedList<int>();
+        var result = this._currentViewScore;
+
+        var tempos = result.Tempos;
+        var timeSignatures = result.TimeSignatures;
+
+        var currentTempoNode = tempos.First!;
+        var currentTimeSignatureNode = timeSignatures.First!;
+
+        for (decimal currentTime = result.BeginMeasureTime; currentTime <= endTime;)
+        {
+            var nextTempoNode = currentTempoNode.Next;
+            if (nextTempoNode is not null && (int)nextTempoNode.Value.Time <= (int)currentTime)
+            {
+                // 次の拍変更に到達
+                currentTempoNode = nextTempoNode;
+                nextTempoNode = nextTempoNode.Next;
+            }
+
+            var nextTimeSignatureNode = currentTimeSignatureNode.Next;
+            if (nextTimeSignatureNode is not null && (int)nextTimeSignatureNode.Value.Time <= (int)currentTime)
+            {
+                // テンポ変更に到達
+                currentTimeSignatureNode = nextTimeSignatureNode;
+                currentTime = nextTimeSignatureNode.Value.Time;
+            }
+
+            var tempo = currentTempoNode.Value;
+            var timeSignature = currentTimeSignatureNode.Value;
+
+            const decimal BeatTypeLength4th = 4m;
+
+            // 1小節分の4分音符あたりの長さ(ミリ秒)
+            // 4拍子÷拍子記号の分母×拍数
+            // 4/4拍子 → 1.0x4、 6/8拍子 → 0.5x8、 1/2拍子 → 2.0x1
+            decimal beatsPer4thMs = 60 * 1000 * BeatTypeLength4th * timeSignature.Beats / timeSignature.BeatType;
+
+            // 4分音符あたりのミリ秒数
+            // 1小節分の長さを予測する
+            decimal duration = beatsPer4thMs / (decimal)tempo.Tempo;
+
+            if (currentTime < beginTime)
+            {
+                // 最初の小節から描画位置まで尺が長い場合はその間の計算を飛ばして計算回数を減らす
+
+                //  描画開始位置、テンポ変更、拍子変更のうち一番早いイベントの時間を探す
+                decimal earliestTime = beginTime;
+
+                if (nextTempoNode is not null && beginTime > nextTempoNode.Value.Time)
+                    earliestTime = nextTempoNode.Value.Time;
+
+                if (nextTimeSignatureNode is not null && beginTime > nextTimeSignatureNode.Value.Time)
+                    earliestTime = nextTimeSignatureNode.Value.Time;
+
+                // 一番早いイベントから計算を飛ばせる小節数が1つ以上あれば現在時間に加える
+                decimal skipCount = Math.Floor((earliestTime - currentTime) / duration);
+                if (skipCount > 0)
+                    currentTime += skipCount * duration;
+            }
+
+            var reCalcNextTempoNode = nextTempoNode;
+            while (reCalcNextTempoNode is not null && (currentTime + duration) > reCalcNextTempoNode.Value.Time)
+            {
+                // 同じ小節内にテンポ変更がある場合、変更タイミングから再計算する
+                var nextTempo = reCalcNextTempoNode.Value;
+                decimal nextTime = nextTempo.Time;
+
+                decimal predictedDuration = duration;
+                // 当該小節の始まりからテンポ変更時点までの長さ
+                decimal durationFromTempoTime = nextTime - currentTime;
+
+                // 新しいテンポで残りの部分を計算
+                // 新テンポでの1小節分の尺×直前の尺の予測ではみ出た部分の割合
+                decimal newTempoMeasureDuration = beatsPer4thMs * ((predictedDuration - durationFromTempoTime) / predictedDuration) / (decimal)nextTempo.Tempo;
+                duration = durationFromTempoTime + newTempoMeasureDuration;
+
+                reCalcNextTempoNode = reCalcNextTempoNode.Next;
+            }
+
+            // 描画範囲内
+            if (beginTime <= currentTime || (currentTime + duration) <= endTime)
+            {
+                timeList.AddLast((int)currentTime);
+            }
+
+            // 現在時間に小節の尺を追加
+            currentTime += duration;
+        }
+
+        return timeList;
     }
 
     /// <summary>
