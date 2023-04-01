@@ -235,6 +235,17 @@ public partial class PlotEditor : UserControl
         DependencyProperty.Register(nameof(Quantize), typeof(LineType), typeof(PlotEditor),
             new PropertyMetadata(LineType.Note4th, OnQuantizeChanged));
 
+    /// <summary>スナッピングの切り替え</summary>
+    public bool IsQuantizeSnapping
+    {
+        get => (bool)this.GetValue(IsQuantizeSnappingProperty);
+        set => this.SetValue(IsQuantizeSnappingProperty, value);
+    }
+
+    /// <summary><seealso cref="IsQuantizeSnapping"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty IsQuantizeSnappingProperty =
+        DependencyProperty.Register(nameof(IsQuantizeSnapping), typeof(bool), typeof(PlotEditor), new PropertyMetadata(true));
+
     /// <summary>
     /// <seealso cref="Quantize"/>変更時
     /// </summary>
@@ -1655,6 +1666,44 @@ public partial class PlotEditor : UserControl
             double percentageX = posX / width;
             int conditionTime = Math.Max(0, this.GetRenderBeginTimeMs() + (int)(width * percentageX / scaleX));
 
+            var noteLines = this._noteLines;
+            if (this.IsQuantizeSnapping && noteLines is not null)
+            {
+                // スナッピング有効時にシークバーを罫線に沿うようにする
+                int rangeBegin = (int)noteLines.First().Time;
+                int rangeEnd = (int)noteLines.Last().Time;
+
+                if (conditionTime < rangeBegin)
+                {
+                    conditionTime = rangeBegin;
+                }
+                else if (conditionTime > rangeEnd)
+                {
+                    conditionTime = rangeEnd;
+                }
+                else
+                {
+                    for (int idx = 1; idx < noteLines.Length; ++idx)
+                    {
+                        int begin = (int)noteLines[idx - 1].Time;
+                        int end = (int)noteLines[idx - 0].Time;
+
+                        if (begin <= conditionTime && conditionTime <= end)
+                        {
+                            if (conditionTime < (begin + ((end - begin) / 2)))
+                            {
+                                conditionTime = begin;
+                            }
+                            else
+                            {
+                                conditionTime = end;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
             this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
         }
     }
@@ -1688,6 +1737,9 @@ public partial class PlotEditor : UserControl
             ((Timer)sender!).Stop();
             return;
         }
+
+        // TODO: スナッピング有効時にシークバー位置がずれるので何とかする
+        // → シークバーの位置を再計算すれば何とかなりそう
 
         var renderInfo = this._renderInfo;
         var scaling = renderInfo.Scaling;

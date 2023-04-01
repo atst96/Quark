@@ -137,25 +137,37 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        
-                        <CheckBox
-                            Padding="4"
-                            VerticalAlignment="Bottom"
-                            HorizontalAlignment="Left"
-                            Cursor="Hand"
-                            Content="スクロールを追従"
-                            IsChecked="{Binding ElementName=PloatEditor1, Path=IsAutoScroll, Mode=TwoWay}" />
+
+                        <StackPanel>
+                            <CheckBox
+                                Padding="4"
+                                VerticalAlignment="Bottom"
+                                HorizontalAlignment="Left"
+                                Cursor="Hand"
+                                Content="スクロールを追従"
+                                IsChecked="{Binding ElementName=PloatEditor1, Path=IsAutoScroll, Mode=TwoWay}" />
+
+                            <CheckBox
+                                Padding="4"
+                                VerticalAlignment="Bottom"
+                                HorizontalAlignment="Left"
+                                Cursor="Hand"
+                                Content="シークバーをスナップする"
+                                IsChecked="{Binding ElementName=PloatEditor1, Path=IsQuantizeSnapping, Mode=TwoWay}" />
+                        </StackPanel>
 
                         <TextBlock Grid.Column="2" IsHitTestVisible="False"
                                    Text="{Binding SelectionTime, ElementName=PloatEditor1, StringFormat='{}{0:hh\\:mm\\:ss\\.fff}', Mode=OneWay}"
                                    d:Text="00:00:00.000"
-                                   VerticalAlignment="Center" Margin="12,0" />
+                                   VerticalAlignment="Bottom" Margin="12,0" />
 
                         <ComboBox Grid.Column="3" Width="100" IsEditable="False"
+                                  VerticalAlignment="Bottom"
                                   SelectedValue="{Binding ElementName=PloatEditor1, Path=ScaleX, Mode=TwoWay}"
                                   ItemsSource="{x:Static ctr:PlotEditor.HorizontalZoomLevels}" />
 
                         <ComboBox Grid.Column="4" Width="100" IsEditable="False"
+                                  VerticalAlignment="Bottom"
                                   SelectedValue="{Binding ElementName=PloatEditor1, Path=KeyHeight, Mode=TwoWay}"
                                   ItemsSource="{x:Static ctr:PlotEditor.KeySizes}" />
 
