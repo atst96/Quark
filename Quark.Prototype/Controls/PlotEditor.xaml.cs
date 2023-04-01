@@ -8,7 +8,6 @@ using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -51,6 +50,8 @@ public partial class PlotEditor : UserControl
     private List<Class1> _dynamics;
     private PartScore _score;
     private PartScore _currentViewScore;
+    private VerticalLineInfo[]? _noteLines;
+    private VerticalLineInfo[]? _rulerLines;
     private RenderScaleInfo _scaling;
     private RenderInfo _renderInfo;
 
@@ -515,10 +516,29 @@ public partial class PlotEditor : UserControl
             using (this._renderImage)
             {
                 var renderInfo = this._renderInfo = new RenderInfo(this._scaling, this.KeyHeight, width, this.ScaleX, 1.0f);
-                this._renderImage = this.CreateRenderImage(renderInfo);
-                this._rulerImage = this.CreateRulerImage(renderInfo);
+
+                // 描画するフレーム数
+                int offsetFrames = 1;
+                int viewFrames = renderInfo.GetRenderFrames();
+                int framesCount = viewFrames + (offsetFrames * 2);
+
+                // 描画開始・終了位置
+                int beginTime = this.GetRenderBeginTimeMs();
+                int endTime = beginTime + (framesCount * RenderConfig.FramePeriod);
+
+                var rangeInfo = new RenderRangeInfo(beginTime, endTime, offsetFrames, framesCount);
+
+                if (this._isLoaded && this._score is not null)
+                {
+                    this._currentViewScore = this._score.GetRangeInfo(beginTime, endTime);
+                    this._noteLines = this.GetVerticalLines(beginTime, endTime, this.Quantize);
+                    this._rulerLines = this.GetVerticalLines(beginTime, endTime, LineType.Note8th);
             }
+
+                this._renderImage = this.CreateRenderImage(renderInfo, rangeInfo);
+                this._rulerImage = this.CreateRulerImage(renderInfo, rangeInfo);
         }
+    }
     }
 
     /// <summary>
@@ -611,8 +631,9 @@ public partial class PlotEditor : UserControl
     /// 画面内容を描画する
     /// </summary>
     /// <param name="renderInfo">描画情報</param>
+    /// <param name="rangeInfo">描画範囲情報</param>
     /// <returns>描画内容</returns>
-    private SKBitmap CreateRenderImage(RenderInfo renderInfo)
+    private SKBitmap CreateRenderImage(RenderInfo renderInfo, RenderRangeInfo rangeInfo)
     {
         (int rulerHeight, var scaling) = (this._rulerHeight, this._scaling);
 
@@ -663,40 +684,34 @@ public partial class PlotEditor : UserControl
             {
                 long totalFrameCount = this._framesCount;
 
-                int offsetFrames = 1;
-
-                // 描画するフレーム数
-                int viewFrames = renderInfo.GetRenderFrames();
-                int framesCount = viewFrames + (offsetFrames * 2);
-
                 // 描画開始・終了位置
-                int beginTime = this.GetRenderBeginTimeMs();
-                int endTime = beginTime + (framesCount * RenderConfig.FramePeriod);
+                int beginTime = rangeInfo.BeginTime;
+                int endTime = rangeInfo.EndTime;
 
                 // フレームの描画範囲
                 int beginFrameIdx = beginTime / RenderConfig.FramePeriod;
-                int endFrameIdx = beginFrameIdx + framesCount;
+                int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
 
                 // 描画開始位置のオフセットを計算
                 int offsetX = (beginFrameIdx * RenderConfig.FramePeriod) - beginTime;
 
                 // 描画範囲の情報を取得
-                var result = this._currentViewScore = this._score.GetRangeInfo(beginTime, endTime);
+                var result = this._currentViewScore;
 
                 // 罫線の描画
-                var timeSignatureLines = this.GetVerticalLines(beginTime, endTime, this.Quantize);
-                foreach (var lineTime in timeSignatureLines)
+                var noteLines = this._noteLines!;
+                foreach (var noteLine in noteLines)
                 {
-                    float scaledX = scaling.ToDisplayScaling(((int)lineTime.Time - beginTime) * renderInfo.WidthStretch);
+                    float scaledX = scaling.ToDisplayScaling(((int)noteLine.Time - beginTime) * renderInfo.WidthStretch);
 
-                    var lineColor = lineTime.LineType switch
+                    var lineColor = noteLine.LineType switch
                     {
                         LineType.Measure => SKColors.Black,
                         LineType.Whole => SKColors.DarkGray,
                         LineType.Note2th => SKColors.DarkGray,
                         LineType.Note4th => SKColors.DarkGray,
                         _ => SKColors.LightGray,
-                    }; ;
+                    };
 
                     g.DrawLine(
                         scaledX, 0,
@@ -813,7 +828,7 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="renderInfo">描画情報</param>
     /// <returns>描画内容</returns>
-    private SKBitmap CreateRulerImage(RenderInfo renderInfo)
+    private SKBitmap CreateRulerImage(RenderInfo renderInfo, RenderRangeInfo renderRange)
     {
         var scaling = renderInfo.Scaling;
 
@@ -838,12 +853,11 @@ public partial class PlotEditor : UserControl
                 int offsetFrames = 1;
 
                 // 描画するフレーム数
-                int viewFrames = renderInfo.GetRenderFrames();
-                int framesCount = viewFrames + (offsetFrames * 2);
+                int framesCount = renderRange.FramesCount;
 
                 // 描画開始・終了位置
-                int beginTime = this.GetRenderBeginTimeMs();
-                int endTime = beginTime + (framesCount * RenderConfig.FramePeriod);
+                int beginTime = renderRange.BeginTime;
+                int endTime = renderRange.EndTime;
 
                 var tempo = result.Tempos.First();
                 var timeSignature = result.TimeSignatures.First();
@@ -904,7 +918,7 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="beginTime">開始時刻(ミリ秒)</param>
     /// <param name="duration">尺(ミリ秒)</param>
-    private LinkedList<VerticalLineInfo> GetVerticalLines(decimal beginTime, decimal endTime, LineType lineType)
+    private VerticalLineInfo[] GetVerticalLines(decimal beginTime, decimal endTime, LineType lineType)
     {
         var list = new LinkedList<VerticalLineInfo>();
 
@@ -1020,7 +1034,7 @@ public partial class PlotEditor : UserControl
             }
         }
 
-        return list;
+        return list.ToArray();
     }
 
     /// <summary>全音符</summary>
