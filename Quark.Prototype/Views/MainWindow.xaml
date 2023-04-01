@@ -121,7 +121,8 @@
                 <ctr:PlotEditor
                     x:Name="PloatEditor1"
                     Track="{Binding CurrentTrack, Mode=OneWay}"
-                    SelectionTime="{Binding CurrentTime, Mode=OneWay}" />
+                    SelectionTime="{Binding CurrentTime, Mode=OneWay}"
+                    Quantize="{Binding SelectedQuantize, Mode=OneWay}" />
 
                 <StackPanel
                     Margin="0,0,18,18"
@@ -174,7 +175,12 @@
                             <ColumnDefinition Width="80" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
 
+                        <!-- 歌声 -->
                         <TextBlock Grid.Column="0" Text="Singer: " Margin="4"
                                    VerticalAlignment="Center"/>
 
@@ -182,6 +188,16 @@
                                   ItemsSource="{Binding Models, Mode=OneWay}"
                                   DisplayMemberPath="Name"
                                   SelectedItem="{Binding SelectedModelInfo, Mode=TwoWay}"/>
+
+                        <!-- クオンタイズ値 -->
+                        <TextBlock Grid.Column="0" Grid.Row="1" Text="Quantize: " Margin="4"
+                                   VerticalAlignment="Center"/>
+
+                        <ComboBox Grid.Column="1" Grid.Row="1" Width="160" Margin="4"
+                                  ItemsSource="{Binding Quantizes, Mode=OneTime}"
+                                  SelectedValue="{Binding SelectedQuantize, Mode=TwoWay}"
+                                  SelectedValuePath="Key"
+                                  DisplayMemberPath="Value" />
                     </Grid>
                 </Border>
             </Grid>

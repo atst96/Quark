@@ -7,6 +7,7 @@ using System.Windows.Input;
 using Livet.Messaging;
 using Livet.Messaging.IO;
 using Quark.Data.Projects;
+using Quark.Drawing;
 using Quark.Models.Neutrino;
 using Quark.Mvvm;
 using Quark.Projects;
@@ -27,6 +28,30 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private ProgressWindowViewModel? _progressWindowViewModel;
     public ProgressWindowViewModel ProgressWindowViewModel
         => this._progressWindowViewModel ??= new("進捗状況", closeable: false);
+
+    public Dictionary<LineType, string> Quantizes { get; } = new()
+    {
+        [LineType.Whole] = "1/1",
+        [LineType.Note2th] = "1/2",
+        [LineType.Note4th] = "1/4",
+        [LineType.Note8th] = "1/8",
+        [LineType.Note16th] = "1/16",
+        [LineType.Note32th] = "1/32",
+        [LineType.Note64th] = "1/64",
+        [LineType.Note128th] = "1/128",
+        [LineType.Note2thTriplet] = "1/2 連符",
+        [LineType.Note4thTriplet] = "1/4 連符",
+        [LineType.Note8thTriplet] = "1/8 連符",
+        [LineType.Note16thTriplet] = "1/16 連符",
+        [LineType.Note32thTriplet] = "1/32 連符",
+        [LineType.Note64thTriplet] = "1/64 連符",
+        [LineType.Note2thDotted] = "1/2 付点",
+        [LineType.Note4thDotted] = "1/4 付点",
+        [LineType.Note8thDotted] = "1/8 付点",
+        [LineType.Note16thDotted] = "1/16 付点",
+        [LineType.Note32thDotted] = "1/32 付点",
+        [LineType.Note64thDotted] = "1/64 付点",
+    };
 
     private ModelInfo? _selectedModelInfo;
     /// <summary>
@@ -213,6 +238,13 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         get => this._maximumTime;
         private set => this.RaisePropertyChangedIfSet(ref this._maximumTime, value);
+    }
+
+    private LineType _selectedQuantize = LineType.Note4th;
+    public LineType SelectedQuantize
+    {
+        get => this._selectedQuantize;
+        set => this.RaisePropertyChangedIfSet(ref this._selectedQuantize, value);
     }
 
     public async void LoadTrack(Project project, NeutrinoV1Track track)
