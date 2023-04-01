@@ -533,12 +533,12 @@ public partial class PlotEditor : UserControl
                     this._currentViewScore = this._score.GetRangeInfo(beginTime, endTime);
                     this._noteLines = this.GetVerticalLines(beginTime, endTime, this.Quantize);
                     this._rulerLines = this.GetVerticalLines(beginTime, endTime, LineType.Note8th);
-            }
+                }
 
                 this._renderImage = this.CreateRenderImage(renderInfo, rangeInfo);
                 this._rulerImage = this.CreateRulerImage(renderInfo, rangeInfo);
+            }
         }
-    }
     }
 
     /// <summary>
@@ -832,12 +832,9 @@ public partial class PlotEditor : UserControl
     {
         var scaling = renderInfo.Scaling;
 
-        long totalFrameCount = this._framesCount;
-
         int renderWidth = renderInfo.RenderWidth;
-        int rulerHeight = this._rulerHeight;
         int renderHeight = renderInfo.RenderRulerHeight;
-        var result = this._currentViewScore;
+        var rulerLines = this._rulerLines;
 
         var image = new SKBitmap(renderWidth, renderHeight);
 
@@ -845,68 +842,34 @@ public partial class PlotEditor : UserControl
         {
             g.DrawRect(0, 0, renderWidth, renderHeight, new SKPaint() { Color = SKColors.Black });
 
-            if (this._isLoaded && result is not null)
+            if (rulerLines is not null)
             {
-                var tempoDic = result.Tempos.ToDictionary(i => (int)i.Time);
-                var tsDic = result.TimeSignatures.ToDictionary(i => (int)i.Time);
-
-                int offsetFrames = 1;
-
-                // 描画するフレーム数
-                int framesCount = renderRange.FramesCount;
 
                 // 描画開始・終了位置
                 int beginTime = renderRange.BeginTime;
-                int endTime = renderRange.EndTime;
 
-                var tempo = result.Tempos.First();
-                var timeSignature = result.TimeSignatures.First();
+                // 小節、4分音符、8分音符時の描画位置
+                float measureLineY = 0.0f;
+                float beat4thLineY = renderHeight * 0.4f;
+                float beat8thLineY = renderHeight * 0.7f;
 
-                int count = 0;
-
-                bool changed = true;
-                decimal unit = 1;
-                decimal c = 1;
-                for (decimal time = result.BeginMeasureTime; time <= endTime;)
+                foreach (var rulerLine in rulerLines)
                 {
-                    if (tempoDic.TryGetValue((int)time, out var t))
+                    float scaledX = scaling.ToDisplayScaling(((int)rulerLine.Time - beginTime) * renderInfo.WidthStretch);
+
+                    var linePosY = rulerLine.LineType switch
                     {
-                        tempo = t;
-                        changed = true;
-                    }
+                        LineType.Measure => measureLineY,
+                        LineType.Whole or LineType.Note2th or LineType.Note4th => beat4thLineY,
+                        _ => beat8thLineY,
+                    };
 
-                    if (tsDic.TryGetValue((int)time, out var t2))
-                    {
-                        timeSignature = t2;
-                        count = 0;
-                        changed = true;
-                    }
-
-                    if (changed)
-                    {
-                        decimal quantize = 8m;
-                        c = timeSignature.BeatType / 4m / (quantize / 4m);
-                        unit = 60 / (decimal)tempo.Tempo * 1000 / (quantize / 4m);
-                        changed = false;
-                    }
-
-                    // 描画範囲内
-                    if (beginTime <= time || time <= endTime)
-                    {
-                        int x = scaling.ToDisplayScaling((double)(time - beginTime) * ScaleX);
-
-                        g.DrawLine(x, (count != 0 ? (renderHeight / 2) : 0), x, renderHeight, new SKPaint { StrokeWidth = 1, Color = SKColors.White });
-                    }
-
-                    ++count;
-
-                    if (count == (timeSignature.Beats / c))
-                    {
-                        count = 0;
-                    }
-
-                    time += unit;
+                    g.DrawLine(
+                        scaledX, linePosY,
+                        scaledX, renderHeight,
+                        new SKPaint { StrokeWidth = 1, Color = SKColors.White });
                 }
+
             }
         }
 
@@ -1749,22 +1712,5 @@ public partial class PlotEditor : UserControl
             // TODO: 再レンダリングの処理を見直す
             this.Redraw();
         }
-    }
-
-
-
-    public LineType Quantize
-    {
-        get => (LineType)this.GetValue(QuantizeProperty);
-        set => this.SetValue(QuantizeProperty, value);
-    }
-
-    public static readonly DependencyProperty QuantizeProperty =
-        DependencyProperty.Register(nameof(Quantize), typeof(LineType), typeof(PlotEditor),
-            new PropertyMetadata(LineType.Note4th, OnQuantizeChanged));
-
-    private static void OnQuantizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        ((PlotEditor)d).Redraw();
     }
 }
