@@ -1686,7 +1686,7 @@ public partial class PlotEditor : UserControl
                     for (int idx = 1; idx < noteLines.Length; ++idx)
                     {
                         int begin = (int)noteLines[idx - 1].Time;
-                        int end = (int)noteLines[idx - 0].Time;
+                        int end = (int)noteLines[idx - 0].Time - 1;
 
                         if (begin <= conditionTime && conditionTime <= end)
                         {
@@ -1696,7 +1696,7 @@ public partial class PlotEditor : UserControl
                             }
                             else
                             {
-                                conditionTime = end;
+                                conditionTime = end + 1;
                             }
                             break;
                         }
