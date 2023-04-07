@@ -50,6 +50,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -104,8 +105,29 @@
             </MenuItem>
         </Menu>
 
+        <ToolBarTray Grid.Row="1">
+            <ToolBar Band="1" BandIndex="1">
+                <!--  歌声 -->
+                <Label Content="Singer" />
+                <ComboBox Width="120"
+                    ItemsSource="{Binding Models, Mode=OneWay}"
+                    DisplayMemberPath="Name"
+                    SelectedItem="{Binding SelectedModelInfo, Mode=TwoWay}"/>
+
+                <Separator />
+
+                <!-- クオンタイズ値 -->
+                <Label Content="Quantize" />
+                <ComboBox Width="80"
+                    ItemsSource="{Binding Quantizes, Mode=OneTime}"
+                    SelectedValue="{Binding SelectedQuantize, Mode=TwoWay}"
+                    SelectedValuePath="Key"
+                    DisplayMemberPath="Value" />
+            </ToolBar>
+        </ToolBarTray>
+
         <!--TODO: マルチトラック対応-->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <!--<Grid.ColumnDefinitions>
                 <ColumnDefinition Width="220" />
                 <ColumnDefinition Width="Auto" />
@@ -179,43 +201,10 @@
                         Value="{Binding CurrentTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=TwoWay}"
                         Maximum="{Binding MaximumTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=OneWay}" />
                 </StackPanel>
-
-                <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12,38,12,12"
-                        BorderThickness="1" BorderBrush="#AAAA00" Background="#FFFFAA">
-                    <Grid Margin="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="80" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition />
-                            <RowDefinition />
-                        </Grid.RowDefinitions>
-
-                        <!-- 歌声 -->
-                        <TextBlock Grid.Column="0" Text="Singer: " Margin="4"
-                                   VerticalAlignment="Center"/>
-
-                        <ComboBox Grid.Column="1" Width="160" Margin="4"
-                                  ItemsSource="{Binding Models, Mode=OneWay}"
-                                  DisplayMemberPath="Name"
-                                  SelectedItem="{Binding SelectedModelInfo, Mode=TwoWay}"/>
-
-                        <!-- クオンタイズ値 -->
-                        <TextBlock Grid.Column="0" Grid.Row="1" Text="Quantize: " Margin="4"
-                                   VerticalAlignment="Center"/>
-
-                        <ComboBox Grid.Column="1" Grid.Row="1" Width="160" Margin="4"
-                                  ItemsSource="{Binding Quantizes, Mode=OneTime}"
-                                  SelectedValue="{Binding SelectedQuantize, Mode=TwoWay}"
-                                  SelectedValuePath="Key"
-                                  DisplayMemberPath="Value" />
-                    </Grid>
-                </Border>
             </Grid>
         </Grid>
 
-        <StatusBar Grid.Row="2">
+        <StatusBar Grid.Row="3">
             <Label Content="" />
         </StatusBar>
     </Grid>
