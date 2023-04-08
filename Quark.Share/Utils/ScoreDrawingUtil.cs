@@ -174,7 +174,7 @@ public static class ScoreDrawingUtil
             decimal calculateBeatDuration = 0.0m;
 
             // 音符1つあたりの尺(ms)
-            decimal currentTempoNoteDuration = 60 * 1000 * (4.0m / noteDurationCoe);
+            decimal noteLength = 60 * 1000 * (4.0m / noteDurationCoe);
 
             // 線数
             int count = 0;
@@ -182,51 +182,10 @@ public static class ScoreDrawingUtil
             while (calculateBeatDuration < measureDuration)
             {
                 //  1小節の末尾まで繰り返す
+                decimal currentPerTime = measureBeginTime + calculateBeatDuration;
 
                 // 拍の長さ
-                decimal beatDuration = 0.0m;
-                decimal currentPerTime = measureBeginTime + calculateBeatDuration;
-                decimal currentTime = currentPerTime;
-
-                decimal beatProgress = 0.0m;
-                while (beatProgress <= 1.0m)
-                {
-                    // 泊の末尾まで繰り返す
-                    // 同じ拍内で複数回のテンポ変更がある場合を考慮している
-
-                    decimal currentTempo = (decimal)currentTempoNode.Value.Tempo;
-
-                    // 解析中のハンクの長さの残りの部分を予測する
-                    decimal candidateRemaining = currentTempoNoteDuration * (1.0m - beatProgress) / currentTempo;
-
-                    if (nextTempoNode is null || (currentTime + candidateRemaining) <= nextTempoNode.Value.Time)
-                    {
-                        // 以下のいずれかの条件
-                        // ・次のテンポ変更がない
-                        // ・予測した泊の終わり時間が次のテンポ変更時間以前
-
-                        // 拍の長さの解析を終わる
-                        beatDuration += candidateRemaining;
-                        beatProgress = 1.0m;
-                        break;
-                    }
-
-                    decimal nextTime = nextTempoNode.Value.Time;
-
-                    // 現在時間から変更された位置までを泊の長さに含める
-                    decimal changeDuration = nextTime - currentTime;
-                    beatDuration += changeDuration;
-
-                    // 変更された区間が現在の泊の始まりから何%にあたるかを計算し、解析率に加える
-                    decimal changeCoe = changeDuration / (currentTempoNoteDuration / currentTempo);
-                    beatProgress += changeCoe;
-
-                    currentTime = nextTime;
-                    currentTempoNode = nextTempoNode;
-                    nextTempoNode = nextTempoNode.Next;
-                }
-
-                //decimal measureEndTime = currentPerTime + beatDuration;
+                decimal beatDuration = CalcBeatDuration(currentPerTime, noteLength, ref currentTempoNode, ref nextTempoNode);
 
                 list.AddLast(new VerticalLineInfo(currentPerTime, GetLineType(lineDuration, count) ?? lineType));
 
@@ -253,5 +212,81 @@ public static class ScoreDrawingUtil
             return ToTriplet(duration);
         else
             return duration;
+    }
+
+    /// <summary>1音の長さを計算する</summary>
+    /// <param name="score">譜面情報</param>
+    /// <param name="beginTime">現在時間</param>
+    /// <param name="lineType">罫線種別</param>
+    /// <returns></returns>
+    public static decimal GetNoteDuration(PartScore score, decimal beginTime, LineType lineType)
+    {
+        // 直近のテンポ情報を取得する
+        var currentTempoNode = score.Tempos.First!;
+        while (currentTempoNode.Next is not null)
+        {
+            var nextNode = currentTempoNode.Next;
+            if ((int)nextNode.Value.Time <= beginTime)
+                currentTempoNode = nextNode;
+            else
+                break;
+        }
+
+        decimal noteLength = 60 * 1000 * (decimal)GetLineTypeDuration(lineType);
+        var nextTempoNode = currentTempoNode.Next;
+
+        // 拍の長さ
+        return CalcBeatDuration(beginTime, noteLength, ref currentTempoNode, ref nextTempoNode);
+    }
+
+    /// <summary>1拍の長さを計算する</summary>
+    /// <param name="beginTime">開始時刻</param>
+    /// <param name="noteLength">1拍の長さ</param>
+    /// <param name="currentTempoNode">現在のテンポ情報</param>
+    /// <param name="syncNextTempoNode">同期用次テンポ情報</param>
+    /// <returns></returns>
+    private static decimal CalcBeatDuration(decimal beginTime, decimal noteLength, ref LinkedListNode<TempoInfo> currentTempoNode, ref LinkedListNode<TempoInfo>? syncNextTempoNode)
+    {
+        decimal beatDuration = 0m;
+
+        decimal progress = 0.0m;
+        while (progress <= 1.0m)
+        {
+            // 拍の末尾まで繰り返す
+            // 同じ拍内で複数回のテンポ変更がある場合を考慮している
+            decimal currentTempo = (decimal)currentTempoNode.Value.Tempo;
+
+            // 解析中の拍の長さの残りの部分を予測する
+            decimal candidateRemaining = noteLength * (1.0m - progress) / currentTempo;
+
+            var nextTempoNode = currentTempoNode.Next;
+            if (nextTempoNode is null || (beginTime + candidateRemaining) <= nextTempoNode.Value.Time)
+            {
+                // 以下のいずれかの条件
+                // ・次のテンポ変更がない
+                // ・予測した拍の終わり時間が次のテンポ変更時間以前
+
+                // 拍の長さの解析を終わる
+                beatDuration += candidateRemaining;
+                progress = 1.0m;
+                break;
+            }
+
+            decimal nextTime = nextTempoNode.Value.Time;
+
+            // 現在時間から変更された位置までを拍の長さに含める
+            decimal changeDuration = nextTime - beginTime;
+            beatDuration += changeDuration;
+
+            // 変更された区間が現在の拍の始まりから何%にあたるかを計算し、解析率に加える
+            decimal changeCoe = changeDuration * currentTempo / noteLength;
+            progress += changeCoe;
+
+            beginTime = nextTime;
+            currentTempoNode = nextTempoNode;
+            syncNextTempoNode = nextTempoNode.Next;
+        }
+
+        return beatDuration;
     }
 }

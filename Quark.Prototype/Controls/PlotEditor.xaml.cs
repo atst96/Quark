@@ -1280,14 +1280,23 @@ public partial class PlotEditor : UserControl
         var renderInfo = this._renderInfo;
         var scaling = renderInfo.Scaling;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int GetConditionTime(RenderInfo renderInfo, ref Point mousePosition)
+        {
+            double width = renderInfo.ImageWidth;
+            double percentageX = mousePosition.X / width;
+
+            return Math.Max(0, this.GetRenderBeginTimeMs() + (int)(width * percentageX / renderInfo.WidthStretch)); ;
+        }
+
         if (this._mouseSeek)
         {
             (double width, _) = this.GetCanvasSize();
             width = scaling.ToRenderImageScaling(width);
 
-            double posX = e.GetPosition(this).X;
+            var mousePosition = e.GetPosition(this);
+            double posX = mousePosition.X;
 
-            double scaleX = this.ScaleX;
             if (posX < AutoScrollInnerWidth)
             {
                 this._mouseTimer.Start();
@@ -1297,8 +1306,7 @@ public partial class PlotEditor : UserControl
                 this._mouseTimer.Start();
             }
 
-            double percentageX = posX / width;
-            int conditionTime = Math.Max(0, this.GetRenderBeginTimeMs() + (int)(width * percentageX / scaleX));
+            int conditionTime = GetConditionTime(renderInfo, ref mousePosition);
 
             var noteLines = this._noteLines;
             if (this.IsQuantizeSnapping && noteLines is not null)
@@ -1324,6 +1332,7 @@ public partial class PlotEditor : UserControl
 
                         if (begin <= conditionTime && conditionTime <= end)
                         {
+                            // 直前・直後どちらかの罫線に近い方に合わせる
                             if (conditionTime < (begin + ((end - begin) / 2)))
                             {
                                 conditionTime = begin;
@@ -1339,6 +1348,63 @@ public partial class PlotEditor : UserControl
             }
 
             this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
+        }
+        else
+        {
+            var score = this._score;
+
+            if (score is not null)
+            {
+                var mousePosition = e.GetPosition(this);
+
+                // TEST
+                int conditionTime = GetConditionTime(renderInfo, ref mousePosition);
+
+                int beginTime = this.GetRenderBeginTimeMs();
+
+                var noteLines = this._noteLines;
+                if (noteLines is not null)
+                {
+                    // スナッピング有効時にシークバーを罫線に沿うようにする
+                    int rangeBegin = (int)noteLines.First().Time;
+                    int rangeEnd = (int)noteLines.Last().Time;
+
+                    if (conditionTime < rangeBegin)
+                    {
+                        conditionTime = rangeBegin;
+                    }
+                    else if (conditionTime > rangeEnd)
+                    {
+                        conditionTime = rangeEnd;
+                    }
+                    else
+                    {
+                        for (int idx = 1; idx < noteLines.Length; ++idx)
+                        {
+                            int begin = (int)noteLines[idx - 1].Time;
+                            int end = (int)noteLines[idx - 0].Time - 1;
+
+                            if (begin <= conditionTime && conditionTime <= end)
+                            {
+                                // 直前の罫線似合わせる
+                                conditionTime = begin;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize);
+                double tempoPosX = scaling.ToDisplayScaling((conditionTime - beginTime) * renderInfo.WidthStretch);
+
+                int noteWidth = scaling.ToDisplayScaling(((int)duration + 1) * renderInfo.WidthStretch);
+
+                // 図形の位置を変更
+                var el = this.PART_Rectangle;
+                var elm = el.Margin;
+                el.Margin = new(tempoPosX, elm.Top, elm.Right, elm.Bottom);
+                el.Width = noteWidth;
+            }
         }
     }
 
