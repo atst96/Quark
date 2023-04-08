@@ -1,4 +1,4 @@
 # Quark
 NEUTRINOで出力した音響データを解析する何か
 
-![image](https://user-images.githubusercontent.com/6949910/214056335-714896e4-2e0c-48d0-b428-722b5ff9145f.png)
+![image](https://user-images.githubusercontent.com/6949910/230702495-5c5b265f-131f-45f9-b310-caf27316f050.png)
