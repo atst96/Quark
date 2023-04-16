@@ -1394,7 +1394,7 @@ public partial class PlotEditor : UserControl
                     }
                 }
 
-                decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize);
+                decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize, conditionTime + 1000m);
                 double tempoPosX = scaling.ToDisplayScaling((conditionTime - beginTime) * renderInfo.WidthStretch);
 
                 int noteWidth = scaling.ToDisplayScaling(((int)duration + 1) * renderInfo.WidthStretch);

@@ -239,6 +239,53 @@ public static class ScoreDrawingUtil
         return CalcBeatDuration(beginTime, noteLength, ref currentTempoNode, ref nextTempoNode);
     }
 
+
+
+    /// <summary>1音の長さを計算する</summary>
+    /// <param name="score">譜面情報</param>
+    /// <param name="beginTime">現在時間</param>
+    /// <param name="lineType">罫線種別</param>
+    /// <param name="includeTime">尺計算に含める時間</param>
+    /// <returns></returns>
+    public static decimal GetNoteDuration(PartScore score, decimal beginTime, LineType lineType, decimal includeTime)
+    {
+        // 直近のテンポ情報を取得する
+        var currentTempoNode = score.Tempos.First!;
+
+        decimal totalDuration = 0m;
+        //int noteCount = 0;
+
+        decimal noteLength = 60 * 1000 * (decimal)GetLineTypeDuration(lineType);
+
+        // TODO: 計算量が多そうなので最適化する
+        do
+        {
+            // 現在の開始時間を算出
+            decimal currentBeginTime = beginTime + totalDuration;
+
+            // テンポリストのノードを調整
+            while (currentTempoNode.Next is not null)
+            {
+                var nextNode = currentTempoNode.Next;
+                if ((int)nextNode.Value.Time <= (int)currentBeginTime)
+                    currentTempoNode = nextNode;
+                else
+                    break;
+            }
+
+            var nextTempoNode = currentTempoNode.Next;
+
+            // 拍の長さ
+            decimal singleNoteDuration = CalcBeatDuration(currentBeginTime, noteLength, ref currentTempoNode, ref nextTempoNode);
+            totalDuration += singleNoteDuration;
+            //++noteCount;
+        }
+        while ((int)(beginTime + totalDuration) < (int)includeTime);
+
+        // return (totalDuration, noteCount);
+        return totalDuration;
+    }
+
     /// <summary>1拍の長さを計算する</summary>
     /// <param name="beginTime">開始時刻</param>
     /// <param name="noteLength">1拍の長さ</param>
