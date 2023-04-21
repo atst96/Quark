@@ -343,7 +343,7 @@ public partial class PlotEditor : UserControl
         // ########## 縦スクロールの設定
         var vScrollBar = this.vScrollBar1;
         int renderHeight = renderInfo.GetDrawScoreHeight(height);
-        double scaledKeyHeight = this._scaling.ToDisplayScaling(this.KeyHeight);
+        double scaledKeyHeight = this._scaling.ToDisplayScaling(renderInfo.KeyHeight);
         vScrollBar.Minimum = 0;
         vScrollBar.Maximum = renderInfo.ScoreHeight - renderHeight;
         vScrollBar.SmallChange = scaledKeyHeight;
@@ -656,6 +656,7 @@ public partial class PlotEditor : UserControl
         int width = renderInfo.ImageWidth;
         int height = renderInfo.ImageHeight;
         int renderHeight = renderInfo.RenderHeight;
+        int keyHeight = renderInfo.KeyHeight;
 
         // 予備フレーム数
         // 折れ線の前後が途切れないように前後1データ多めに描画しておく
@@ -667,7 +668,7 @@ public partial class PlotEditor : UserControl
 
         var image = new SKBitmap(renderInfo.RenderWidth, renderInfo.RenderHeight);
 
-        (var partImage, int octWidth, int octHeight) = CreatePianoOctaveBmp(100, KeyHeight, scaling);
+        (var partImage, int octWidth, int octHeight) = this.CreatePianoOctaveBmp(100, keyHeight, scaling);
 
         using (var g = new SKCanvas(image))
         {
@@ -734,13 +735,13 @@ public partial class PlotEditor : UserControl
                 // スコアの描画
                 foreach (var score in result.Phrases)
                 {
-                    float y = height - (float)(score.Pitch * KeyHeight);
+                    float y = height - (float)(score.Pitch * keyHeight);
 
                     var rect = SKRect.Create(
                         scaling.ToDisplayScaling((score.BeginTime - beginTime) * renderInfo.WidthStretch),
-                        scaling.ToDisplayScaling(height - (score.Pitch * KeyHeight)),
+                        scaling.ToDisplayScaling(height - (score.Pitch * keyHeight)),
                         scaling.ToDisplayScaling((score.EndTime - score.BeginTime) * renderInfo.WidthStretch),
-                        scaling.ToDisplayScaling(KeyHeight));
+                        scaling.ToDisplayScaling(keyHeight));
 
                     g.DrawRect(rect, new SKPaint
                     {
@@ -761,13 +762,13 @@ public partial class PlotEditor : UserControl
 
                 // 声量の描画
                 {
-                    float lower = (float)FrequencyToScale(this._pitches.Min(i => i.Values.Min())) * KeyHeight;
-                    float highter = (float)FrequencyToScale(this._pitches.Max(i => i.Values.Max())) * KeyHeight;
+                    float lower = (float)FrequencyToScale(this._pitches.Min(i => i.Values.Min())) * keyHeight;
+                    float highter = (float)FrequencyToScale(this._pitches.Max(i => i.Values.Max())) * keyHeight;
                     float diff = highter - lower;
 
                     var dynaicsValues = this._dynamics.Where(i => i.Index <= endFrameIdx && (i.Index + i.Values.Length) >= beginFrameIdx);
 
-                    float dynamicsOffset = (float)KeyHeight / 2;
+                    float dynamicsOffset = (float)keyHeight / 2;
 
                     foreach (var dynamics in dynaicsValues)
                     {
@@ -794,7 +795,7 @@ public partial class PlotEditor : UserControl
                 {
                     var pitches = this._pitches.Where(i => i.Index <= endFrameIdx && (i.Index + i.Values.Length) >= beginFrameIdx);
 
-                    float pitchOffset = (float)KeyHeight / 2;
+                    float pitchOffset = (float)keyHeight / 2;
 
                     foreach (var pitch in pitches)
                     {
@@ -809,7 +810,7 @@ public partial class PlotEditor : UserControl
 
                             points[idx] = new SKPoint(
                                 scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
-                                scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[frameIdx - pitch.Index]) * KeyHeight)));
+                                scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[frameIdx - pitch.Index]) * keyHeight)));
                         }
 
                         g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
@@ -1067,6 +1068,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnScoreMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        var renderInfo = this._renderInfo;
         var modifiers = Keyboard.Modifiers;
 
         if (modifiers == ModifierKeys.Control)
@@ -1093,7 +1095,7 @@ public partial class PlotEditor : UserControl
         {
             // Ctrl+Shift+スクロール時
             // 縦倍率を変更
-            int currentHeight = this.KeyHeight;
+            int currentHeight = renderInfo.KeyHeight;
             if (e.Delta > 0)
             {
                 // 横伸長率リストから次に大きい拡大率(拡大方向)を取得して適用する
