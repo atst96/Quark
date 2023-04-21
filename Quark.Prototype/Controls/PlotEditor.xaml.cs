@@ -1245,7 +1245,8 @@ public partial class PlotEditor : UserControl
         }
     }
 
-    private bool _mouseSeek = false;
+    private MouseControlMode _mouseMode = MouseControlMode.None;
+    private int _putNoteBeginTime = 0;
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -1261,11 +1262,17 @@ public partial class PlotEditor : UserControl
             Mouse.Capture(this.SKElement);
 
             var mousePos = e.GetPosition(element);
-            if (mousePos.Y <= renderInfo.RenderRulerHeight)
+            if (IsWithinRuler(renderInfo, ref mousePos))
             {
-                this._mouseSeek = true;
+                this._mouseMode = MouseControlMode.Seek;
             }
+            else if (IsWithinPianoRoll(renderInfo, ref mousePos))
+            {
+                this._mouseMode = MouseControlMode.PutNote;
+                var mousePosition = e.GetPosition(this);
+                this._putNoteBeginTime = this.NewMethod(renderInfo, this.GetRenderBeginTimeMs(), ref mousePosition);
         }
+    }
     }
 
     private void OnMouseMove(object sender, MouseEventArgs e)
@@ -1281,17 +1288,9 @@ public partial class PlotEditor : UserControl
 
         var renderInfo = this._renderInfo;
         var scaling = renderInfo.Scaling;
+        int beginTime = this.GetRenderBeginTimeMs();
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int GetConditionTime(RenderInfo renderInfo, ref Point mousePosition)
-        {
-            double width = renderInfo.ImageWidth;
-            double percentageX = mousePosition.X / width;
-
-            return Math.Max(0, this.GetRenderBeginTimeMs() + (int)(width * percentageX / renderInfo.WidthStretch)); ;
-        }
-
-        if (this._mouseSeek)
+        if (this._mouseMode == MouseControlMode.Seek)
         {
             (double width, _) = this.GetCanvasSize();
             width = scaling.ToRenderImageScaling(width);
@@ -1308,7 +1307,7 @@ public partial class PlotEditor : UserControl
                 this._mouseTimer.Start();
             }
 
-            int conditionTime = GetConditionTime(renderInfo, ref mousePosition);
+            int conditionTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
 
             var noteLines = this._noteLines;
             if (this.IsQuantizeSnapping && noteLines is not null)
@@ -1351,6 +1350,21 @@ public partial class PlotEditor : UserControl
 
             this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
         }
+        else if (this._mouseMode == MouseControlMode.PutNote)
+        {
+            var score = this._score;
+            if (score is not null)
+            {
+                var mousePosition = e.GetPosition(this);
+                int conditionTime = this._putNoteBeginTime;
+                int currentCursorPosition = GetConditionTime(renderInfo, beginTime, ref mousePosition);
+
+                decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize, currentCursorPosition);
+
+                // 図形の位置を変更
+                this.MoveBorder(renderInfo, conditionTime - beginTime, (int)duration + 1);
+            }
+        }
         else
         {
             var score = this._score;
@@ -1360,9 +1374,35 @@ public partial class PlotEditor : UserControl
                 var mousePosition = e.GetPosition(this);
 
                 // TEST
-                int conditionTime = GetConditionTime(renderInfo, ref mousePosition);
+                int conditionTime = FindJustBeforeQuantizeSnapping(renderInfo, beginTime, ref mousePosition);
 
-                int beginTime = this.GetRenderBeginTimeMs();
+                decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize);
+
+                this.MoveBorder(renderInfo, (conditionTime - beginTime), (int)duration + 1);
+            }
+        }
+    }
+    private void MoveBorder(RenderInfo renderInfo, int time, int duration)
+    {
+        var scaling = renderInfo.Scaling;
+
+        double posX = scaling.ToDisplayScaling(time * renderInfo.WidthStretch);
+        double width = scaling.ToDisplayScaling(duration * renderInfo.WidthStretch);
+
+        var element = this.PART_Rectangle;
+        var beforeMargin = element.Margin;
+        element.Margin = new(posX, beforeMargin.Top, beforeMargin.Right, beforeMargin.Bottom);
+        element.Width = width;
+
+        element.Visibility = Visibility.Visible;
+    }
+
+    private void HideBorder()
+        => this.PART_Rectangle.Visibility = Visibility.Collapsed;
+
+    private int FindJustBeforeQuantizeSnapping(RenderInfo renderInfo, int beginTime, ref Point mousePosition)
+    {
+        int conditionTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
 
                 var noteLines = this._noteLines;
                 if (noteLines is not null)
@@ -1396,18 +1436,16 @@ public partial class PlotEditor : UserControl
                     }
                 }
 
-                decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize, conditionTime + 1000m);
-                double tempoPosX = scaling.ToDisplayScaling((conditionTime - beginTime) * renderInfo.WidthStretch);
+        return conditionTime;
+    }
 
-                int noteWidth = scaling.ToDisplayScaling(((int)duration + 1) * renderInfo.WidthStretch);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int GetConditionTime(RenderInfo renderInfo, int beginTime, ref Point mousePosition)
+    {
+        double width = renderInfo.ImageWidth;
+        double percentageX = mousePosition.X / width;
 
-                // 図形の位置を変更
-                var el = this.PART_Rectangle;
-                var elm = el.Margin;
-                el.Margin = new(tempoPosX, elm.Top, elm.Right, elm.Bottom);
-                el.Width = noteWidth;
-            }
-        }
+        return Math.Max(0, beginTime + (int)(width * percentageX / renderInfo.WidthStretch)); ;
     }
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
@@ -1419,12 +1457,16 @@ public partial class PlotEditor : UserControl
             this.SKElement.ReleaseMouseCapture();
             Debug.WriteLine("Mouse released.");
 
-            if (this._mouseSeek)
+            if (this._mouseMode == MouseControlMode.Seek)
             {
-                this._mouseSeek = false;
+                this._mouseMode = MouseControlMode.None;
                 this._mouseTimer.Stop();
             }
+            else if (this._mouseMode == MouseControlMode.PutNote)
+            {
+                this._mouseMode = MouseControlMode.None;
         }
+    }
     }
 
     /// <summary>
@@ -1434,7 +1476,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e"></param>
     private void OnMouseTimerTicked(object? sender, EventArgs e)
     {
-        if (!this._mouseSeek)
+        if (this._mouseMode != MouseControlMode.Seek)
         {
             var timer = (DispatcherTimer)sender!;
             if (timer.IsEnabled)
@@ -1470,4 +1512,12 @@ public partial class PlotEditor : UserControl
             this.Redraw();
         }
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsWithinRuler(RenderInfo renderInfo, ref Point mousePosition)
+        => mousePosition.Y <= renderInfo.RenderRulerHeight;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsWithinPianoRoll(RenderInfo renderInfo, ref Point mousePosition)
+        => mousePosition.Y > renderInfo.RenderRulerHeight;
 }
