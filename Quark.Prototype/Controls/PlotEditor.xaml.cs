@@ -1247,6 +1247,7 @@ public partial class PlotEditor : UserControl
 
     private MouseControlMode _mouseMode = MouseControlMode.None;
     private int _putNoteBeginTime = 0;
+    private int _putNoteKeyIndex = 0;
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -1270,7 +1271,11 @@ public partial class PlotEditor : UserControl
             {
                 this._mouseMode = MouseControlMode.PutNote;
                 var mousePosition = e.GetPosition(this);
-                this._putNoteBeginTime = this.NewMethod(renderInfo, this.GetRenderBeginTimeMs(), ref mousePosition);
+                this._putNoteBeginTime = this.FindJustBeforeQuantizeSnapping(renderInfo, this.GetRenderBeginTimeMs(), ref mousePosition);
+
+                // キーのインデックスを計算する
+                // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
+                this._putNoteKeyIndex = this.GetKeyIndex(renderInfo, ref mousePosition);
         }
     }
     }
@@ -1357,12 +1362,14 @@ public partial class PlotEditor : UserControl
             {
                 var mousePosition = e.GetPosition(this);
                 int conditionTime = this._putNoteBeginTime;
+                int keyIndex = this._putNoteKeyIndex;
+
                 int currentCursorPosition = GetConditionTime(renderInfo, beginTime, ref mousePosition);
 
                 decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize, currentCursorPosition);
 
                 // 図形の位置を変更
-                this.MoveBorder(renderInfo, conditionTime - beginTime, (int)duration + 1);
+                this.MoveBorder(renderInfo, keyIndex, conditionTime - beginTime, (int)duration + 1);
             }
         }
         else
@@ -1372,27 +1379,43 @@ public partial class PlotEditor : UserControl
             if (score is not null)
             {
                 var mousePosition = e.GetPosition(this);
+            if (score is not null && IsWithinPianoRoll(renderInfo, ref mousePosition))
+            {
+                // キーのインデックスを計算する
+                // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
+                int keyIndex = this.GetKeyIndex(renderInfo, ref mousePosition);
 
-                // TEST
-                int conditionTime = FindJustBeforeQuantizeSnapping(renderInfo, beginTime, ref mousePosition);
+                int conditionTime = this.FindJustBeforeQuantizeSnapping(renderInfo, beginTime, ref mousePosition);
 
                 decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize);
 
-                this.MoveBorder(renderInfo, (conditionTime - beginTime), (int)duration + 1);
+                this.MoveBorder(renderInfo, keyIndex, (conditionTime - beginTime), (int)duration + 1);
+            }
             }
         }
+
+    private int GetKeyIndex(RenderInfo renderInfo, ref Point mousePosition)
+    {
+        int scrollPosition = this.GetVScrollPosition();
+        return (int)((renderInfo.ScoreHeight - (scrollPosition + (mousePosition.Y - renderInfo.RulerHeight))) / renderInfo.KeyHeight);
     }
-    private void MoveBorder(RenderInfo renderInfo, int time, int duration)
+
+    private void MoveBorder(RenderInfo renderInfo, int keyIndex, int time, int duration)
     {
         var scaling = renderInfo.Scaling;
+
+
+        int keyIndexForTop = RenderConfig.KeyCount - keyIndex - 1;
+        double posY = (keyIndexForTop * renderInfo.KeyHeight) - this.GetVScrollPosition() + renderInfo.RulerHeight;
 
         double posX = scaling.ToDisplayScaling(time * renderInfo.WidthStretch);
         double width = scaling.ToDisplayScaling(duration * renderInfo.WidthStretch);
 
         var element = this.PART_Rectangle;
         var beforeMargin = element.Margin;
-        element.Margin = new(posX, beforeMargin.Top, beforeMargin.Right, beforeMargin.Bottom);
-        element.Width = width;
+        element.Margin = new(posX, posY, beforeMargin.Right, beforeMargin.Bottom);
+        element.Width = width + 1;
+        element.Height = renderInfo.KeyHeight + 1;
 
         element.Visibility = Visibility.Visible;
     }
