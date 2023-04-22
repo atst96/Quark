@@ -13,7 +13,7 @@
     xmlns:ctr="clr-namespace:Quark.Controls"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     mc:Ignorable="d"
-    Title="MainWindow" Height="450" Width="800"
+    Title="{Binding Title, Mode=OneWay}" Height="450" Width="800"
     lb:ViewModelBehavior.Type="{x:Type vm:MainWindowViewModel}"
     lb:ViewModelBehavior.DisposeDataContextOnWindowClosed="True"
     d:DataContext="{d:DesignInstance Type={x:Type vm:MainWindowViewModel}}"
@@ -149,14 +149,7 @@
                 <StackPanel
                     Margin="0,0,18,18"
                     VerticalAlignment="Bottom"
-                    HorizontalAlignment="Stretch">
-
-                    <ScrollBar
-                        Orientation="Horizontal" Opacity="0.5"
-                        Minimum="0" ViewportSize="10000" SmallChange="5" LargeChange="5"
-                        Value="{Binding CurrentTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=TwoWay}"
-                        Maximum="{Binding MaximumTime, Converter={StaticResource TimeSpanToMillisecondConverter}, Mode=OneWay}" />
-                </StackPanel>
+                    HorizontalAlignment="Stretch"/>
             </Grid>
         </Grid>
 

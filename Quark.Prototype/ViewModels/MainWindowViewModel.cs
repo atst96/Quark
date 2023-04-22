@@ -73,10 +73,29 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         {
             if (this.RaisePropertyChangedIfSet(ref this._currentProject, value, nameof(this.HasProject)))
             {
+                this.SetTitle(value!.Name);
+                if (value.Tracks.FirstOrDefault() is NeutrinoV1Track track)
+                {
+                    var foundModel = this.Models.FirstOrDefault(i => i.Id == track.Singer!.Id);
+                    if (foundModel is not null)
+                    {
+                        this.SelectedModelInfo = foundModel;
+                    }
+                }
                 this._saveCommand?.RaiseCanExecute();
             }
         }
     }
+
+    private string _title = App.AppName;
+    public string Title
+    {
+        get => this._title;
+        private set => this.RaisePropertyChangedIfSet(ref this._title, value);
+    }
+
+    private string SetTitle(string title)
+        => this.Title = $"{title} - {App.AppName}";
 
     private IList<ModelInfo> _models = new List<ModelInfo>();
     /// <summary>

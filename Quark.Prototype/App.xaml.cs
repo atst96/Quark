@@ -11,6 +11,9 @@ namespace Quark;
 /// </summary>
 public partial class App : Application
 {
+    /// <summary>アプリケーション名</summary>
+    public const string AppName = "Quark";
+
     private static App? _instance;
     public static App Instance => _instance ??= (App)Current;
 
