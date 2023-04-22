@@ -321,6 +321,7 @@ public partial class PlotEditor : UserControl
         this._pitches = Parse(features.F0!, 0.0f);
         this._dynamics = Parse(GetDynamicsFromMgc(features.Mgc!, features.F0!), -30d);
         this._framesCount = features.F0!.Length;
+        this.PART_LyricsTextBox.Text = GetLyrics(this._score);
         this._isLoaded = true;
 
         this.Redraw();
@@ -1543,4 +1544,73 @@ public partial class PlotEditor : UserControl
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsWithinPianoRoll(RenderInfo renderInfo, ref Point mousePosition)
         => mousePosition.Y > renderInfo.RenderRulerHeight;
+
+    private static string GetLyrics(PartScore score)
+        => string.Concat(score.Phrases.Select(i => i.Lyrics.Length > 1 ? $"({i.Lyrics})" : i.Lyrics));
+
+    private void OnLyricsTextBoxChanged(object sender, TextChangedEventArgs e)
+    {
+    }
+
+    private void OnLyricsTextBoxSelectionChanged(object sender, RoutedEventArgs e)
+    {
+        var score = this._score;
+        if (score is null)
+            return;
+
+        var textBox = (sender as TextBox)!;
+
+        var text = textBox.Text ?? string.Empty;
+        int selection = textBox.SelectionStart + textBox.SelectionLength;
+
+        int bracketNestCount = 0;
+
+        var node = score.Phrases.First!;
+
+        // 選択中の文字位置からどの(何番目の)音符にあたるかを走査する
+        for (int idx = 0; idx < text.Length && idx < selection && node.Next is not null; ++idx)
+        {
+            char @char = text[idx];
+            if (IsIgnoreLyricsCharacter(ref @char))
+                continue;
+
+            if (IsBracketStart(ref @char))
+            {
+                ++bracketNestCount;
+            }
+            else if (IsBracketEnd(ref @char))
+            {
+                --bracketNestCount;
+
+                if (bracketNestCount < 0)
+                    break;
+                else if (bracketNestCount == 0)
+                    node = node.Next;
+            }
+            else if (bracketNestCount == 0)
+                node = node.Next;
+        }
+
+        var note = node.Value;
+
+        // TODO: 暫定実装
+        // 音符の位置にシークバーを移動させる。
+        bool tempAutoScroll = this.IsAutoScroll;
+        this.IsAutoScroll = true;
+        this.SelectionTime = TimeSpan.FromMilliseconds(note.BeginTime);
+        if (!tempAutoScroll)
+            this.IsAutoScroll = tempAutoScroll;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsIgnoreLyricsCharacter(ref char @char)
+        => @char == ' ' || @char == '　';
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsBracketStart(ref char @char)
+        => @char == '(' || @char == '（';
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsBracketEnd(ref char @char)
+    => @char == ')' || @char == '）';
 }
