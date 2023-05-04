@@ -4,12 +4,14 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Quark.Compatibles;
 using Quark.Drawing;
 using Quark.Extensions;
 using Quark.Models.Scores;
@@ -42,6 +44,7 @@ public partial class PlotEditor : UserControl
 
     private SKBitmap _renderImage;
     private SKBitmap _rulerImage;
+    private SKBitmap _dynamicImage;
 
     private bool _isLoaded = false;
     private long _framesCount = -1;
@@ -468,7 +471,7 @@ public partial class PlotEditor : UserControl
         var whiteGridPen = this._whiteKeyGridPaint;
         var blackKeyBrush = this._blackKeyPaint;
 
-        var image = new SKBitmap(renderWidth, renderHeight);
+        var image = new SKBitmap(renderWidth, renderHeight, isOpaque: true);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int GetYPos(int key) => renderHeight - ((key + 1) * renderKeyHeight);
@@ -550,6 +553,7 @@ public partial class PlotEditor : UserControl
 
                 this._renderImage = this.CreateRenderImage(renderInfo, rangeInfo);
                 this._rulerImage = this.CreateRulerImage(renderInfo, rangeInfo);
+                this._dynamicImage = this.CreateDynamicsImage(renderInfo, rangeInfo);
             }
         }
     }
@@ -665,7 +669,7 @@ public partial class PlotEditor : UserControl
         int scoreWidth = width;
         int scoreRenderHeight = renderHeight;
 
-        var image = new SKBitmap(renderWidth, renderHeight);
+        var image = new SKBitmap(renderWidth, renderHeight, isOpaque: true);
 
         (var partImage, int octWidth, int octHeight) = this.CreatePianoOctaveBmp(100, keyHeight, scaling);
 
@@ -759,36 +763,36 @@ public partial class PlotEditor : UserControl
                     g.DrawText(score.Lyrics, new SKPoint(rect.Left, rect.Top), lyricsTypography);
                 }
 
-                // 声量の描画
-                {
-                    float lower = (float)FrequencyToScale(this._pitches.Min(i => i.Values.Min())) * keyHeight;
-                    float highter = (float)FrequencyToScale(this._pitches.Max(i => i.Values.Max())) * keyHeight;
-                    float diff = highter - lower;
+                //// 声量の描画
+                //{
+                //    float lower = (float)FrequencyToScale(this._pitches.Min(i => i.Values.Min())) * keyHeight;
+                //    float highter = (float)FrequencyToScale(this._pitches.Max(i => i.Values.Max())) * keyHeight;
+                //    float diff = highter - lower;
 
-                    var dynaicsValues = this._dynamics.Where(i => i.Index <= endFrameIdx && (i.Index + i.Values.Length) >= beginFrameIdx);
+                //    var dynaicsValues = this._dynamics.Where(i => i.Index <= endFrameIdx && (i.Index + i.Values.Length) >= beginFrameIdx);
 
-                    float dynamicsOffset = (float)keyHeight / 2;
+                //    float dynamicsOffset = (float)keyHeight / 2;
 
-                    foreach (var dynamics in dynaicsValues)
-                    {
-                        // 描画開始／終了インデックス
-                        (int beginIdx, int endIdx) = GetDrawRange(dynamics.Index, dynamics.Values.Length, beginFrameIdx, endFrameIdx, marginFrames);
+                //    foreach (var dynamics in dynaicsValues)
+                //    {
+                //        // 描画開始／終了インデックス
+                //        (int beginIdx, int endIdx) = GetDrawRange(dynamics.Index, dynamics.Values.Length, beginFrameIdx, endFrameIdx, marginFrames);
 
-                        var points = new SKPoint[endIdx - beginIdx];
+                //        var points = new SKPoint[endIdx - beginIdx];
 
-                        for (int idx = 0; idx < points.Length; ++idx)
-                        {
-                            int frameIdx = beginIdx + idx;
+                //        for (int idx = 0; idx < points.Length; ++idx)
+                //        {
+                //            int frameIdx = beginIdx + idx;
 
-                            points[idx] = new SKPoint(
-                                scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
-                                scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[frameIdx - dynamics.Index] + 30f) / 30f))));
-                        }
+                //            points[idx] = new SKPoint(
+                //                scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
+                //                scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[frameIdx - dynamics.Index] + 30f) / 30f))));
+                //        }
 
-                        g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Blue, StrokeWidth = 1.5f, IsAntialias = true });
+                //        g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Blue, StrokeWidth = 1.5f, IsAntialias = true });
 
-                    }
-                }
+                //    }
+                //}
 
                 // ピッチの描画
                 {
@@ -848,7 +852,7 @@ public partial class PlotEditor : UserControl
         int renderHeight = renderInfo.RenderRulerHeight;
         var rulerLines = this._rulerLines;
 
-        var image = new SKBitmap(renderWidth, renderHeight);
+        var image = new SKBitmap(renderWidth, renderHeight, isOpaque: true);
 
         using (var g = new SKCanvas(image))
         {
@@ -883,6 +887,87 @@ public partial class PlotEditor : UserControl
                 }
 
             }
+        }
+
+        return image;
+    }
+
+    private SKBitmap CreateDynamicsImage(RenderInfo renderInfo, RenderRangeInfo rangeInfo)
+    {
+        int beginFrameIdx = MsToFrameIndex(rangeInfo.BeginTime);
+        int endFrame = MsToFrameIndex(rangeInfo.EndTime);
+        int frames = endFrame - beginFrameIdx;
+
+        (int renderWidth, int renderHeight) = (renderInfo.RenderDisplayWidth, renderInfo.DynamicRenderHeight);
+
+        var track = this.Track;
+        if (track is null)
+        {
+            return new(renderWidth, renderHeight, SKColorType.Rgb888x, SKAlphaType.Unknown);
+        }
+
+        SKBitmap image;
+        var features = track.GetFeatures();
+        var mgc = features.Mgc!;
+        var f0 = features.F0!;
+
+        // MGCデータの次元数
+        int dimension = mgc.Length / f0.Length;
+
+        // 背景を塗りつぶす
+        // MEMO: アルファ値なしの場合は初期化不要
+        //using (var g = new SKCanvas(image))
+        //{
+        //    g.DrawRect(0, 0, image.Width, image.Height, new SKPaint { Color = SKColors.Black, });
+        //    g.Flush();
+        //}
+
+        // MGCデータの下限値
+        double min = 30d;
+
+        int endFrameIdx = Math.Min(endFrame, f0.Length);
+        int count = Math.Max(0, endFrameIdx - beginFrameIdx);
+
+        // TODO: 仮実装
+        // フレーム数×MGCデータ次元数の画像に書き込んでから拡大する。
+        // すべてのMGCデータを1画素ずつ描画すると重くなるので、生のピクセルデータに直接書き込む
+        using (var spectrumImage = new SKBitmap(frames, dimension, SKColorType.Rgb888x, SKAlphaType.Unknown))
+        {
+            var rawPixels = spectrumImage.GetPixelSpan();
+
+            var pixels = MemoryMarshal.Cast<byte, RGBX>(
+                MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(rawPixels), rawPixels.Length));
+
+            for (int dim = 0; dim < dimension; ++dim)
+            {
+                int y = (dimension - dim - 1) * frames;
+                for (int frameIdx = beginFrameIdx; frameIdx < endFrameIdx; ++frameIdx)
+                {
+                    int x = frameIdx - beginFrameIdx;
+
+                    //
+                    byte color = (byte)(255 - ((mgc[(frameIdx * dimension) + dim] + min) / min * byte.MaxValue));
+
+                    pixels[y + x].SetColor(allColor: color);
+                }
+            }
+
+            image = spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.Medium);
+        }
+
+        var points = new SKPoint[count];
+        for (int idx = 0; idx < points.Length; ++idx)
+        {
+            double value = mgc[(idx + beginFrameIdx) * dimension];
+
+            float x = (float)((double)idx / frames * renderWidth);
+            float y = (float)((1 - ((value + min) / min)) * renderHeight);
+            points[idx] = new(x, y);
+        }
+
+        using (var g = new SKCanvas(image))
+        {
+            g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
         }
 
         return image;
@@ -930,20 +1015,27 @@ public partial class PlotEditor : UserControl
 
         // 描画領域の更新
         int scaledRulerHeight = renderInfo.RenderRulerHeight;
-        int scaledScoreHeight = Math.Min(scaledHeight, h - scaledRulerHeight);
+        int scaledScoreHeight = renderInfo.RenderDisplayScoreHeight;
 
         // スクロール位置から描画位置(y)を計算
         int scaledScoreY = renderInfo.Scaling.ToDisplayScaling(this.GetVScrollPosition());
-        g.DrawBitmap(this._rulerImage, SKRect.Create(0, 0, scaledWidth, scaledRulerHeight), SKRect.Create(0, 0, scaledWidth, scaledRulerHeight));
+        g.DrawBitmap(this._rulerImage,
+            SKRect.Create(0, 0, scaledWidth, scaledRulerHeight),
+            SKRect.Create(0, 0, scaledWidth, scaledRulerHeight));
         g.DrawBitmap(this._renderImage,
             SKRect.Create(0, scaledScoreY, scaledWidth, scaledScoreHeight),
-            SKRect.Create(0, scaledRulerHeight, scaledWidth, scaledScoreHeight));
+            SKRect.Create(0, renderInfo.DisplayScorePosY, scaledWidth, scaledScoreHeight));
 
-        double renderedY = scaledRulerHeight + scaledScoreHeight;
-        if (renderedY < h)
+        if (renderInfo.DynamicRenderHeight > 0)
         {
-            g.DrawRect(SKRect.Create(0, (float)renderedY, scaledWidth, (float)(h - renderedY)), this._whiteKeyPaint);
+            g.DrawBitmap(this._dynamicImage, 0, renderInfo.DynamicsDisplayPosY);
         }
+
+        //double renderedY = scaledRulerHeight + scaledScoreHeight;
+        //if (renderedY < h)
+        //{
+        //    g.DrawRect(SKRect.Create(0, (float)renderedY, scaledWidth, (float)(h - renderedY)), this._whiteKeyPaint);
+        //}
     }
 
     /// <summary>
