@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Windows;
 
 namespace Quark.Controls;
 
@@ -8,30 +9,34 @@ namespace Quark.Controls;
 internal class RenderInfo
 {
     public RenderScaleInfo Scaling { get; }
-    /// <summary>
-    /// スケーリング100%時の画像サイズ(幅)
-    /// </summary>
-    public int ImageWidth { get; }
-    /// <summary>
-    /// スケーリング100%時の画像サイズ(高さ)
-    /// </summary>
-    public int ImageHeight { get; }
-    public int RenderWidth { get; }
-    public int RenderHeight { get; }
 
+    public int UnscaledDisplayWidth { get; }
+    public int UnscaledDisplayHeight { get; }
+
+    public int RenderDisplayWidth { get; }
+    public int RenderDisplayHeight { get; }
+
+    /// <summary>スケーリング100%時の描画幅</summary>
+    public int UnscaledWidth { get; }
+
+    public int RenderWidth { get; }
+
+    /// <summary>スケーリング100%時の譜面描画高</summary>
+    public int UnscaledScoreHeight { get; }
+
+    public int RenderScoreHeight { get; }
+
+    /// <summary>1鍵あたりの高さ</summary>
     public int KeyHeight { get; }
 
-    public int RulerHeight { get; }
+    /// <summary>ルーラの高さ</summary>
+    public int UnscaledRulerHeight { get; }
 
+    /// <summary>描画時のルーラの高さ</summary>
     public int RenderRulerHeight { get; }
 
-    public int ScoreWidth { get; }
-    public int ScoreHeight { get; }
-
-    public int ScoreRenderWidth { get; }
-    public int ScoreRenderHeight { get; }
-
     public double WidthStretch { get; }
+
     public double HeightStretch { get; }
 
     public static class RenderConfig
@@ -48,20 +53,29 @@ internal class RenderInfo
         public const int FramesPerSecond = 1000 / FramePeriod;
     }
 
+    public record Size(int Width, int Height)
+    {
+        /// <summary>分解代入</summary>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        public void Deconstruct(out int width, out int height)
+            => (width, height) = (this.Width, this.Height);
+    }
+
     public RenderInfo(RenderScaleInfo scaling, int keyHeight, int renderWidth, double widthStretch = 0.8f, double heightStretch = 1.0f)
     {
         this.Scaling = scaling;
-        this.RenderWidth = renderWidth;
-        this.ImageWidth = scaling.ToRenderImageScaling(renderWidth);
+        this.UnscaledDisplayWidth = scaling.ToRenderImageScaling(scaledDisplayWidth);
+        this.UnscaledDisplayHeight = scaling.ToRenderImageScaling(scaledDisplayHeight);
+        this.RenderDisplayWidth = scaledDisplayWidth;
+        this.RenderDisplayHeight = scaledDisplayHeight;
         this.KeyHeight = keyHeight;
-        this.ImageHeight = this.KeyHeight * RenderConfig.KeyCount;
-        this.RenderHeight = scaling.ToDisplayScaling(this.ImageHeight);
-        this.RulerHeight = RenderConfig.DefaultRulerHeight;
-        this.RenderRulerHeight = scaling.ToDisplayScaling(this.RulerHeight);
-        this.ScoreWidth = this.ImageWidth;
-        this.ScoreHeight = this.KeyHeight * RenderConfig.KeyCount;
-        this.ScoreRenderWidth = this.RenderWidth;
-        this.ScoreRenderHeight = scaling.ToDisplayScaling(this.ScoreHeight);
+        this.UnscaledWidth = scaling.ToRenderImageScaling(renderWidth);
+        this.UnscaledScoreHeight = keyHeight * RenderConfig.KeyCount;
+        this.RenderWidth = renderWidth;
+        this.RenderScoreHeight = scaling.ToDisplayScaling(this.UnscaledScoreHeight);
+        this.UnscaledRulerHeight = RenderConfig.DefaultRulerHeight;
+        this.RenderRulerHeight = scaling.ToDisplayScaling(this.UnscaledRulerHeight);
         this.WidthStretch = widthStretch;
         this.HeightStretch = heightStretch;
     }
@@ -70,5 +84,5 @@ internal class RenderInfo
         => (int)Math.Ceiling((decimal)this.RenderWidth / RenderConfig.FramePeriod / (decimal)this.WidthStretch);
 
     public int GetDrawScoreHeight(double height)
-        => this.Scaling.ToRenderImageScaling(height) - this.RulerHeight;
+        => this.Scaling.ToRenderImageScaling(height) - this.UnscaledRulerHeight;
 }

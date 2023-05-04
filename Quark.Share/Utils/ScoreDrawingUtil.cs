@@ -239,8 +239,6 @@ public static class ScoreDrawingUtil
         return CalcBeatDuration(beginTime, noteLength, ref currentTempoNode, ref nextTempoNode);
     }
 
-
-
     /// <summary>1音の長さを計算する</summary>
     /// <param name="score">譜面情報</param>
     /// <param name="beginTime">現在時間</param>
