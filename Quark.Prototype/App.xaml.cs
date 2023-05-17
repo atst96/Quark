@@ -31,11 +31,13 @@ public partial class App : Application
         var settingService = new SettingService(path);
 
         ServiceProvider = new ServiceCollection()
-            // Service
+            // Singleton service
             .AddSingleton(settingService)
             .AddSingleton<NeutrinoV1Service>()
             .AddSingleton<NeutrinoV2Service>()
             .AddSingleton<ProjectService>()
+            // Transient service
+            .AddTransient<ProjectSession>()
             // ViewModel
             .AddTransient<ViewModels.MainWindowViewModel>()
             .AddTransient<ViewModels.PreferenceWindowViewModel>()

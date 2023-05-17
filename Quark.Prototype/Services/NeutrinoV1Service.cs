@@ -65,6 +65,12 @@ internal class NeutrinoV1Service
     private string GetNeutrinoPath(string path)
         => Path.Combine(this.GetNeturinoDir(), path);
 
+    private string GetNeutrinoExePath()
+        => this.GetNeutrinoPath(IsLegacy() ? NeutrinoLegacyExe : NeutrinoExe);
+
+    private string GetWorldExePath()
+        => this.GetNeutrinoPath(WorldExe);
+
     private static readonly Encoding TextEncoding = new UTF8Encoding(false);
 
     public async Task<ConvertScoreToTimingResult?> ConvertMusicXmlToTiming(NeutrinoV1Track track)
@@ -244,7 +250,7 @@ internal class NeutrinoV1Service
         {
             // 一時ファイルのタイミング情報を書き込む
             fullLabFile.Write(track.FullTiming);
-            timingLabFile.Write(TextEncoding.GetBytes(features.Timing!));
+            timingLabFile.Write(NeutrinoUtil.ToString(features.Timings!));
 
             var args = string.Join(" ",
                 PathUtil.Dq(fullLabFile.Path),
@@ -270,6 +276,113 @@ internal class NeutrinoV1Service
                     DataConvertUtil.Convert<double>(f0Task.Result),
                     DataConvertUtil.Convert<double>(mgcTask.Result),
                     DataConvertUtil.Convert<double>(bapTask.Result));
+            }
+            else
+            {
+                clTokenSource.Cancel();
+            }
+        }
+
+        return null;
+    }
+
+    public async Task<EstimateFeaturesResultV1?> EstimateFeatures(NeutrinoV1Track track, AudioFeaturesV1 features, PhraseInfo2 phrase, IProgress<ProgressReport>? progress = null)
+    {
+        var procExe = this.GetNeutrinoExePath();
+
+        // 対象ファイル用のCancellationToken
+        using var clTokenSource = new CancellationTokenSource();
+        var clToken = clTokenSource.Token;
+
+        using (var fullLabFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
+        using (var timingLabFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
+        using (var phraseFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
+        using (var f0File = new VirtualFile(FileExtensions.F0))
+        using (var mgcFile = new VirtualFile(FileExtensions.Mgc))
+        using (var bapFile = new VirtualFile(FileExtensions.Bap))
+        {
+            // 一時ファイルのタイミング情報を書き込む
+            fullLabFile.Write(track.FullTiming);
+            timingLabFile.Write(NeutrinoUtil.ToString(features.Timings!));
+            phraseFile.Write(NeutrinoUtil.ToString(features.RawPhrases!));
+
+            var args = string.Join(" ",
+                PathUtil.Dq(fullLabFile.Path),
+                PathUtil.Dq(timingLabFile.Path),
+                PathUtil.Dq(f0File.FilePath),
+                PathUtil.Dq(mgcFile.FilePath),
+                PathUtil.Dq(bapFile.FilePath),
+                this.GetModelPath(features.ModelId),
+                "-i", PathUtil.Dq(phraseFile.Path),
+                "-p", phrase.No,
+                "-m", "-t", "-s"
+                // "-k", styleshift // TODO: スタイルシフト
+                );
+
+            var f0Task = f0File.Read(clToken);
+            var mgcTask = mgcFile.Read(clToken);
+            var bapTask = bapFile.Read(clToken);
+
+            bool isSuccess = await Run(procExe, args, this.GetNeturinoDir(), progress)
+                .ConfigureAwait(false);
+
+            if (isSuccess)
+            {
+                await Task.WhenAll(f0Task, mgcTask, bapTask).ConfigureAwait(false);
+
+                return new(
+                    DataConvertUtil.Convert<double>(f0Task.Result),
+                    DataConvertUtil.Convert<double>(mgcTask.Result),
+                    DataConvertUtil.Convert<double>(bapTask.Result));
+            }
+            else
+            {
+                clTokenSource.Cancel();
+            }
+        }
+
+        return null;
+    }
+
+    public async Task<byte[]?> OutputPreviewWav(PhraseInfo2 phrase, IProgress<ProgressReport>? progress = null)
+    {
+        var procExe = this.GetWorldExePath();
+
+        // 対象ファイル用のCancellationToken
+        using var clTokenSource = new CancellationTokenSource();
+        var clToken = clTokenSource.Token;
+
+        using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
+        using (var mgcFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Mgc))
+        using (var bapFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Bap))
+        using (var wavFile = new VirtualFile(FileExtensions.F0))
+        {
+            // 一時ファイルのタイミング情報を書き込む
+            f0File.Write(DataConvertUtil.Cast<double, byte>(phrase.F0));
+            mgcFile.Write(DataConvertUtil.Cast<double, byte>(phrase.Mgc));
+            bapFile.Write(DataConvertUtil.Cast<double, byte>(phrase.Bap));
+
+            var args = string.Join(" ",
+                PathUtil.Dq(f0File.Path),
+                PathUtil.Dq(mgcFile.Path),
+                PathUtil.Dq(bapFile.Path),
+                // "-p", PitchShift,
+                // "-m", FormalShift,
+                // "-p", SmoothPitch,
+                // "-b", EnhanceBreathiness
+                "-o", PathUtil.Dq(wavFile.FilePath),
+                // "-n", NumThreads,
+                "-t"
+                );
+
+            var wavTask = wavFile.Read(clToken);
+
+            bool isSuccess = await Run(procExe, args, this.GetNeturinoDir(), progress)
+                .ConfigureAwait(false);
+
+            if (isSuccess)
+            {
+                return await wavTask.ConfigureAwait(false);
             }
             else
             {

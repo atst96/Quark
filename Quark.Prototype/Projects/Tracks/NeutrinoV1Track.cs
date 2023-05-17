@@ -1,5 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Controls;
+using Quark.Audio;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
@@ -9,6 +12,8 @@ namespace Quark.Projects.Tracks;
 
 internal class NeutrinoV1Track : TrackBase
 {
+    public event EventHandler FeatureChanged;
+
     public ModelInfo? Singer { get; set; }
 
     public string MusicXml { get; set; }
@@ -17,10 +22,9 @@ internal class NeutrinoV1Track : TrackBase
 
     public byte[]? MonoTiming { get; set; }
 
-    private Dictionary<string, AudioFeaturesV1> _audioFeatures = new();
+    public WaveData WaveData { get; } = new();
 
-    public bool HasTiming(string modelId)
-        => this._audioFeatures.TryGetValue(modelId, out var f) && f.HasTiming();
+    public AudioFeaturesV1? AudioFeatures { get; set; }
 
     public NeutrinoV1Track(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
     {
@@ -41,55 +45,46 @@ internal class NeutrinoV1Track : TrackBase
         this.FullTiming = config.FullTiming;
         this.MonoTiming = config.MonoTiming;
 
-        var features = this._audioFeatures;
-        features.Clear();
-
-        foreach (var kvp in config.Features)
+        var value = config.Features;
+        this.AudioFeatures = new(value.ModelId)
         {
-            var value = kvp.Value;
-            features.Add(kvp.Key, new(value.ModelId)
-            {
-                Timing = value.Timing,
-                F0 = value.F0,
-                Mgc = value.Mgc,
-                Bap = value.Bap,
-            });
+            Timings = value.Timings,
+            RawPhrases = value.RawPhrases,
+            Phrases = value.Phrases?.Select(ConvertConfig).ToArray(),
+        };
+    }
+
+    private static PhraseInfo2 ConvertConfig(PhraseInfoV1 config)
+    {
+        bool hasAudioFeatures = config.F0 != null && config.Mgc != null && config.Bap != null;
+
+        var phrase = new PhraseInfo2(config.No, config.BeginTime, config.EndTime, config.Label, (hasAudioFeatures ? PhraseStatus.WaitAudioRender : PhraseStatus.WaitEstimate));
+
+        if (hasAudioFeatures)
+        {
+            phrase.SetAudioFeatures(config.F0!, config.Mgc!, config.Bap!);
         }
+
+        return phrase;
     }
 
     public override TrackBaseConfig GetConfig()
     {
-        var features = this._audioFeatures.Select((kvp) =>
+        var features = this.AudioFeatures;
+        var config = new AudioFeaturesV1Config(features.ModelId)
         {
-            var value = kvp.Value;
-            return new AudioFeaturesV1Config(value.ModelId)
-            {
-                Timing = value.Timing,
-                F0 = value.F0,
-                Mgc = value.Mgc,
-                Bap = value.Bap,
-            };
-        }).ToDictionary(i => i.ModelId);
+            Timings = features.Timings,
+            RawPhrases = features.RawPhrases,
+            Phrases = features.Phrases?.Select(i => ToConfig(i)).ToArray(),
+        };
 
-        return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Id, features);
+        return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Id, config);
     }
+
+    private PhraseInfoV1 ToConfig(PhraseInfo2 i) => new(
+        i.No, i.BeginTime, i.EndTime, i.Label, i.F0, i.Mgc, i.Bap);
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
-    public AudioFeaturesV1 GetFeatures() => this.GetFeatures(this.Singer!.Id);
-
-    public AudioFeaturesV1 GetFeatures(string modelId)
-    {
-        // 音響データがあれば既存のものを、なければ新規作成して返す
-        if (this._audioFeatures.TryGetValue(modelId, out var f))
-        {
-            return f;
-        }
-        else
-        {
-            f = new AudioFeaturesV1(modelId);
-            this._audioFeatures.Add(modelId, f);
-            return f;
-        }
-    }
+    internal void RaiseFeatureChanged() => this.FeatureChanged?.Invoke(this, EventArgs.Empty);
 }

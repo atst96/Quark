@@ -141,6 +141,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         if (viewModel is { IsInvalid: true })
         {
             this.CurrentProject = this._projects.Create(viewModel.ProjectName);
+            this._projectSession = new ProjectSession(this.CurrentProject, this._neutrino);
         }
     }
 
@@ -266,8 +267,10 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         set => this.RaisePropertyChangedIfSet(ref this._selectedQuantize, value);
     }
 
-    public async void LoadTrack(Project project, NeutrinoV1Track track)
+    public async void LoadTrack(Project project, ProjectSession session, NeutrinoV1Track track)
     {
+        session.BeginSession();
+
         // Label
         if (!track.HasScoreTiming())
         {
@@ -282,7 +285,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             track.MonoTiming = result.MonoTiming;
         }
 
-        var features = track.GetFeatures(track.Singer!.Id);
+        var features = track.AudioFeatures ??= new AudioFeaturesV1(this.SelectedModelInfo!.Id);
         if (!features.HasTiming())
         {
             var result = await this._neutrino.GetTiming(track, features);
@@ -292,10 +295,13 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
                 return;
             }
 
-            features.Timing = result.Timing;
-            features.F0 = null;
-            features.Mgc = null;
-            features.Bap = null;
+            features.Timings = NeutrinoUtil.ParseTiming(result.Timing);
+            (features.RawPhrases, features.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, features.Timings);
+
+            session.AddEstimateQueue(track, features, features.Phrases);
+        }
+
+        App.Instance.Dispatcher.Invoke(() => this.CurrentTrack = track);
         }
 
         // 推論

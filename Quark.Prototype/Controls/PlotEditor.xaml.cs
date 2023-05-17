@@ -14,6 +14,7 @@ using System.Windows.Threading;
 using Quark.Compatibles;
 using Quark.Drawing;
 using Quark.Extensions;
+using Quark.Models.Neutrino;
 using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
@@ -48,8 +49,6 @@ public partial class PlotEditor : UserControl
 
     private bool _isLoaded = false;
     private long _framesCount = -1;
-    private List<Class1> _pitches;
-    private List<Class1> _dynamics;
     private PartScore _score;
     private PartScore _currentViewScore;
     private VerticalLineInfo[]? _noteLines;
@@ -201,15 +200,27 @@ public partial class PlotEditor : UserControl
     {
         if (d is PlotEditor editor)
         {
-            if (e.NewValue is NeutrinoV1Track track)
+            if (e.OldValue is NeutrinoV1Track oldTrack)
             {
-                editor.LoadTrack(track);
+                oldTrack.FeatureChanged -= editor.OnTrackFeatureChanged;
+            }
+
+            if (e.NewValue is NeutrinoV1Track newTrack)
+            {
+                newTrack.FeatureChanged += editor.OnTrackFeatureChanged;
+                editor.LoadTrack(newTrack);
             }
 
             editor.UpdateScrollLayout();
             editor.RelocateSeekBar();
         }
     }
+
+    private void OnTrackFeatureChanged(object? sender, EventArgs e) => this.Dispatcher.InvokeAsync(() =>
+    {
+        // 再描画
+        this.Redraw();
+    });
 
     /// <summary>
     /// <seealso cref="ScaleX"/>プロパティ変更時
@@ -317,15 +328,14 @@ public partial class PlotEditor : UserControl
     /// <param name="track">トラック情報</param>
     private void LoadTrack(NeutrinoV1Track track)
     {
-        var features = track.GetFeatures();
+        var features = track.AudioFeatures;
 
         // 楽譜情報解析
-        this._score = MusicXmlUtil.Parse(track.MusicXml);
-        this._pitches = Parse(features.F0!, 0.0f);
-        this._dynamics = Parse(GetDynamicsFromMgc(features.Mgc!, features.F0!), -30d);
-        this._framesCount = features.F0!.Length;
-        this.PART_LyricsTextBox.Text = GetLyrics(this._score);
+
         this._isLoaded = true;
+        this._score = MusicXmlUtil.Parse(track.MusicXml);
+        this._framesCount = (int)Math.Ceiling(features.Timings!.Last().EndTimeNs / 10000d / 5d);
+        this.PART_LyricsTextBox.Text = GetLyrics(this._score);
 
         this.Redraw();
     }
@@ -338,7 +348,7 @@ public partial class PlotEditor : UserControl
             return;
         }
 
-        int dataLength = this.Track!.GetFeatures().F0!.Length;
+        long dataLength = this._framesCount;
 
         var renderInfo = this._renderInfo;
 
@@ -708,11 +718,45 @@ public partial class PlotEditor : UserControl
                 int beginFrameIdx = beginTime / RenderConfig.FramePeriod;
                 int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
 
-                // 描画開始位置のオフセットを計算
-                int offsetX = (beginFrameIdx * RenderConfig.FramePeriod) - beginTime;
+                // 描画対象のフレーズ情報
+                var targetPhrases = this.Track!.AudioFeatures.Phrases!
+                    .Where(p => beginTime <= p.EndTime && p.BeginTime <= endTime);
 
                 // 描画範囲の情報を取得
                 var result = this._currentViewScore;
+
+                // フレーズ枠の描画
+                foreach (var phrase in targetPhrases)
+                {
+                    SKColor? color = phrase.Status switch
+                    {
+                        PhraseStatus.WaitEstimate => new SKColor(0, 0, 255, 10),
+                        PhraseStatus.EstimateProcessing => new SKColor(0, 0, 255, 20),
+                        PhraseStatus.WaitAudioRender => new SKColor(255, 0, 0, 10),
+                        PhraseStatus.AudioRenderProcessing => new SKColor(255, 0, 0, 20),
+                        _ => null
+                    };
+
+                    if (color == null)
+                        continue;
+
+
+                    int ofx = 0;
+                    int x = scaling.ToDisplayScaling((phrase.BeginTime - beginTime) * renderInfo.WidthStretch);
+                    if (x < 0)
+                    {
+                        ofx = x;
+                        x = 0;
+                    }
+
+                    int y = 0;
+                    int w = scaling.ToDisplayScaling((phrase.EndTime - phrase.BeginTime) * renderInfo.WidthStretch) + ofx;
+                    if ((x + w) > renderInfo.RenderDisplayWidth)
+                        w = renderInfo.RenderDisplayWidth - x;
+                    int h = renderHeight;
+
+                    g.DrawRect(x, y, w, h, new SKPaint { Color = color.Value });
+                }
 
                 // 罫線の描画
                 var noteLines = this._noteLines!;
@@ -759,64 +803,81 @@ public partial class PlotEditor : UserControl
                         IsStroke = true,
                     });
 
+                    if (score.Breath)
+                    {
+                        const int TriangleWidth = 11;
+                        const int TriangleHeight = 18;
+
+                        SKPoint[] trianglePoints =
+                        {
+                            // 左上
+                            new((rect.Left+rect.Width) - ((TriangleWidth-1)/2), rect.Top - TriangleHeight),
+                            // 上のくぼみ
+                            new((rect.Left+rect.Width) , rect.Top - TriangleHeight + 2),
+                            // 右上
+                            new((rect.Left+rect.Width) + ((TriangleWidth-1)/2), rect.Top - TriangleHeight),
+                            // 下
+                            new((rect.Left+rect.Width) , rect.Top ),
+                        };
+
+                        var path = new SKPath();
+                        path.AddPoly(trianglePoints);
+                        g.DrawPath(path, new SKPaint() { Color = SKColors.Blue, IsStroke = false, IsAntialias = false });
+                    }
+
                     // 歌詞
                     g.DrawText(score.Lyrics, new SKPoint(rect.Left, rect.Top), lyricsTypography);
+
                 }
-
-                //// 声量の描画
-                //{
-                //    float lower = (float)FrequencyToScale(this._pitches.Min(i => i.Values.Min())) * keyHeight;
-                //    float highter = (float)FrequencyToScale(this._pitches.Max(i => i.Values.Max())) * keyHeight;
-                //    float diff = highter - lower;
-
-                //    var dynaicsValues = this._dynamics.Where(i => i.Index <= endFrameIdx && (i.Index + i.Values.Length) >= beginFrameIdx);
-
-                //    float dynamicsOffset = (float)keyHeight / 2;
-
-                //    foreach (var dynamics in dynaicsValues)
-                //    {
-                //        // 描画開始／終了インデックス
-                //        (int beginIdx, int endIdx) = GetDrawRange(dynamics.Index, dynamics.Values.Length, beginFrameIdx, endFrameIdx, marginFrames);
-
-                //        var points = new SKPoint[endIdx - beginIdx];
-
-                //        for (int idx = 0; idx < points.Length; ++idx)
-                //        {
-                //            int frameIdx = beginIdx + idx;
-
-                //            points[idx] = new SKPoint(
-                //                scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
-                //                scaling.ToDisplayScaling(height - dynamicsOffset - (lower + diff * ((dynamics.Values[frameIdx - dynamics.Index] + 30f) / 30f))));
-                //        }
-
-                //        g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Blue, StrokeWidth = 1.5f, IsAntialias = true });
-
-                //    }
-                //}
 
                 // ピッチの描画
                 {
-                    var pitches = this._pitches.Where(i => i.Index <= endFrameIdx && (i.Index + i.Values.Length) >= beginFrameIdx);
+                    const int Period = RenderConfig.FramePeriod;
+
+                    var pitches = targetPhrases
+                        .Where(p => p.F0 is not null)
+                        .SelectMany(p => Parse2(p.F0!, 0, 1, p.BeginTime / Period))
+                        .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
+                        .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
 
                     float pitchOffset = (float)keyHeight / 2;
 
-                    foreach (var pitch in pitches)
+                    int offsetMs = (beginFrameIdx * Period) - beginTime;
+
+                    foreach (var pitchGroup in pitches)
                     {
-                        // 描画開始／終了インデックス
-                        (int beginIdx, int endIdx) = GetDrawRange(pitch.Index, pitch.Values.Length, beginFrameIdx, endFrameIdx, marginFrames);
+                        var points = new SKPoint[pitchGroup.Last().TotalEndIndex - pitchGroup.First().TotalBeginIndex + 1];
+                        int pointsIdx = 0;
 
-                        var points = new SKPoint[endIdx - beginIdx];
-
-                        for (int idx = 0; idx < points.Length; ++idx)
+                        foreach (var pitch in pitchGroup)
                         {
-                            int frameIdx = beginIdx + idx;
+                            // 描画開始／終了インデックス
+                            (int beginIdx, int endIdx) = GetDrawRange(
+                                pitch.PhraseBeginFrameIdx + pitch.BeginIndex, pitch.EndIndex - pitch.BeginIndex + 1,
+                                beginFrameIdx, endFrameIdx, 0);
 
-                            points[idx] = new SKPoint(
-                                scaling.ToDisplayScaling((offsetX + ((frameIdx - beginFrameIdx) * RenderConfig.FramePeriod)) * renderInfo.WidthStretch),
-                                scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Values[frameIdx - pitch.Index]) * keyHeight)));
+                            if (beginIdx >= endIdx)
+                            {
+                                Debug.WriteLine($"Beg: {beginIdx}, End: {endIdx}");
+                                continue;
+                            }
+
+                            int f = beginIdx - pitch.PhraseBeginFrameIdx;
+
+                            for (int idx = 0, length = endIdx - beginIdx; idx < length; ++idx)
+                            {
+                                int frameIdx = idx + f;
+
+                                points[pointsIdx++] = new SKPoint(
+                                    scaling.ToDisplayScaling((offsetMs + ((frameIdx + pitch.PhraseBeginFrameIdx) * Period) - beginTime) * renderInfo.WidthStretch),
+                                    scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Data[frameIdx]) * keyHeight)));
+                            }
                         }
 
-                        g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
+                        if (pointsIdx > 0)
+                        {
+                            g.DrawPoints(SKPointMode.Polygon, points[0..pointsIdx], new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
+                        }
                     }
                 }
             }
@@ -824,6 +885,8 @@ public partial class PlotEditor : UserControl
 
         return image;
     }
+
+
 
     /// <summary>
     /// 描画範囲を取得する
@@ -860,7 +923,6 @@ public partial class PlotEditor : UserControl
 
             if (rulerLines is not null)
             {
-
                 // 描画開始・終了位置
                 int beginTime = renderRange.BeginTime;
 
@@ -894,25 +956,37 @@ public partial class PlotEditor : UserControl
 
     private SKBitmap CreateDynamicsImage(RenderInfo renderInfo, RenderRangeInfo rangeInfo)
     {
-        int beginFrameIdx = MsToFrameIndex(rangeInfo.BeginTime);
-        int endFrame = MsToFrameIndex(rangeInfo.EndTime);
-        int frames = endFrame - beginFrameIdx;
+        var scaling = renderInfo.Scaling;
+
+        // 描画開始・終了位置
+        int beginTime = rangeInfo.BeginTime;
+        int endTime = rangeInfo.EndTime;
+
+        // フレームの描画範囲
+        int beginFrameIdx = beginTime / RenderConfig.FramePeriod;
+        int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
+
+        int frames = endFrameIdx - beginFrameIdx;
 
         (int renderWidth, int renderHeight) = (renderInfo.RenderDisplayWidth, renderInfo.DynamicRenderHeight);
 
         var track = this.Track;
-        if (track is null)
+        var features = track?.AudioFeatures;
+        if (features is null)
         {
             return new(renderWidth, renderHeight, SKColorType.Rgb888x, SKAlphaType.Unknown);
         }
 
         SKBitmap image;
-        var features = track.GetFeatures();
-        var mgc = features.Mgc!;
-        var f0 = features.F0!;
 
-        // MGCデータの次元数
-        int dimension = mgc.Length / f0.Length;
+        var phrases = features.Phrases!;
+
+        // 描画対象のフレーズ情報
+        var targetPhrases = phrases
+                    .Where(p => beginTime <= p.EndTime && p.BeginTime <= endTime);
+
+        // Mgcデータの次元数
+        int dimension = 60; // mgc.Length / f0.Length
 
         // 背景を塗りつぶす
         // MEMO: アルファ値なしの場合は初期化不要
@@ -922,52 +996,93 @@ public partial class PlotEditor : UserControl
         //    g.Flush();
         //}
 
-        // MGCデータの下限値
-        double min = 30d;
+        // Mgcデータの下限値
+        const double min = -30d;
 
-        int endFrameIdx = Math.Min(endFrame, f0.Length);
-        int count = Math.Max(0, endFrameIdx - beginFrameIdx);
+        const int Period = RenderConfig.FramePeriod;
 
-        // TODO: 仮実装
-        // フレーム数×MGCデータ次元数の画像に書き込んでから拡大する。
-        // すべてのMGCデータを1画素ずつ描画すると重くなるので、生のピクセルデータに直接書き込む
+        var dynamicsGroups = targetPhrases
+             .Where(p => p.Mgc is not null)
+             .SelectMany(p => Parse2(p.Mgc!, min, dimension, p.BeginTime / Period))
+             .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
+             .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
+
+        int offsetMs = (beginFrameIdx * Period) - beginTime;
+
+        var list = new List<SKPoint[]>(phrases.Length);
+
         using (var spectrumImage = new SKBitmap(frames, dimension, SKColorType.Rgb888x, SKAlphaType.Unknown))
         {
             var rawPixels = spectrumImage.GetPixelSpan();
-
             var pixels = MemoryMarshal.Cast<byte, RGBX>(
                 MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(rawPixels), rawPixels.Length));
 
-            for (int dim = 0; dim < dimension; ++dim)
+            foreach (var dynamicsGroup in dynamicsGroups)
             {
-                int y = (dimension - dim - 1) * frames;
-                for (int frameIdx = beginFrameIdx; frameIdx < endFrameIdx; ++frameIdx)
+                var points = new SKPoint[dynamicsGroup.Last().TotalEndIndex - dynamicsGroup.First().TotalBeginIndex + 1];
+                int pointsIdx = 0;
+
+                foreach (var dynamics in dynamicsGroup)
                 {
-                    int x = frameIdx - beginFrameIdx;
+                    // 描画開始／終了インデックス
+                    (int beginIdx, int endIdx) = GetDrawRange(
+                        dynamics.PhraseBeginFrameIdx + dynamics.BeginIndex, dynamics.EndIndex - dynamics.BeginIndex + 1,
+                        beginFrameIdx, endFrameIdx, 0);
 
-                    //
-                    byte color = (byte)(255 - ((mgc[(frameIdx * dimension) + dim] + min) / min * byte.MaxValue));
+                    if (beginIdx >= endIdx)
+                    {
+                        continue;
+                    }
 
-                    pixels[y + x].SetColor(allColor: color);
+                    int f = beginIdx - dynamics.PhraseBeginFrameIdx;
+
+                    for (int idx = 0, length = (endIdx - beginIdx); idx < length; ++idx)
+                    {
+                        int frameIdx = idx + f;
+
+                        double v = 0;
+                        for (int dim = 0; dim < dimension; ++dim)
+                        {
+                            int x = frameIdx + dynamics.PhraseBeginFrameIdx - beginFrameIdx;
+                            int y = (dimension - dim - 1) * frames;
+
+                            double value = dynamics.Data[(frameIdx * dimension) + dim];
+
+                            v += value;
+
+                            // byte color = (byte)(baseColor - ((value - min) / (-min) * baseColor));
+                            const byte baseColor = 100;
+                            byte color = (byte)(Math.Min(v - min, -min) / (-min) * baseColor);
+
+                            pixels[y + x].SetColor(allColor: color);
+                        }
+
+                        {
+                            double value = dynamics.Data[frameIdx * dimension];
+
+                            float x = scaling.ToDisplayScaling((offsetMs + ((frameIdx + dynamics.PhraseBeginFrameIdx) * Period) - beginTime) * renderInfo.WidthStretch);
+                            float y = (float)((1 - ((value + (-min)) / (-min))) * renderHeight);
+                            points[pointsIdx++] = new(x, y);
+                        }
+                    }
+                }
+
+                if (pointsIdx > 0)
+                {
+                    list.Add(points[0..pointsIdx]);
                 }
             }
 
-            image = spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.Medium);
+            image = spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.None);
         }
 
-        var points = new SKPoint[count];
-        for (int idx = 0; idx < points.Length; ++idx)
-        {
-            double value = mgc[(idx + beginFrameIdx) * dimension];
-
-            float x = (float)((double)idx / frames * renderWidth);
-            float y = (float)((1 - ((value + min) / min)) * renderHeight);
-            points[idx] = new(x, y);
-        }
 
         using (var g = new SKCanvas(image))
         {
-            g.DrawPoints(SKPointMode.Polygon, points, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
+            foreach (var pt in list)
+            {
+                g.DrawPoints(SKPointMode.Polygon, pt, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
+            }
         }
 
         return image;
@@ -1050,9 +1165,9 @@ public partial class PlotEditor : UserControl
     }
 
 
-    public static List<Class1> Parse(IReadOnlyCollection<double> values, double min)
+    public static List<Class1> Parse(IReadOnlyCollection<double> values, double min, int offset = 0)
     {
-        var items = new List<Class1>(values.Count());
+        var items = new List<Class1>(values.Count);
 
         int idx = 0;
 
@@ -1069,7 +1184,7 @@ public partial class PlotEditor : UserControl
                     {
                         if (tempItems.Count > 1)
                         {
-                            items.Add(new Class1(tempIdx, tempItems.ToArray()));
+                            items.Add(new Class1(offset + tempIdx, tempItems.ToArray()));
                         }
                         tempItems = null;
                     }
@@ -1091,7 +1206,53 @@ public partial class PlotEditor : UserControl
 
         if (tempItems != null)
         {
-            items.Add(new Class1(tempIdx, tempItems.ToArray()));
+            items.Add(new Class1(offset + tempIdx, tempItems.ToArray()));
+        }
+
+        return items;
+    }
+
+    public record PartInt(int BeginIndex, int EndIndex, int PhraseBeginFrameIdx, double[] Data)
+    {
+        public int TotalBeginIndex => this.PhraseBeginFrameIdx + this.BeginIndex;
+        public int TotalEndIndex => this.PhraseBeginFrameIdx + this.EndIndex;
+    }
+
+    public static List<PartInt> Parse2(double[] values, double min, int dimension, int offset)
+    {
+        int length = values.Length / dimension;
+        var items = new List<PartInt>(length);
+
+        int? detectIdx = null;
+
+        for (int idx = 0; idx < length; ++idx)
+        {
+            if (values[idx * dimension] <= min)
+            {
+                if (detectIdx is not null)
+                {
+                    int endIdx = idx - 1;
+                    if (endIdx > detectIdx)
+                    {
+                        items.Add(new(detectIdx.Value, endIdx, offset, values));
+                    }
+
+                    detectIdx = null;
+                }
+
+                continue;
+            }
+
+            detectIdx ??= idx;
+        }
+
+        if (detectIdx is not null)
+        {
+            int endIndex = length - 1;
+            if (endIndex > detectIdx)
+            {
+                items.Add(new(detectIdx.Value, endIndex, offset, values));
+            }
         }
 
         return items;

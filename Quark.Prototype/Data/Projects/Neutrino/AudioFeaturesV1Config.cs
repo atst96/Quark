@@ -1,4 +1,5 @@
 ﻿using MemoryPack;
+using Quark.Models.Neutrino;
 
 namespace Quark.Data.Projects.Neutrino;
 
@@ -12,11 +13,9 @@ public partial class AudioFeaturesV1Config
 
     public string ModelId { get; }
 
-    public string? Timing { get; set; }
+    public TimingInfo[]? Timings { get; set; }
 
-    public double[]? F0 { get; set; }
+    public PhraseInfo[]? RawPhrases { get; set; }
 
-    public double[]? Mgc { get; set; }
-
-    public double[]? Bap { get; set; }
+    public PhraseInfoV1[]? Phrases { get; set; }
 }

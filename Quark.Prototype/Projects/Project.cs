@@ -2,16 +2,21 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using Livet;
+using Microsoft.Extensions.DependencyInjection;
 using Quark.Data.Project;
 using Quark.Models.Neutrino;
 using Quark.Projects.Tracks;
+using Quark.Services;
 using Quark.Utils;
 
 namespace Quark.Projects;
 
 internal class Project : NotificationObject
 {
+    public event EventHandler Estimated;
+
     private string _name;
 
     public string? ProjectFilePath { get; private set; }
@@ -60,8 +65,9 @@ internal class Project : NotificationObject
     public static Project Open(string projPath, IEnumerable<ModelInfo> models)
         => new Project(projPath, MemoryPackUtil.ReadFileCompressed<ProjectConfig>(projPath)!, models);
 
-
-
     public ProjectConfig GetConfig()
         => new(this.Name, this.Tracks.GetConfig());
+
+    internal void RaiseEstimated()
+        => this.Estimated?.Invoke(this, EventArgs.Empty);
 }
