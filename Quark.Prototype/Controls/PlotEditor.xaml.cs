@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -805,24 +805,9 @@ public partial class PlotEditor : UserControl
 
                     if (score.Breath)
                     {
-                        const int TriangleWidth = 11;
-                        const int TriangleHeight = 18;
-
-                        SKPoint[] trianglePoints =
-                        {
-                            // 左上
-                            new((rect.Left+rect.Width) - ((TriangleWidth-1)/2), rect.Top - TriangleHeight),
-                            // 上のくぼみ
-                            new((rect.Left+rect.Width) , rect.Top - TriangleHeight + 2),
-                            // 右上
-                            new((rect.Left+rect.Width) + ((TriangleWidth-1)/2), rect.Top - TriangleHeight),
-                            // 下
-                            new((rect.Left+rect.Width) , rect.Top ),
-                        };
-
-                        var path = new SKPath();
-                        path.AddPoly(trianglePoints);
-                        g.DrawPath(path, new SKPaint() { Color = SKColors.Blue, IsStroke = false, IsAntialias = false });
+                        g.DrawPath(
+                            CreateBreathMark(rect.Top - height - 1, rect.Left + rect.Width, 9, 14),
+                            new SKPaint() { Color = SKColors.Blue, IsStroke = true, StrokeWidth = 1.6f, IsAntialias = true });
                     }
 
                     // 歌詞
@@ -1857,4 +1842,25 @@ public partial class PlotEditor : UserControl
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsBracketEnd(ref char @char)
     => @char == ')' || @char == '）';
+
+    /// <summary>ブレスマークのパスを生成する</summary>
+    private static SKPath CreateBreathMark(float top, float left, float width, float height)
+    {
+        float halfWidth = (width - 1) / 2;
+
+        SKPoint[] points =
+        {
+            // 左上
+            new(left - halfWidth, top),
+            // 下
+            new(left, top + height),
+            // 右上
+            new(left + halfWidth, top),
+        };
+
+        var path = new SKPath();
+        path.AddPoly(points, close: false);
+
+        return path;
+    }
 }
