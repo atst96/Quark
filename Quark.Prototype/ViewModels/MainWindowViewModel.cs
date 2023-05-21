@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -171,10 +171,11 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         if (msg is { Response.Length: > 0 })
         {
             this.CurrentProject = this._projects.Open(msg.Response[0], this._neutrino.GetModels());
+            this._projectSession = new(this.CurrentProject, this._neutrino);
 
             if (this.CurrentProject.Tracks.LastOrDefault() is NeutrinoV1Track t)
             {
-                this.LoadTrack(this.CurrentProject, t);
+                this.LoadTrack(this.CurrentProject, this._projectSession, t);
             }
         }
     }
@@ -201,7 +202,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
         var path = msg.Response[0];
         var track = this.CurrentProject!.Tracks.ImportFromMusicXml(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
-        this.LoadTrack(this.CurrentProject!, track);
+        this.LoadTrack(this.CurrentProject!, this._projectSession!, track);
     }
 
     /// <summary>初期選択のモデルID</summary>
@@ -299,6 +300,14 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             (features.RawPhrases, features.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, features.Timings);
 
             session.AddEstimateQueue(track, features, features.Phrases);
+        }
+        else
+        {
+            var phrases = features.Phrases!.Where(p => p.F0 is null);
+            session.AddEstimateQueue(track, features, phrases);
+
+            var phrases2 = features.Phrases!.Where(p => p.F0 is not null);
+            session.AddAudioRenderQueue(track, features, phrases2);
         }
 
         App.Instance.Dispatcher.Invoke(() => this.CurrentTrack = track);
