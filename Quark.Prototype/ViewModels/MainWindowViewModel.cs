@@ -346,4 +346,11 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         Debug.WriteLine(value);
     }
+
+    private Command<WindowCloseRequest> _onCloseCommand;
+    public Command<WindowCloseRequest> OnClosingCommand => this._onCloseCommand ??= (this.AddCommand(
+        (WindowCloseRequest request) =>
+    {
+        this._projectSession?.EndSession();
+    }));
 }
