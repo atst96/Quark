@@ -1,18 +1,25 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Livet.Messaging;
 using Livet.Messaging.IO;
+using NAudio.CoreAudioApi;
+using NAudio.Wave;
+using Quark.Audio;
+using Quark.Behaviors;
 using Quark.Data.Projects;
 using Quark.Drawing;
 using Quark.Models.Neutrino;
 using Quark.Mvvm;
 using Quark.Projects;
+using Quark.Projects.Neutrino;
 using Quark.Projects.Tracks;
 using Quark.Services;
+using Quark.Utils;
 
 namespace Quark.ViewModels;
 
@@ -22,6 +29,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private ProjectService _projects;
 
     private Project? _currentProject;
+
+    private DispatcherTimer _timer;
 
     public bool HasProject => this._currentProject is not null;
 
@@ -87,6 +96,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
     }
 
+    private ProjectSession? _projectSession;
     private string _title = App.AppName;
     public string Title
     {
@@ -115,6 +125,16 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         this._neutrino = neutrino;
         this._projects = projects;
+
+        this._timer = new(
+            TimeSpan.FromMilliseconds(1000d / 60),
+            DispatcherPriority.Normal,
+            this.OnPlayerTimerTicked,
+            App.Instance.Dispatcher)
+        {
+            IsEnabled = false,
+        };
+
         this.UpdateModels();
     }
 
@@ -176,6 +196,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             if (this.CurrentProject.Tracks.LastOrDefault() is NeutrinoV1Track t)
             {
                 this.LoadTrack(this.CurrentProject, this._projectSession, t);
+                this.InitAudio(t);
             }
         }
     }
@@ -203,6 +224,23 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         var path = msg.Response[0];
         var track = this.CurrentProject!.Tracks.ImportFromMusicXml(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
         this.LoadTrack(this.CurrentProject!, this._projectSession!, track);
+        this.InitAudio(track);
+    }
+
+    private IWavePlayer _player;
+    private WaveDataStream _waveStream;
+
+    private void InitAudio(NeutrinoV1Track track)
+    {
+        this._waveStream?.Dispose();
+
+        var device = new WasapiOut(AudioClientShareMode.Shared, Latency);
+        var waveStream = new WaveDataStream(track.WaveData);
+
+        device.Init(waveStream);
+
+        this._player = device;
+        this._waveStream = waveStream;
     }
 
     /// <summary>初期選択のモデルID</summary>
@@ -241,7 +279,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             if (this.RaisePropertyChangedIfSet(ref this._currentTrack, value))
             {
                 this.CurrentTime = TimeSpan.Zero;
-                this.MaximumTime = TimeSpan.FromMilliseconds(value.GetFeatures().F0!.Length * 5);
+                // this.MaximumTime = TimeSpan.FromMilliseconds(value.GetFeatures().F0!.Length * 5);
             }
         }
     }
@@ -311,35 +349,53 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
 
         App.Instance.Dispatcher.Invoke(() => this.CurrentTrack = track);
-        }
+    }
 
-        // 推論
-        if (!features.HasFeatures())
+    private Command _playCommand;
+    public Command PlayCommand => this._playCommand ??= this.AddCommand(() =>
+    {
+        this._player?.Play();
+        this.StartPlayTimer();
+    });
+
+    private Command _pauseCommand;
+    public Command PauseCommand => this._pauseCommand ??= this.AddCommand(() =>
+    {
+        this._player?.Pause();
+        this.StopPlayTimer();
+    });
+
+    private Command _stopCommand;
+    public Command StopCommand => this._stopCommand ??= this.AddCommand(() =>
+    {
+        this._player?.Stop();
+        this.StopPlayTimer();
+    });
+
+    private void StartPlayTimer()
+    {
+        this._waveStream.Position = (int)((double)this._waveStream.WaveFormat.AverageBytesPerSecond / 1000 * (int)this.CurrentTime.TotalMilliseconds);
+
+        this._timer.Start();
+    }
+
+    private void StopPlayTimer()
+    {
+        this._timer.Stop();
+    }
+
+    private const int Latency = 96 * 1;
+
+    private void OnPlayerTimerTicked(object? sender, EventArgs e)
+    {
+        var stream = this._waveStream;
+
+        if (stream is not null)
         {
-            var vm = this.ProgressWindowViewModel;
-            vm.Clear(closeable: false);
+            int millis = Math.Max(0, (int)(stream.Position / 96) - Latency);
 
-            _ = this.Messenger.RaiseAsync(new("OpenProgressWindow"));
-            var result = await this._neutrino.EstimateFeatures(track, features, progress: vm);
-
-            vm.CanClose();
-            if (result is null)
-            {
-                // TODO: 実行失敗時
-                return;
-            }
-            else
-            {
-                features.F0 = result.F0;
-                features.Mgc = result.Mgc;
-                features.Bap = result.Bap;
-
-                // 進捗ウィンドウを閉じる
-                vm.Close();
-            }
+            this.CurrentTime = TimeSpan.FromMilliseconds(millis);
         }
-
-        App.Instance.Dispatcher.Invoke(() => this.CurrentTrack = track);
     }
 
     public void Report(ProgressReport value)
@@ -351,6 +407,14 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     public Command<WindowCloseRequest> OnClosingCommand => this._onCloseCommand ??= (this.AddCommand(
         (WindowCloseRequest request) =>
     {
+        this.StopPlayTimer();
+
         this._projectSession?.EndSession();
+
+        var player = this._player;
+        if (player != null && player.PlaybackState != PlaybackState.Stopped)
+        {
+            player.Stop();
+        }
     }));
 }
