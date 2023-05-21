@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -220,7 +220,7 @@ public partial class PlotEditor : UserControl
     {
         // 再描画
         this.Redraw();
-    });
+    }, DispatcherPriority.Render);
 
     /// <summary>
     /// <seealso cref="ScaleX"/>プロパティ変更時
