@@ -4,7 +4,7 @@ using Quark.Utils;
 namespace Quark;
 
 /// <summary>
-/// 名前付きパイプを使用して出力ファイルを受け取るためのクラス
+/// 名前付きパイプを使用してファイル出力内容を受け取るためのクラス
 /// </summary>
 public class VirtualFile : IDisposable
 {

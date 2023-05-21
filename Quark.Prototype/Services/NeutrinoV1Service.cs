@@ -195,15 +195,11 @@ internal class NeutrinoV1Service
             // 一時ファイルのタイミング情報を書き込む
             fullLabFile.Write(track.FullTiming);
 
-            var args = string.Join(" ",
-                PathUtil.Dq(fullLabFile.Path),
-                PathUtil.Dq(timingLabFile.FilePath),
-                PathUtil.Dq(f0File.FilePath),
-                PathUtil.Dq(mgcFile.FilePath),
-                PathUtil.Dq(bapFile.FilePath),
-                this.GetModelPath(features.ModelId),
-                "-i", PathUtil.Dq(phraseFile.FilePath),
-                "-m", "-t", "-a");
+            var args = $@"""{fullLabFile.Path}"" ""{timingLabFile.FilePath}"" "
+                + $@"""{f0File.FilePath}"" ""{mgcFile.FilePath}"" ""{bapFile.FilePath}"" "
+                + $@"{this.GetModelPath(features.ModelId)} "
+                + $@"-i ""{phraseFile.FilePath}"" "
+                + $@"-m -t -a";
 
             var timingLabTask = timingLabFile.Read(targetClToken);
             var phraseTask = phraseFile.Read(targetClToken);
@@ -252,14 +248,10 @@ internal class NeutrinoV1Service
             fullLabFile.Write(track.FullTiming);
             timingLabFile.Write(NeutrinoUtil.ToString(features.Timings!));
 
-            var args = string.Join(" ",
-                PathUtil.Dq(fullLabFile.Path),
-                PathUtil.Dq(timingLabFile.Path),
-                PathUtil.Dq(f0File.FilePath),
-                PathUtil.Dq(mgcFile.FilePath),
-                PathUtil.Dq(bapFile.FilePath),
-                this.GetModelPath(features.ModelId),
-                "-m", "-t", "-s");
+            var args = $@"""{fullLabFile.Path}"" ""{timingLabFile.Path}"" "
+                + @$"""{f0File.FilePath}"" ""{mgcFile.FilePath}"" ""{bapFile.FilePath}"" "
+                + @$"""{this.GetModelPath(features.ModelId)}"" "
+                + $@"-m -t -s";
 
             var f0Task = f0File.Read(clToken);
             var mgcTask = mgcFile.Read(clToken);
