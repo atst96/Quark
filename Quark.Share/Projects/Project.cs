@@ -1,47 +1,32 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using Livet;
-using Microsoft.Extensions.DependencyInjection;
-using Quark.Data.Project;
+﻿using Quark.Data.Project;
 using Quark.Models.Neutrino;
-using Quark.Projects.Tracks;
-using Quark.Services;
 using Quark.Utils;
 
 namespace Quark.Projects;
 
-internal class Project : NotificationObject
+internal class Project
 {
     public event EventHandler Estimated;
-
-    private string _name;
 
     public string? ProjectFilePath { get; private set; }
 
     /// <summary>
     /// プロジェクト名
     /// </summary>
-    public string Name
-    {
-        get => this._name ??= string.Empty;
-        set => this.RaisePropertyChangedIfSet(ref this._name, value);
-    }
+    public string Name { get; set; }
 
     public TrackCollection Tracks { get; }
 
     public Project(string name)
     {
         this.Tracks = new(this);
-        this._name = name;
+        this.Name = name;
     }
 
     public Project(string projDir, ProjectConfig composition, IEnumerable<ModelInfo> models)
     {
         this.ProjectFilePath = projDir;
-        this._name = composition.Name;
+        this.Name = composition.Name;
         this.Tracks = new(this);
         this.Tracks.Load(composition.Tracks, models);
     }

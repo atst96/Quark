@@ -1,29 +1,20 @@
-﻿using System;
-using System.Linq;
-using Livet;
-using Quark.Data.Projects.Tracks;
+﻿using Quark.Data.Projects.Tracks;
 
 namespace Quark.Projects.Tracks;
 
-internal abstract class TrackBase : NotificationObject
+internal abstract class TrackBase
 {
     protected Project Project { get; }
 
     public string TrackId { get; }
 
-    private string _trackName;
-
-    public string TrackName
-    {
-        get => this._trackName;
-        set => this.RaisePropertyChangedIfSet(ref this._trackName, value);
-    }
+    public string TrackName { get; set; }
 
     private TrackBase(Project project, string trackId, string trackName)
     {
         this.Project = project;
         this.TrackId = trackId;
-        this._trackName = trackName;
+        this.TrackName = trackName;
     }
 
     protected TrackBase(Project project, string trackName)
