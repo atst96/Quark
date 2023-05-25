@@ -4,6 +4,9 @@ using System.Text.RegularExpressions;
 
 namespace Quark.Extensions;
 
+/// <summary>
+/// 正規表現に関する拡張メソッド
+/// </summary>
 public static class RegexExtensions
 {
     /// <summary>キャプチャされたグループの値を取得する</summary>

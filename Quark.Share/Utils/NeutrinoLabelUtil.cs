@@ -113,7 +113,7 @@ internal static class NeutrinoLabelUtil
     {
         using (var sr = new StreamReader(labelPath, Encoding.UTF8))
         {
-            return sr.EnumerateLines(ignoreEmptyLine: true)
+            return sr.EnumerateLines(excludeEmptyLine: true)
                 .Select(i => Regex.Match(i))
                 .Where(i => i.Success)
                 .Select(i =>

@@ -1,13 +1,11 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
+﻿using System.Numerics;
 
 namespace Quark.Extensions;
 
 /// <summary>
 /// 数値に関する拡張メソッド
 /// </summary>
-internal static class NumberExtensions
+public static class NumberExtensions
 {
     /// <summary>
     /// コレクションのうち次に大きい数値を返却する

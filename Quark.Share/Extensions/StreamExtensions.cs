@@ -1,22 +1,22 @@
-﻿using System.Collections.Generic;
-using System.IO;
+﻿namespace Quark.Extensions;
 
-namespace Quark.Extensions;
-
-internal static class StreamExtensions
+/// <summary>
+/// <see cref="Stream"/>に関する拡張メソッド
+/// </summary>
+public static class StreamExtensions
 {
     /// <summary>
     /// StreamReaderから列挙する
     /// </summary>
     /// <param name="reader">SteramReader</param>
-    /// <param name="ignoreEmptyLine">空行を無視する</param>
+    /// <param name="excludeEmptyLine">空行を無視する</param>
     /// <returns></returns>
-    public static IEnumerable<string> EnumerateLines(this StreamReader reader, bool ignoreEmptyLine = false)
+    public static IEnumerable<string> EnumerateLines(this StreamReader reader, bool excludeEmptyLine = false)
     {
         string? line;
         while ((line = reader.ReadLine()) != null)
         {
-            if (!ignoreEmptyLine || !string.IsNullOrEmpty(line))
+            if (!excludeEmptyLine || !string.IsNullOrEmpty(line))
             {
                 yield return line;
             }
