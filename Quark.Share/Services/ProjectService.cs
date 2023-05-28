@@ -1,10 +1,12 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using Quark.DependencyInjection;
 using Quark.Models.Neutrino;
 using Quark.Projects;
 
 namespace Quark.Services;
 
+[Singleton]
 internal class ProjectService
 {
     public ProjectService()

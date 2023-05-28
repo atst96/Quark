@@ -1,9 +1,10 @@
 ﻿using System.Runtime.CompilerServices;
-using Quark.Behaviors;
+using Quark.DependencyInjection;
 using Quark.Mvvm;
 
 namespace Quark.ViewModels;
 
+[Prototype]
 internal class NewProjectWindowViewModel : ViewModelBase
 {
     private bool _isInvalid = false;

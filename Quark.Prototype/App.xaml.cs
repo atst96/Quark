@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using Quark.DependencyInjection;
 using Quark.Services;
 using Quark.Utils;
 
@@ -27,29 +28,21 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        var path = PathUtil.GetAbsolutePath(Config.SettingFile);
-        var settingService = new SettingService(path);
-
-        ServiceProvider = new ServiceCollection()
-            // Singleton service
-            .AddSingleton(settingService)
-            .AddSingleton<NeutrinoV1Service>()
-            .AddSingleton<NeutrinoV2Service>()
-            .AddSingleton<ProjectService>()
-            // Transient service
-            .AddTransient<ProjectSession>()
-            // ViewModel
-            .AddTransient<ViewModels.MainWindowViewModel>()
-            .AddTransient<ViewModels.PreferenceWindowViewModel>()
-            .AddTransient<ViewModels.NewProjectWindowViewModel>()
+        this.ServiceProvider = new ServiceCollection()
+            // 共有ライブラリのアセンブリ
+            .RegisterSharedContext()
+            // 現在のアセンブリ
+            .RegisterContext()
             // Build
             .BuildServiceProvider();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        var serviceProvider = this.ServiceProvider!;
+
         // 設定情報を保存
-        var settingService = ServiceProvider!.GetService<SettingService>()!;
+        var settingService = serviceProvider.GetService<SettingService>()!;
         settingService.Save();
 
         base.OnExit(e);

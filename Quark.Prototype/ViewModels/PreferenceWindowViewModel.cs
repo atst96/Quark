@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using Quark.Behaviors;
 using Quark.Data.Settings;
+using Quark.DependencyInjection;
 using Quark.Mvvm;
 using Quark.Services;
 
@@ -12,6 +13,7 @@ namespace Quark.ViewModels;
 /// <summary>
 /// 設定ウィンドウのViewModel
 /// </summary>
+[Prototype]
 internal class PreferenceWindowViewModel : ViewModelBase
 {
     private SettingService _settingService;

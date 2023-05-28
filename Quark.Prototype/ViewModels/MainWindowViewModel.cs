@@ -12,6 +12,7 @@ using NAudio.Wave;
 using Quark.Audio;
 using Quark.Behaviors;
 using Quark.Data.Projects;
+using Quark.DependencyInjection;
 using Quark.Drawing;
 using Quark.Models.Neutrino;
 using Quark.Mvvm;
@@ -23,6 +24,7 @@ using Quark.Utils;
 
 namespace Quark.ViewModels;
 
+[Prototype]
 internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 {
     private NeutrinoV1Service _neutrino;

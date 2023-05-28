@@ -1,4 +1,5 @@
 ﻿using Quark.Components;
+using Quark.DependencyInjection;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
 using Quark.Projects;
@@ -12,6 +13,7 @@ using System.Threading.Tasks;
 
 namespace Quark.Services;
 
+[Singleton]
 internal class ProjectSession
 {
     private class EstimateQueueInfo

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Quark.Constants;
 using Quark.Data.Projects;
 using Quark.Data.Settings;
+using Quark.DependencyInjection;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
 using Quark.Projects.Neutrino;
@@ -17,6 +18,7 @@ using Quark.Utils;
 
 namespace Quark.Services;
 
+[Singleton]
 internal class NeutrinoV2Service
 {
     private Settings _setting;

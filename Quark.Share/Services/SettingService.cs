@@ -1,19 +1,21 @@
-﻿using System.IO;
-using MemoryPack;
+﻿using MemoryPack;
 using Quark.Data.Settings;
+using Quark.DependencyInjection;
+using Quark.Utils;
 
 namespace Quark.Services;
 
+[Singleton]
 internal class SettingService
 {
     private readonly string _path;
 
     public Settings Settings { get; }
 
-    public SettingService(string path)
+    public SettingService()
     {
-        this._path = path;
-        this.Settings = Read(path);
+        var path = PathUtil.GetAbsolutePath(Config.SettingFile);
+        this.Settings = Read(this._path = path);
     }
 
     private static Settings Read(string path)
