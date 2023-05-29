@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
+﻿using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using Quark.Constants;
 using Quark.Data.Projects;
 using Quark.Data.Settings;

@@ -3,11 +3,16 @@ using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
 using Quark.Projects.Neutrino;
+using Quark.Utils;
 
 namespace Quark.Projects.Tracks;
 
 internal class NeutrinoV1Track : TrackBase
 {
+    private Project _project;
+
+    public event EventHandler TimingEstimated;
+
     public event EventHandler FeatureChanged;
 
     public ModelInfo? Singer { get; set; }
@@ -20,17 +25,23 @@ internal class NeutrinoV1Track : TrackBase
 
     public WaveData WaveData { get; } = new();
 
-    public AudioFeaturesV1? AudioFeatures { get; set; }
+    public AudioFeaturesV1 AudioFeatures { get; set; }
 
     public NeutrinoV1Track(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
     {
+        this._project = project;
         this.Singer = model;
         this.MusicXml = musicXml;
+        this.AudioFeatures = new AudioFeaturesV1(model.Id);
+
+        _ = this.Load();
     }
 
     public NeutrinoV1Track(Project project, NeutrinoV1TrackConfig config, IEnumerable<ModelInfo> models)
         : base(project, config)
     {
+        this._project = project;
+
         var singer = config.Singer;
         if (singer is not null)
         {
@@ -48,6 +59,8 @@ internal class NeutrinoV1Track : TrackBase
             RawPhrases = value.RawPhrases,
             Phrases = value.Phrases?.Select(ConvertConfig).ToArray(),
         };
+
+        _ = this.Load();
     }
 
     private static PhraseInfo2 ConvertConfig(PhraseInfoV1 config)
@@ -83,4 +96,49 @@ internal class NeutrinoV1Track : TrackBase
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
     internal void RaiseFeatureChanged() => this.FeatureChanged?.Invoke(this, EventArgs.Empty);
+
+    private async Task Load()
+    {
+        var session = this.Project.Session;
+
+        // Label
+        if (!this.HasScoreTiming())
+        {
+            var result = await session.NeutrinoV1.ConvertMusicXmlToTiming(this.MusicXml);
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
+            }
+
+            this.FullTiming = result.FullTiming;
+            this.MonoTiming = result.MonoTiming;
+        }
+
+        var features = this.AudioFeatures;
+        if (!features.HasTiming())
+        {
+            var result = await session.NeutrinoV1.GetTiming(this, features);
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
+            }
+
+            features.Timings = NeutrinoUtil.ParseTiming(result.Timing);
+            this.TimingEstimated?.Invoke(this, EventArgs.Empty);
+
+            (features.RawPhrases, features.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, features.Timings);
+
+            session.AddEstimateQueue(this, features, features.Phrases);
+        }
+        else
+        {
+            var phrases = features.Phrases!.Where(p => p.F0 is null);
+            session.AddEstimateQueue(this, features, phrases);
+
+            var phrases2 = features.Phrases!.Where(p => p.F0 is not null);
+            session.AddAudioRenderQueue(this, features, phrases2);
+        }
+    }
 }

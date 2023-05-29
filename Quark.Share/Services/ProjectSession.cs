@@ -6,10 +6,7 @@ using Quark.Projects;
 using Quark.Projects.Neutrino;
 using Quark.Projects.Tracks;
 using Quark.Utils;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading.Tasks;
 
 namespace Quark.Services;
 
@@ -164,7 +161,8 @@ internal class ProjectSession
         byte[]? data;
         try
         {
-            data = await this._neutrinoV1.OutputPreviewWav(phrase).ConfigureAwait(false);
+            // data = await this.NeutrinoV1.OutputPreviewWavWorld(phrase).ConfigureAwait(false);
+            data = await this.NeutrinoV1.OutputPreviewWavNsf(phrase, features).ConfigureAwait(false);
         }
         catch (AggregateException aex) when (aex.InnerException is TaskCanceledException)
         {

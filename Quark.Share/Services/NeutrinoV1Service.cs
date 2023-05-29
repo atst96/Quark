@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
+﻿using System.Diagnostics;
 using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using Quark.Constants;
 using Quark.Data.Projects;
 using Quark.Data.Settings;
@@ -341,7 +336,7 @@ internal class NeutrinoV1Service
         return null;
     }
 
-    public async Task<byte[]?> OutputPreviewWav(PhraseInfo2 phrase, IProgress<ProgressReport>? progress = null)
+    public async Task<byte[]?> OutputPreviewWavWorld(PhraseInfo2 phrase, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetWorldExePath();
 
@@ -371,6 +366,47 @@ internal class NeutrinoV1Service
                 // "-n", NumThreads,
                 "-t"
                 );
+
+            var wavTask = wavFile.Read(clToken);
+
+            bool isSuccess = await Run(procExe, args, this.GetNeturinoDir(), progress)
+                .ConfigureAwait(false);
+
+            if (isSuccess)
+            {
+                return await wavTask.ConfigureAwait(false);
+            }
+            else
+            {
+                clTokenSource.Cancel();
+            }
+        }
+
+        return null;
+    }
+
+    public async Task<byte[]?> OutputPreviewWavNsf(PhraseInfo2 phrase, AudioFeaturesV1 features, IProgress<ProgressReport>? progress = null)
+    {
+        var procExe = this.GetNsfExePath();
+
+        // 対象ファイル用のCancellationToken
+        using var clTokenSource = new CancellationTokenSource();
+        var clToken = clTokenSource.Token;
+
+        using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
+        using (var mgcFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Mgc))
+        using (var bapFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Bap))
+        using (var wavFile = new VirtualFile(FileExtensions.F0))
+        {
+            // 一時ファイルのタイミング情報を書き込む
+            f0File.Write(DataConvertUtil.Cast<double, byte>(phrase.F0));
+            mgcFile.Write(DataConvertUtil.Cast<double, byte>(phrase.Mgc));
+            bapFile.Write(DataConvertUtil.Cast<double, byte>(phrase.Bap));
+
+            var args = $@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" "
+                + @$"""{this.GetModelPath(features.ModelId)}model_nsf.bin"" "
+                + $@"""{PathUtil.Dq(wavFile.FilePath)}"" "
+                + $@"-t -g";
 
             var wavTask = wavFile.Read(clToken);
 
