@@ -41,14 +41,19 @@ internal class ProjectSession
 
     private readonly TaskQueue<EstimateQueueInfo> _audioRenderQueue;
 
-    private readonly NeutrinoV1Service _neutrinoV1;
+    public NeutrinoV1Service NeutrinoV1 { get; }
 
-    public ProjectSession(Project project, NeutrinoV1Service neutrinoV1)
+    public NeutrinoV2Service NeutrinoV2 { get; }
+
+    public ProjectSession(Project project, NeutrinoV1Service neutrinoV1, NeutrinoV2Service neutrinoV2)
     {
         this.Project = project;
-        this._neutrinoV1 = neutrinoV1;
+        this.NeutrinoV1 = neutrinoV1;
+        this.NeutrinoV2 = neutrinoV2;
         this._estimateQueue = new(1, this.ProcessEstimateQueue);
-        this._audioRenderQueue = new(1, this.ProcessAudioRenderQueue);
+        this._audioRenderQueue = new(2, this.ProcessAudioRenderQueue);
+
+        this.BeginSession();
     }
 
     public void BeginSession()
@@ -103,7 +108,7 @@ internal class ProjectSession
         EstimateFeaturesResultV1? result;
         try
         {
-            result = await this._neutrinoV1.EstimateFeatures(track, features, phrase).ConfigureAwait(false);
+            result = await this.NeutrinoV1.EstimateFeatures(track, features, phrase).ConfigureAwait(false);
         }
         catch (AggregateException aex) when (aex.InnerException is TaskCanceledException)
         {

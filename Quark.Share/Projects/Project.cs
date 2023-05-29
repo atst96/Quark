@@ -1,5 +1,6 @@
 ﻿using Quark.Data.Project;
-using Quark.Models.Neutrino;
+using Quark.Factories;
+using Quark.Services;
 using Quark.Utils;
 
 namespace Quark.Projects;
@@ -15,20 +16,28 @@ internal class Project
     /// </summary>
     public string Name { get; set; }
 
+    public ProjectSession Session { get; }
+
     public TrackCollection Tracks { get; }
 
-    public Project(string name)
+    public Project(string name, ProjectSessionFactory sessionFactory)
     {
-        this.Tracks = new(this);
+        this.Session = sessionFactory.Create(this);
+        this.Tracks = new(this, this.Session);
         this.Name = name;
+
+        this.Session.BeginSession();
     }
 
-    public Project(string projDir, ProjectConfig composition, IEnumerable<ModelInfo> models)
+    public Project(string projDir, ProjectConfig composition, ProjectSessionFactory sessionFactory)
     {
         this.ProjectFilePath = projDir;
+        this.Session = sessionFactory.Create(this);
         this.Name = composition.Name;
-        this.Tracks = new(this);
-        this.Tracks.Load(composition.Tracks, models);
+        this.Tracks = new(this, this.Session);
+        this.Tracks.Load(composition.Tracks);
+
+        this.Session.BeginSession();
     }
 
     public void SaveToFile(string? filePath = null, bool overrideFielPath = true)
@@ -47,8 +56,11 @@ internal class Project
         MemoryPackUtil.WriteFileCompression(projPath, this.GetConfig());
     }
 
-    public static Project Open(string projPath, IEnumerable<ModelInfo> models)
-        => new Project(projPath, MemoryPackUtil.ReadFileCompressed<ProjectConfig>(projPath)!, models);
+    public static Project Open(string projPath, ProjectSessionFactory sessionFactory)
+        => new Project(projPath, ReadProjectFile(projPath)!, sessionFactory);
+
+    private static ProjectConfig ReadProjectFile(string path)
+        => MemoryPackUtil.ReadFileCompressed<ProjectConfig>(path);
 
     public ProjectConfig GetConfig()
         => new(this.Name, this.Tracks.GetConfig());

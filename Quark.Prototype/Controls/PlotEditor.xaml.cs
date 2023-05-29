@@ -48,7 +48,7 @@ public partial class PlotEditor : UserControl
     private SKBitmap _dynamicImage;
 
     private bool _isLoaded = false;
-    private long _framesCount = -1;
+    private long _framesCount = 0;
     private PartScore _score;
     private PartScore _currentViewScore;
     private VerticalLineInfo[]? _noteLines;
@@ -203,11 +203,13 @@ public partial class PlotEditor : UserControl
             if (e.OldValue is NeutrinoV1Track oldTrack)
             {
                 oldTrack.FeatureChanged -= editor.OnTrackFeatureChanged;
+                oldTrack.TimingEstimated -= editor.OnTimingEstimated;
             }
 
             if (e.NewValue is NeutrinoV1Track newTrack)
             {
                 newTrack.FeatureChanged += editor.OnTrackFeatureChanged;
+                newTrack.TimingEstimated += editor.OnTimingEstimated;
                 editor.LoadTrack(newTrack);
             }
 
@@ -221,6 +223,16 @@ public partial class PlotEditor : UserControl
         // 再描画
         this.Redraw();
     }, DispatcherPriority.Render);
+
+    private void OnTimingEstimated(object? sender, EventArgs e) => this.Dispatcher.InvokeAsync(() =>
+    {
+        // 再描画
+        this.LoadTrack(this.Track!);
+
+        this.UpdateScrollLayout();
+        this.RelocateSeekBar();
+
+    }, DispatcherPriority.Normal);
 
     /// <summary>
     /// <seealso cref="ScaleX"/>プロパティ変更時
@@ -334,7 +346,16 @@ public partial class PlotEditor : UserControl
 
         this._isLoaded = true;
         this._score = MusicXmlUtil.Parse(track.MusicXml);
-        this._framesCount = (int)Math.Ceiling(features.Timings!.Last().EndTimeNs / 10000d / 5d);
+
+        if (features.Timings.Length > 0)
+        {
+            this._framesCount = (int)Math.Ceiling(features.Timings.Last().EndTimeNs / 10000d / 5d);
+        }
+        else
+        {
+            this._framesCount = 0;
+        }
+
         this.PART_LyricsTextBox.Text = GetLyrics(this._score);
 
         this.Redraw();
@@ -434,7 +455,11 @@ public partial class PlotEditor : UserControl
             if (isAutoScroll)
             {
                 double value;
-                if (prevTime.HasValue && prevTime < time)
+                if (totalFrameCount <= 0)
+                {
+                    value = 0;
+                }
+                else if (prevTime.HasValue && prevTime < time)
                 {
                     // 前方向への移動
                     value = Math.Ceiling((time.TotalMilliseconds / (totalFrameCount * 5)) * MaxHScrollHeight);

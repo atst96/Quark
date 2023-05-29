@@ -17,22 +17,22 @@ using Quark.Drawing;
 using Quark.Models.Neutrino;
 using Quark.Mvvm;
 using Quark.Projects;
-using Quark.Projects.Neutrino;
 using Quark.Projects.Tracks;
 using Quark.Services;
-using Quark.Utils;
 
 namespace Quark.ViewModels;
 
 [Prototype]
 internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 {
-    private NeutrinoV1Service _neutrino;
     private ProjectService _projects;
 
     private Project? _currentProject;
 
     private DispatcherTimer _timer;
+
+    private NeutrinoV1Service _neutrinoV1;
+    private NeutrinoV2Service _neutrinoV2;
 
     public bool HasProject => this._currentProject is not null;
 
@@ -123,9 +123,11 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     public NewProjectWindowViewModel NewProjectViewModel
         => this._newProjectViewModel ??= this.AddDisposable(new NewProjectWindowViewModel());
 
-    public MainWindowViewModel(NeutrinoV1Service neutrino, ProjectService projects) : base()
+    public MainWindowViewModel(ProjectService projects, NeutrinoV1Service v1Service, NeutrinoV2Service v2Service, NeutrinoV1Service neutrinoV1) : base()
     {
-        this._neutrino = neutrino;
+        this._neutrinoV1 = v1Service;
+        this._neutrinoV2 = v2Service;
+
         this._projects = projects;
 
         this._timer = new(
@@ -163,7 +165,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         if (viewModel is { IsInvalid: true })
         {
             this.CurrentProject = this._projects.Create(viewModel.ProjectName);
-            this._projectSession = new ProjectSession(this.CurrentProject, this._neutrino);
+            this._projectSession = this.CurrentProject.Session;
         }
     }
 
@@ -192,12 +194,12 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         if (msg is { Response.Length: > 0 })
         {
-            this.CurrentProject = this._projects.Open(msg.Response[0], this._neutrino.GetModels());
-            this._projectSession = new(this.CurrentProject, this._neutrino);
+            this.CurrentProject = this._projects.Open(msg.Response[0]);
+            this._projectSession = this.CurrentProject.Session;
 
             if (this.CurrentProject.Tracks.LastOrDefault() is NeutrinoV1Track t)
             {
-                this.LoadTrack(this.CurrentProject, this._projectSession, t);
+                this.CurrentTrack = t;
                 this.InitAudio(t);
             }
         }
@@ -225,7 +227,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
         var path = msg.Response[0];
         var track = this.CurrentProject!.Tracks.ImportFromMusicXml(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
-        this.LoadTrack(this.CurrentProject!, this._projectSession!, track);
+        this.CurrentTrack = track;
         this.InitAudio(track);
     }
 
@@ -254,7 +256,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         var model = this.SelectedModelInfo;
 
         // モデル一覧を取得
-        this.Models = this._neutrino.GetModels();
+        this.Models = this._neutrinoV1.GetModels();
 
 
         if (model is not null)
@@ -306,51 +308,6 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         get => this._selectedQuantize;
         set => this.RaisePropertyChangedIfSet(ref this._selectedQuantize, value);
-    }
-
-    public async void LoadTrack(Project project, ProjectSession session, NeutrinoV1Track track)
-    {
-        session.BeginSession();
-
-        // Label
-        if (!track.HasScoreTiming())
-        {
-            var result = await this._neutrino.ConvertMusicXmlToTiming(track);
-            if (result is null)
-            {
-                // TODO: 実行失敗時
-                return;
-            }
-
-            track.FullTiming = result.FullTiming;
-            track.MonoTiming = result.MonoTiming;
-        }
-
-        var features = track.AudioFeatures ??= new AudioFeaturesV1(this.SelectedModelInfo!.Id);
-        if (!features.HasTiming())
-        {
-            var result = await this._neutrino.GetTiming(track, features);
-            if (result is null)
-            {
-                // TODO: 実行失敗時
-                return;
-            }
-
-            features.Timings = NeutrinoUtil.ParseTiming(result.Timing);
-            (features.RawPhrases, features.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, features.Timings);
-
-            session.AddEstimateQueue(track, features, features.Phrases);
-        }
-        else
-        {
-            var phrases = features.Phrases!.Where(p => p.F0 is null);
-            session.AddEstimateQueue(track, features, phrases);
-
-            var phrases2 = features.Phrases!.Where(p => p.F0 is not null);
-            session.AddAudioRenderQueue(track, features, phrases2);
-        }
-
-        App.Instance.Dispatcher.Invoke(() => this.CurrentTrack = track);
     }
 
     private Command _playCommand;

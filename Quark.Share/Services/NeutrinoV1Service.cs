@@ -73,9 +73,12 @@ internal class NeutrinoV1Service
     private string GetWorldExePath()
         => this.GetNeutrinoPath(WorldExe);
 
+    private string GetNsfExePath()
+        => this.GetNeutrinoPath(NsfExe);
+
     private static readonly Encoding TextEncoding = new UTF8Encoding(false);
 
-    public async Task<ConvertScoreToTimingResult?> ConvertMusicXmlToTiming(NeutrinoV1Track track)
+    public async Task<ConvertScoreToTimingResult?> ConvertMusicXmlToTiming(string musicXml)
     {
         var procExe = this.GetNeutrinoPath(MusicXmlExe);
 
@@ -83,7 +86,7 @@ internal class NeutrinoV1Service
         using (var fullLabFile = new VirtualFile(FileExtensions.Label))
         using (var monoLabFile = new VirtualFile(FileExtensions.Label))
         {
-            musicXmlFile.Write(TextEncoding.GetBytes(track.MusicXml));
+            musicXmlFile.Write(TextEncoding.GetBytes(musicXml));
 
             var t1 = fullLabFile.Read();
             var t2 = monoLabFile.Read();

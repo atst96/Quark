@@ -1,5 +1,3 @@
-﻿using System.Collections.Generic;
-using System.IO;
 using Quark.DependencyInjection;
 using Quark.Models.Neutrino;
 using Quark.Projects;
@@ -9,12 +7,15 @@ namespace Quark.Services;
 [Singleton]
 internal class ProjectService
 {
-    public ProjectService()
+    private ProjectSessionFactory _sessionFactory;
+
+    public ProjectService(ProjectSessionFactory sessionFactory)
     {
+        this._sessionFactory = sessionFactory;
     }
 
-    public Project Create(string name) => new Project(name);
+    public Project Create(string name) => new(name, this._sessionFactory);
 
-    public Project Open(string projPath, IEnumerable<ModelInfo> models)
-        => Project.Open(projPath, models);
+    public Project Open(string projPath)
+        => Project.Open(projPath, this._sessionFactory);
 }
