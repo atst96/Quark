@@ -1,12 +1,12 @@
-﻿using System;
-using System.Windows;
+﻿using Quark.ImageRender;
 
 namespace Quark.Controls;
 
 /// <summary>
+/// 音響情報を描画するための情報
 /// スケーリング100%時の1pxを1msとする。
 /// </summary>
-internal class RenderInfo
+internal class ViewDrawingBoxInfo
 {
     public RenderScaleInfo Scaling { get; }
 
@@ -69,7 +69,7 @@ internal class RenderInfo
         public const int FramesPerSecond = 1000 / FramePeriod;
     }
 
-    public RenderInfo(RenderScaleInfo scaling, int scaledDisplayWidth, int scaledDisplayHeight, int keyHeight, int renderWidth, double widthStretch = 0.8f, double heightStretch = 1.0f)
+    public ViewDrawingBoxInfo(RenderScaleInfo scaling, int scaledDisplayWidth, int scaledDisplayHeight, int keyHeight, int renderWidth, double widthStretch = 0.8f, double heightStretch = 1.0f)
     {
         this.Scaling = scaling;
         this.UnscaledDisplayWidth = scaling.ToRenderImageScaling(scaledDisplayWidth);

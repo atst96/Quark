@@ -87,7 +87,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
                 this.SetTitle(value!.Name);
                 if (value.Tracks.FirstOrDefault() is NeutrinoV1Track track)
                 {
-                    var foundModel = this.Models.FirstOrDefault(i => i.Id == track.Singer!.Id);
+                    var foundModel = this.Models.FirstOrDefault(i => i.ModelId == track.Singer!.ModelId);
                     if (foundModel is not null)
                     {
                         this.SelectedModelInfo = foundModel;
@@ -262,14 +262,14 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         if (model is not null)
         {
             // 前回選択済みなら同じモデルを選択する
-            this.SelectedModelInfo = this.Models.FirstOrDefault(m => m.Id == model.Id);
+            this.SelectedModelInfo = this.Models.FirstOrDefault(m => m.ModelId == model.ModelId);
         }
 
         if (this.SelectedModelInfo is null)
         {
             // 前回未選択または前回のモデルが見つからない場合は既定のモデルを選択
             // それも見つからなければ最初のモデルを選択する
-            this.SelectedModelInfo = this.Models.FirstOrDefault(m => m.Id == TempDefaultModelId)
+            this.SelectedModelInfo = this.Models.FirstOrDefault(m => m.ModelId == TempDefaultModelId)
                 ?? this.Models.FirstOrDefault();
         }
     }

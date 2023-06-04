@@ -7,7 +7,7 @@ using Quark.Utils;
 
 namespace Quark.Projects.Tracks;
 
-internal class NeutrinoV1Track : TrackBase
+internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
 {
     private Project _project;
 
@@ -15,7 +15,7 @@ internal class NeutrinoV1Track : TrackBase
 
     public event EventHandler FeatureChanged;
 
-    public ModelInfo? Singer { get; set; }
+    public ModelInfo Singer { get; set; }
 
     public string MusicXml { get; set; }
 
@@ -23,16 +23,21 @@ internal class NeutrinoV1Track : TrackBase
 
     public byte[]? MonoTiming { get; set; }
 
-    public WaveData WaveData { get; } = new();
+    public TimingInfo[] Timings { get; set; } = Array.Empty<TimingInfo>();
 
-    public AudioFeaturesV1 AudioFeatures { get; set; }
+    public PhraseInfo[] RawPhrases { get; set; } = Array.Empty<PhraseInfo>();
+
+    INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
+
+    public NeutrinoV1Phrase[] Phrases { get; set; } = Array.Empty<NeutrinoV1Phrase>();
+
+    public WaveData WaveData { get; } = new();
 
     public NeutrinoV1Track(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
     {
         this._project = project;
         this.Singer = model;
         this.MusicXml = musicXml;
-        this.AudioFeatures = new AudioFeaturesV1(model.Id);
 
         _ = this.Load();
     }
@@ -45,7 +50,7 @@ internal class NeutrinoV1Track : TrackBase
         var singer = config.Singer;
         if (singer is not null)
         {
-            this.Singer = models.FirstOrDefault(t => t.Id == singer)!; // TODO: モデルが見つからない場合
+            this.Singer = models.FirstOrDefault(t => t.ModelId == singer)!; // TODO: モデルが見つからない場合
         }
 
         this.MusicXml = config.MusicXml;
@@ -53,21 +58,18 @@ internal class NeutrinoV1Track : TrackBase
         this.MonoTiming = config.MonoTiming;
 
         var value = config.Features;
-        this.AudioFeatures = new(value.ModelId)
-        {
-            Timings = value.Timings,
-            RawPhrases = value.RawPhrases,
-            Phrases = value.Phrases?.Select(ConvertConfig).ToArray(),
-        };
+        this.Timings = value.Timings;
+        this.RawPhrases = value.RawPhrases;
+        this.Phrases = value.Phrases.Select(ConvertConfig).ToArray();
 
         _ = this.Load();
     }
 
-    private static PhraseInfo2 ConvertConfig(PhraseInfoV1 config)
+    private static NeutrinoV1Phrase ConvertConfig(PhraseInfoV1 config)
     {
         bool hasAudioFeatures = config.F0 != null && config.Mgc != null && config.Bap != null;
 
-        var phrase = new PhraseInfo2(config.No, config.BeginTime, config.EndTime, config.Label, (hasAudioFeatures ? PhraseStatus.WaitAudioRender : PhraseStatus.WaitEstimate));
+        var phrase = new NeutrinoV1Phrase(config.No, config.BeginTime, config.EndTime, config.Label, (hasAudioFeatures ? PhraseStatus.WaitAudioRender : PhraseStatus.WaitEstimate));
 
         if (hasAudioFeatures)
         {
@@ -79,18 +81,17 @@ internal class NeutrinoV1Track : TrackBase
 
     public override TrackBaseConfig GetConfig()
     {
-        var features = this.AudioFeatures;
-        var config = new AudioFeaturesV1Config(features.ModelId)
+        var config = new AudioFeaturesV1Config(this.Singer.ModelId)
         {
-            Timings = features.Timings,
-            RawPhrases = features.RawPhrases,
-            Phrases = features.Phrases?.Select(i => ToConfig(i)).ToArray(),
+            Timings = this.Timings,
+            RawPhrases = this.RawPhrases,
+            Phrases = this.Phrases.Select(i => ToConfig(i)).ToArray(),
         };
 
-        return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Id, config);
+        return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, config);
     }
 
-    private PhraseInfoV1 ToConfig(PhraseInfo2 i) => new(
+    private PhraseInfoV1 ToConfig(NeutrinoV1Phrase i) => new(
         i.No, i.BeginTime, i.EndTime, i.Label, i.F0, i.Mgc, i.Bap);
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
@@ -115,30 +116,40 @@ internal class NeutrinoV1Track : TrackBase
             this.MonoTiming = result.MonoTiming;
         }
 
-        var features = this.AudioFeatures;
-        if (!features.HasTiming())
+        if (!this.HasTimings())
         {
-            var result = await session.NeutrinoV1.GetTiming(this, features);
+            var result = await session.NeutrinoV1.GetTiming(this);
             if (result is null)
             {
                 // TODO: 実行失敗時
                 return;
             }
 
-            features.Timings = NeutrinoUtil.ParseTiming(result.Timing);
+            this.Timings = NeutrinoUtil.ParseTiming(result.Timing);
             this.TimingEstimated?.Invoke(this, EventArgs.Empty);
 
-            (features.RawPhrases, features.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, features.Timings);
+            (this.RawPhrases, this.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, this.Timings);
 
-            session.AddEstimateQueue(this, features, features.Phrases);
+            session.AddEstimateQueue(this, this.Phrases);
         }
         else
         {
-            var phrases = features.Phrases!.Where(p => p.F0 is null);
-            session.AddEstimateQueue(this, features, phrases);
+            var phrases = this.Phrases.Where(p => p.F0 is null);
+            session.AddEstimateQueue(this, phrases);
 
-            var phrases2 = features.Phrases!.Where(p => p.F0 is not null);
-            session.AddAudioRenderQueue(this, features, phrases2);
+            var phrases2 = this.Phrases.Where(p => p.F0 is not null);
+            session.AddAudioRenderQueue(this, phrases2);
         }
+    }
+
+    public bool HasTimings() => this.Timings.Any();
+
+    public long GetTotalFramesCount()
+    {
+        var timings = this.Timings;
+
+        return timings.Length > 0
+            ? (int)Math.Ceiling(timings.Last().EndTimeNs / 10000d / 5d)
+            : 0;
     }
 }

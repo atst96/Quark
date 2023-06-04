@@ -1,8 +1,8 @@
-﻿using System.Diagnostics;
+﻿using Quark.Projects.Tracks;
 
 namespace Quark.Models.Neutrino;
 
-public class PhraseInfo2
+public class NeutrinoV1Phrase : INeutrinoPhrase
 {
     public int No { get; }
 
@@ -20,7 +20,7 @@ public class PhraseInfo2
 
     public double[]? Bap { get; private set; }
 
-    public PhraseInfo2(int no, int beginTime, int endTime, string label, PhraseStatus status)
+    public NeutrinoV1Phrase(int no, int beginTime, int endTime, string label, PhraseStatus status)
     {
         this.No = no;
         this.BeginTime = beginTime;
@@ -30,7 +30,7 @@ public class PhraseInfo2
     }
 
     public override string ToString()
-        => $"{nameof(PhraseInfo2)} {{ No: {this.No}, BeginTime: {this.BeginTime}, EndTime: {this.EndTime}, Label: {this.Label}, Status: {this.Status} }}";
+        => $"{nameof(NeutrinoV1Phrase)} {{ No: {this.No}, BeginTime: {this.BeginTime}, EndTime: {this.EndTime}, Label: {this.Label}, Status: {this.Status} }}";
 
     public void SetAudioFeatures(double[] f0, double[] mgc, double[] bap)
         => (this.F0, this.Mgc, this.Bap) = (f0, mgc, bap);

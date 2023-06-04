@@ -5,7 +5,6 @@ namespace Quark.Utils;
 
 public class DataConvertUtil
 {
-
     /// <summary>
     /// バイト配列を構造体に変換する
     /// </summary>

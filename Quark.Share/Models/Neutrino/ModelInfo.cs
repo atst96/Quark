@@ -7,6 +7,6 @@
 /// <param name="Name">モデル名</param>
 /// <param name="Path">ディレクトリのパス</param>
 public record ModelInfo(
-    string Id,
+    string ModelId,
     string Name,
     string Path);

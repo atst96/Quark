@@ -1,14 +1,13 @@
-﻿using System;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 
-namespace Quark.Controls;
+namespace Quark.ImageRender;
 
-internal class RenderScaleInfo
+public class RenderScaleInfo
 {
     /// <summary>
     /// スケーリング
     /// </summary>
-    private double _scale;
+    private readonly double _scale;
 
     public RenderScaleInfo(double displayScale)
     {

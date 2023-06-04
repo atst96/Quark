@@ -58,7 +58,7 @@ public static partial class NeutrinoUtil
     /// </summary>
     /// <param name="phraseContent">NEUTRINOから出力されたフレーズ情報</param>
     /// <returns></returns>
-    public static (PhraseInfo[], PhraseInfo2[]) ParsePhrases(string phraseContent, TimingInfo[] timing)
+    public static (PhraseInfo[], NeutrinoV1Phrase[]) ParsePhrases(string phraseContent, TimingInfo[] timing)
     {
         var parsedPhrases = ParseWithRegex<PhraseInfo>(phraseContent, GetPhraseRegex(),
             r => new(
@@ -68,7 +68,7 @@ public static partial class NeutrinoUtil
                 r.GetValue("label")))
             .ToArray();
 
-        var phrases = new PhraseInfo2[parsedPhrases.Count(p => p.IsVoiced)];
+        var phrases = new NeutrinoV1Phrase[parsedPhrases.Count(p => p.IsVoiced)];
 
         for (int idx = 0, destIdx = 0; idx < parsedPhrases.Length; ++idx)
         {

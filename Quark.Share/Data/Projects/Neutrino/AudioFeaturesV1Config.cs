@@ -13,9 +13,9 @@ public partial class AudioFeaturesV1Config
 
     public string ModelId { get; }
 
-    public TimingInfo[]? Timings { get; set; }
+    public TimingInfo[] Timings { get; set; }
 
-    public PhraseInfo[]? RawPhrases { get; set; }
+    public PhraseInfo[] RawPhrases { get; set; }
 
-    public PhraseInfoV1[]? Phrases { get; set; }
+    public PhraseInfoV1[] Phrases { get; set; }
 }

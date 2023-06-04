@@ -34,7 +34,7 @@ internal class NeutrinoV2Track : TrackBase
         var singer = config.Singer;
         if (singer is not null)
         {
-            this.Singer = models.FirstOrDefault(t => t.Id == singer)!; // TODO: モデルが見つからない場合
+            this.Singer = models.FirstOrDefault(t => t.ModelId == singer)!; // TODO: モデルが見つからない場合
         }
 
         this.MusicXml = config.MusicXml;
@@ -69,13 +69,13 @@ internal class NeutrinoV2Track : TrackBase
             };
         }).ToDictionary(i => i.ModelId);
 
-        return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.Id, features);
+        return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, features);
     }
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
 
-    public AudioFeaturesV2 GetFeatures() => this.GetFeatures(this.Singer!.Id);
+    public AudioFeaturesV2 GetFeatures() => this.GetFeatures(this.Singer!.ModelId);
 
     public AudioFeaturesV2 GetFeatures(string modelId)
     {

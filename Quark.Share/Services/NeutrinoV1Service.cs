@@ -173,7 +173,7 @@ internal class NeutrinoV1Service
         return isSuccess;
     }
 
-    public async Task<EstimateTimingResult?> GetTiming(NeutrinoV1Track track, AudioFeaturesV1 features, IProgress<ProgressReport>? progress = null)
+    public async Task<EstimateTimingResult?> GetTiming(NeutrinoV1Track track, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetNeutrinoPath(IsLegacy() ? NeutrinoLegacyExe : NeutrinoExe);
 
@@ -197,7 +197,7 @@ internal class NeutrinoV1Service
 
             var args = $@"""{fullLabFile.Path}"" ""{timingLabFile.FilePath}"" "
                 + $@"""{f0File.FilePath}"" ""{mgcFile.FilePath}"" ""{bapFile.FilePath}"" "
-                + $@"{this.GetModelPath(features.ModelId)} "
+                + $@"{this.GetModelPath(track.Singer.ModelId)} "
                 + $@"-i ""{phraseFile.FilePath}"" "
                 + $@"-m -t -a";
 
@@ -230,7 +230,7 @@ internal class NeutrinoV1Service
         return null;
     }
 
-    public async Task<EstimateFeaturesResultV1?> EstimateFeatures(NeutrinoV1Track track, AudioFeaturesV1 features, IProgress<ProgressReport>? progress = null)
+    public async Task<EstimateFeaturesResultV1?> EstimateFeatures(NeutrinoV1Track track, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetNeutrinoPath(NeutrinoExe);
 
@@ -246,11 +246,11 @@ internal class NeutrinoV1Service
         {
             // 一時ファイルのタイミング情報を書き込む
             fullLabFile.Write(track.FullTiming);
-            timingLabFile.Write(NeutrinoUtil.ToString(features.Timings!));
+            timingLabFile.Write(NeutrinoUtil.ToString(track.Timings));
 
             var args = $@"""{fullLabFile.Path}"" ""{timingLabFile.Path}"" "
                 + @$"""{f0File.FilePath}"" ""{mgcFile.FilePath}"" ""{bapFile.FilePath}"" "
-                + @$"""{this.GetModelPath(features.ModelId)}"" "
+                + @$"""{this.GetModelPath(track.Singer.ModelId)}"" "
                 + $@"-m -t -s";
 
             var f0Task = f0File.Read(clToken);
@@ -278,7 +278,7 @@ internal class NeutrinoV1Service
         return null;
     }
 
-    public async Task<EstimateFeaturesResultV1?> EstimateFeatures(NeutrinoV1Track track, AudioFeaturesV1 features, PhraseInfo2 phrase, IProgress<ProgressReport>? progress = null)
+    public async Task<EstimateFeaturesResultV1?> EstimateFeatures(NeutrinoV1Track track, NeutrinoV1Phrase phrase, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetNeutrinoExePath();
 
@@ -295,8 +295,8 @@ internal class NeutrinoV1Service
         {
             // 一時ファイルのタイミング情報を書き込む
             fullLabFile.Write(track.FullTiming);
-            timingLabFile.Write(NeutrinoUtil.ToString(features.Timings!));
-            phraseFile.Write(NeutrinoUtil.ToString(features.RawPhrases!));
+            timingLabFile.Write(NeutrinoUtil.ToString(track.Timings));
+            phraseFile.Write(NeutrinoUtil.ToString(track.RawPhrases));
 
             var args = string.Join(" ",
                 PathUtil.Dq(fullLabFile.Path),
@@ -304,7 +304,7 @@ internal class NeutrinoV1Service
                 PathUtil.Dq(f0File.FilePath),
                 PathUtil.Dq(mgcFile.FilePath),
                 PathUtil.Dq(bapFile.FilePath),
-                this.GetModelPath(features.ModelId),
+                this.GetModelPath(track.Singer.ModelId),
                 "-i", PathUtil.Dq(phraseFile.Path),
                 "-p", phrase.No,
                 "-m", "-t", "-s"
@@ -336,7 +336,7 @@ internal class NeutrinoV1Service
         return null;
     }
 
-    public async Task<byte[]?> OutputPreviewWavWorld(PhraseInfo2 phrase, IProgress<ProgressReport>? progress = null)
+    public async Task<byte[]?> OutputPreviewWavWorld(NeutrinoV1Phrase phrase, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetWorldExePath();
 
@@ -385,7 +385,7 @@ internal class NeutrinoV1Service
         return null;
     }
 
-    public async Task<byte[]?> OutputPreviewWavNsf(PhraseInfo2 phrase, AudioFeaturesV1 features, IProgress<ProgressReport>? progress = null)
+    public async Task<byte[]?> OutputPreviewWavNsf(NeutrinoV1Phrase phrase, ModelInfo modelInfo, IProgress<ProgressReport>? progress = null)
     {
         var procExe = this.GetNsfExePath();
 
@@ -404,7 +404,7 @@ internal class NeutrinoV1Service
             bapFile.Write(DataConvertUtil.Cast<double, byte>(phrase.Bap));
 
             var args = $@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" "
-                + @$"""{this.GetModelPath(features.ModelId)}model_nsf.bin"" "
+                + @$"""{this.GetModelPath(modelInfo.ModelId)}model_nsf.bin"" "
                 + $@"""{PathUtil.Dq(wavFile.FilePath)}"" "
                 + $@"-t -g";
 

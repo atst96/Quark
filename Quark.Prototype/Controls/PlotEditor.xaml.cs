@@ -4,22 +4,23 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Quark.Compatibles;
 using Quark.Drawing;
 using Quark.Extensions;
-using Quark.Models.Neutrino;
+using Quark.ImageRender;
+using Quark.ImageRender.Parts;
+using Quark.ImageRender.PianoRoll;
+using Quark.ImageRender.Score;
 using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
-using static Quark.Controls.RenderInfo;
+using static Quark.Controls.ViewDrawingBoxInfo;
 
 namespace Quark.Controls;
 
@@ -39,22 +40,20 @@ public partial class PlotEditor : UserControl
 
     private DispatcherTimer _mouseTimer;
 
-    private SKPaint _whiteKeyPaint = new SKPaint { Color = new SKColor(255, 255, 255) };
-    private SKPaint _blackKeyPaint = new SKPaint { Color = new SKColor(230, 230, 230) };
-    private SKPaint _whiteKeyGridPaint = new SKPaint { Color = new SKColor(230, 230, 230), StrokeWidth = 1 };
+    private ColorInfo ColorInfo { get; } = new ColorInfo();
 
-    private SKBitmap _renderImage;
-    private SKBitmap _rulerImage;
-    private SKBitmap _dynamicImage;
+    private SKBitmap? _renderImage;
+    private SKBitmap? _rulerImage;
+    private SKBitmap? _dynamicImage;
 
     private bool _isLoaded = false;
     private long _framesCount = 0;
-    private PartScore _score;
-    private PartScore _currentViewScore;
-    private VerticalLineInfo[]? _noteLines;
-    private VerticalLineInfo[]? _rulerLines;
-    private RenderScaleInfo _scaling;
-    private RenderInfo _renderInfo;
+    private TrackScoreInfo _trackScoreInfo;
+    private ViewDrawingBoxInfo _viewBoxInfo;
+    private RenderInfoCommon _renderCommon;
+    private PianoRollRenderer _pianoRollRenderer;
+    private RulerRenderer _rulerRenderer;
+    private DynamicsRendererV1 _dynamicsRenderer;
 
     /// <summary>横伸長率の初期値</summary>
     private const double DefaultScaleX = 0.125;
@@ -81,14 +80,14 @@ public partial class PlotEditor : UserControl
     /// <summary>自動スクロール用の外側領域の幅</summary>
     private const double AutoScrollOuterWidth = 400;
 
-    private int _rulerHeight = 24;
-
     private SKPaint lyricsTypography = new(new SKFont(SKTypeface.FromFamilyName("MS UI Gothic"), 12));
+
+    private double _displayDpi;
 
     public PlotEditor()
     {
         this.InitializeComponent();
-        this._scaling = new RenderScaleInfo(VisualTreeHelper.GetDpi(this).DpiScaleX);
+        this._displayDpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
 
         // マウス操作時のタイマー
         this._mouseTimer = new(
@@ -116,7 +115,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e"></param>
     private void OnDpiChanged(object sender, DpiChangedEventArgs e)
     {
-        this._scaling = new RenderScaleInfo(e.NewDpi.DpiScaleX);
+        this._displayDpi = e.NewDpi.DpiScaleX;
         this.OnLayoutChanged();
     }
 
@@ -340,23 +339,17 @@ public partial class PlotEditor : UserControl
     /// <param name="track">トラック情報</param>
     private void LoadTrack(NeutrinoV1Track track)
     {
-        var features = track.AudioFeatures;
-
         // 楽譜情報解析
 
         this._isLoaded = true;
-        this._score = MusicXmlUtil.Parse(track.MusicXml);
-
-        if (features.Timings.Length > 0)
+        var trackInfo = this._trackScoreInfo = new TrackScoreInfo
         {
-            this._framesCount = (int)Math.Ceiling(features.Timings.Last().EndTimeNs / 10000d / 5d);
-        }
-        else
-        {
-            this._framesCount = 0;
-        }
+            Score = MusicXmlUtil.Parse(track.MusicXml),
+        };
 
-        this.PART_LyricsTextBox.Text = GetLyrics(this._score);
+        this._framesCount = track.GetTotalFramesCount();
+
+        this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
 
         this.Redraw();
     }
@@ -371,14 +364,14 @@ public partial class PlotEditor : UserControl
 
         long dataLength = this._framesCount;
 
-        var renderInfo = this._renderInfo;
+        var renderInfo = this._viewBoxInfo;
 
         double height = renderInfo.RenderDisplayHeight;
 
         // ########## 縦スクロールの設定
         var vScrollBar = this.vScrollBar1;
         int renderHeight = renderInfo.GetDrawScoreHeight(height);
-        double scaledKeyHeight = this._scaling.ToDisplayScaling(renderInfo.KeyHeight);
+        double scaledKeyHeight = renderInfo.Scaling.ToDisplayScaling(renderInfo.KeyHeight);
         vScrollBar.Minimum = 0;
         vScrollBar.Maximum = renderInfo.UnscaledScoreHeight - renderHeight;
         vScrollBar.SmallChange = scaledKeyHeight;
@@ -400,9 +393,14 @@ public partial class PlotEditor : UserControl
     /// </summary>
     public void OnLayoutChanged()
     {
-        (int renderWidth, int renderHeight) = this.GetCanvasSize();
-
-        this._renderInfo = new RenderInfo(this._scaling, renderWidth, renderHeight, this.KeyHeight, (int)renderWidth, this.ScaleX, 1.0f);
+        this._viewBoxInfo = this.CreateRenderInfo();
+        this.UpdateRenderInfo(new RenderInfoCommon
+        {
+            Track = this.Track,
+            RenderRange = this._renderCommon.RenderRange,
+            ColorInfo = this.ColorInfo,
+            PartRenderInfo = this._viewBoxInfo,
+        });
         this.Redraw();
         this.UpdateScrollLayout();
         this.RelocateSeekBar();
@@ -424,12 +422,11 @@ public partial class PlotEditor : UserControl
     {
         long totalFrameCount = this._framesCount;
 
-        var scaling = this._scaling;
-
-        var renderInfo = this._renderInfo;
+        var viewBox = this._viewBoxInfo;
+        var scaling = viewBox.Scaling;
 
         // 描画領域
-        int renderWidth = renderInfo.RenderWidth;
+        int renderWidth = viewBox.RenderWidth;
 
         // 開始フレーム位置
         int beginTime = this.GetRenderBeginTimeMs();
@@ -487,62 +484,6 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>
-    /// 12音階の画像を生成する
-    /// </summary>
-    /// <param name="width">画像幅</param>
-    /// <param name="keyHeight">1音あたりの高さ</param>
-    /// <param name="scaling">スケーリング情報</param>
-    /// <returns></returns>
-    private (SKBitmap bmp, int width, int height) CreatePianoOctaveBmp(int width, int keyHeight, RenderScaleInfo scaling)
-    {
-        const int keys = 12;
-
-        int height = keyHeight * keys;
-        int renderHeight = scaling.ToDisplayScaling(height);
-        int renderWidth = scaling.ToDisplayScaling(width);
-        int renderKeyHeight = scaling.ToDisplayScaling(keyHeight);
-
-        var whiteKeyBrush = this._whiteKeyPaint;
-        var whiteGridPen = this._whiteKeyGridPaint;
-        var blackKeyBrush = this._blackKeyPaint;
-
-        var image = new SKBitmap(renderWidth, renderHeight, isOpaque: true);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int GetYPos(int key) => renderHeight - ((key + 1) * renderKeyHeight);
-
-        using (var g = new SKCanvas(image))
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            void DrawRect(int key, SKPaint brush)
-            {
-                int y = GetYPos(key);
-                g.DrawRect(new(0, y, renderWidth, renderKeyHeight + y), brush);
-            }
-
-            // ストライプの描画
-            DrawRect(0, whiteKeyBrush); // C
-            DrawRect(1, blackKeyBrush); // C#
-            DrawRect(2, whiteKeyBrush); // D
-            DrawRect(3, blackKeyBrush); // D#
-            DrawRect(4, whiteKeyBrush); // E
-            DrawRect(5, whiteKeyBrush); // F
-            DrawRect(6, blackKeyBrush); // F#
-            DrawRect(7, whiteKeyBrush); // G
-            DrawRect(8, blackKeyBrush); // G#
-            DrawRect(9, whiteKeyBrush); // A
-            DrawRect(10, blackKeyBrush); // A#
-            DrawRect(11, whiteKeyBrush); // B
-
-            // 白鍵の境界を描画
-            g.DrawLine(0, GetYPos(4), renderWidth, GetYPos(4), whiteGridPen);
-            g.DrawLine(0, GetYPos(11), renderWidth, GetYPos(11), whiteGridPen);
-        }
-
-        return (image, width, height);
-    }
-
-    /// <summary>
     /// 描画領域のサイズを取得する
     /// </summary>
     /// <returns></returns>
@@ -554,43 +495,65 @@ public partial class PlotEditor : UserControl
         return ((int)size.Width, (int)size.Height);
     }
 
+    private ViewDrawingBoxInfo CreateRenderInfo()
+    {
+        (int width, int height) = this.GetCanvasSize();
+
+        return new(new RenderScaleInfo(this._displayDpi), width, height, this.KeyHeight, width, this.ScaleX, 1.0f);
+    }
+
     /// <summary>
     /// 描画する内容を再生成する
     /// </summary>
     private void UpdateRenderImage()
     {
-        (int width, int height) = this.GetCanvasSize();
-        if (width > 0 && height > 0)
+        if (this.ActualWidth <= 0 || this.ActualHeight <= 0)
+            return;
+
+        var renderInfo = this._viewBoxInfo = this.CreateRenderInfo();
+
+
+        // 描画するフレーム数
+        int offsetFrames = 1;
+        int viewFrames = renderInfo.GetRenderFrames();
+        int framesCount = viewFrames; // + (offsetFrames * 2);
+
+        // 描画開始・終了位置
+        int beginTime = this.GetRenderBeginTimeMs();
+        int endTime = beginTime + (framesCount * RenderConfig.FramePeriod);
+
+        var rangeInfo = new RenderRangeInfo(beginTime, endTime, offsetFrames, framesCount);
+
+        UpdateRenderInfo(new RenderInfoCommon
         {
-            using (this._renderImage)
+            Track = this.Track,
+            RenderRange = rangeInfo,
+            ColorInfo = this.ColorInfo,
+            PartRenderInfo = this._viewBoxInfo,
+        });
+
+        var trackScore = this._trackScoreInfo;
+        if (trackScore != null)
+        {
+            this._renderCommon.RangeScoreRenderInfo = new RangeScoreRenderInfo
             {
-                var renderInfo = this._renderInfo = new RenderInfo(this._scaling, width, height, this.KeyHeight, width, this.ScaleX, 1.0f);
-
-                // 描画するフレーム数
-                int offsetFrames = 1;
-                int viewFrames = renderInfo.GetRenderFrames();
-                int framesCount = viewFrames + (offsetFrames * 2);
-
-                // 描画開始・終了位置
-                int beginTime = this.GetRenderBeginTimeMs();
-                int endTime = beginTime + (framesCount * RenderConfig.FramePeriod);
-
-                var rangeInfo = new RenderRangeInfo(beginTime, endTime, offsetFrames, framesCount);
-
-                var score = this._score;
-
-                if (this._isLoaded && score is not null)
-                {
-                    this._currentViewScore = score.GetRangeInfo(beginTime, endTime);
-                    this._noteLines = ScoreDrawingUtil.GetVerticalLines(score, beginTime, endTime, this.Quantize);
-                    this._rulerLines = ScoreDrawingUtil.GetVerticalLines(score, beginTime, endTime, LineType.Note8th);
-                }
-
-                this._renderImage = this.CreateRenderImage(renderInfo, rangeInfo);
-                this._rulerImage = this.CreateRulerImage(renderInfo, rangeInfo);
-                this._dynamicImage = this.CreateDynamicsImage(renderInfo, rangeInfo);
-            }
+                Score = trackScore.Score.GetRangeInfo(beginTime, endTime),
+                NoteLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, this.Quantize),
+                RulerLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, LineType.Note8th),
+            };
         }
+
+        DisposableUtil.ExchangeDisposable(ref this._renderImage, this._pianoRollRenderer.CreateImage());
+        DisposableUtil.ExchangeDisposable(ref this._rulerImage, this._rulerRenderer.CreateImage());
+        DisposableUtil.ExchangeDisposable(ref this._dynamicImage, this._dynamicsRenderer.CreateImage());
+    }
+
+    private void UpdateRenderInfo(RenderInfoCommon renderInfoCommon)
+    {
+        this._renderCommon = renderInfoCommon;
+        this._pianoRollRenderer = new PianoRollRenderer(renderInfoCommon);
+        this._rulerRenderer = new RulerRenderer(renderInfoCommon);
+        this._dynamicsRenderer = new DynamicsRendererV1(renderInfoCommon);
     }
 
     /// <summary>
@@ -680,425 +643,6 @@ public partial class PlotEditor : UserControl
         => this.SetVerticalPosition((int)(this.vScrollBar1.Value + time));
 
     /// <summary>
-    /// 画面内容を描画する
-    /// </summary>
-    /// <param name="renderInfo">描画情報</param>
-    /// <param name="rangeInfo">描画範囲情報</param>
-    /// <returns>描画内容</returns>
-    private SKBitmap CreateRenderImage(RenderInfo renderInfo, RenderRangeInfo rangeInfo)
-    {
-        (int rulerHeight, var scaling) = (this._rulerHeight, this._scaling);
-
-        int scoreHeight = renderInfo.UnscaledScoreHeight;
-
-        // 描画領域
-        (int renderWidth, int renderHeight) = (renderInfo.RenderWidth, renderInfo.RenderScoreHeight);
-        (int width, int height) = (renderInfo.UnscaledWidth, renderInfo.UnscaledScoreHeight);
-        int keyHeight = renderInfo.KeyHeight;
-
-        // 予備フレーム数
-        // 折れ線の前後が途切れないように前後1データ多めに描画しておく
-        const int marginFrames = 1;
-
-        int scoreRenderWidth = renderWidth;
-        int scoreWidth = width;
-        int scoreRenderHeight = renderHeight;
-
-        var image = new SKBitmap(renderWidth, renderHeight, isOpaque: true);
-
-        (var partImage, int octWidth, int octHeight) = this.CreatePianoOctaveBmp(100, keyHeight, scaling);
-
-        using (var g = new SKCanvas(image))
-        {
-            int imageWidth = octWidth;
-            int imageHeight = octHeight;
-            int offset = imageHeight - (height % imageHeight);
-
-            int vCount = (int)Math.Ceiling((double)scoreHeight / imageHeight);
-            int hCount = (int)Math.Ceiling((double)scoreWidth / imageWidth);
-
-            int[] xList = Enumerable.Range(0, hCount)
-                .Select(x => x * imageWidth)
-                .ToArray();
-
-            for (int yCount = 0; yCount < vCount; ++yCount)
-            {
-                int y = (yCount * imageHeight) - offset;
-
-                foreach (int x in xList)
-                {
-                    g.DrawBitmap(partImage, scaling.ToDisplayScaling(x), scaling.ToDisplayScaling(y));
-                }
-            }
-
-            if (this._isLoaded)
-            {
-                long totalFrameCount = this._framesCount;
-
-                // 描画開始・終了位置
-                int beginTime = rangeInfo.BeginTime;
-                int endTime = rangeInfo.EndTime;
-
-                // フレームの描画範囲
-                int beginFrameIdx = beginTime / RenderConfig.FramePeriod;
-                int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
-
-                // 描画対象のフレーズ情報
-                var targetPhrases = this.Track!.AudioFeatures.Phrases!
-                    .Where(p => beginTime <= p.EndTime && p.BeginTime <= endTime);
-
-                // 描画範囲の情報を取得
-                var result = this._currentViewScore;
-
-                // フレーズ枠の描画
-                foreach (var phrase in targetPhrases)
-                {
-                    SKColor? color = phrase.Status switch
-                    {
-                        PhraseStatus.WaitEstimate => new SKColor(0, 0, 255, 10),
-                        PhraseStatus.EstimateProcessing => new SKColor(0, 0, 255, 20),
-                        PhraseStatus.WaitAudioRender => new SKColor(255, 0, 0, 10),
-                        PhraseStatus.AudioRenderProcessing => new SKColor(255, 0, 0, 20),
-                        _ => null
-                    };
-
-                    if (color == null)
-                        continue;
-
-
-                    int ofx = 0;
-                    int x = scaling.ToDisplayScaling((phrase.BeginTime - beginTime) * renderInfo.WidthStretch);
-                    if (x < 0)
-                    {
-                        ofx = x;
-                        x = 0;
-                    }
-
-                    int y = 0;
-                    int w = scaling.ToDisplayScaling((phrase.EndTime - phrase.BeginTime) * renderInfo.WidthStretch) + ofx;
-                    if ((x + w) > renderInfo.RenderDisplayWidth)
-                        w = renderInfo.RenderDisplayWidth - x;
-                    int h = renderHeight;
-
-                    g.DrawRect(x, y, w, h, new SKPaint { Color = color.Value });
-                }
-
-                // 罫線の描画
-                var noteLines = this._noteLines!;
-                foreach (var noteLine in noteLines)
-                {
-                    float scaledX = scaling.ToDisplayScaling(((int)noteLine.Time - beginTime) * renderInfo.WidthStretch);
-
-                    var lineColor = noteLine.LineType switch
-                    {
-                        LineType.Measure => SKColors.Black,
-                        LineType.Whole => SKColors.DarkGray,
-                        LineType.Note2th => SKColors.DarkGray,
-                        LineType.Note4th => SKColors.DarkGray,
-                        _ => SKColors.LightGray,
-                    };
-
-                    g.DrawLine(
-                        scaledX, 0,
-                        scaledX, scaling.ToDisplayScaling(renderInfo.UnscaledScoreHeight),
-                        new SKPaint { Color = lineColor, StrokeWidth = 1 });
-                }
-
-                // スコアの描画
-                foreach (var score in result.Phrases)
-                {
-                    float y = height - (float)(score.Pitch * keyHeight);
-
-                    var rect = SKRect.Create(
-                        scaling.ToDisplayScaling((score.BeginTime - beginTime) * renderInfo.WidthStretch),
-                        scaling.ToDisplayScaling(height - (score.Pitch * keyHeight)),
-                        scaling.ToDisplayScaling((score.EndTime - score.BeginTime) * renderInfo.WidthStretch),
-                        scaling.ToDisplayScaling(keyHeight));
-
-                    g.DrawRect(rect, new SKPaint
-                    {
-                        Color = SKColors.LightSkyBlue,
-                        Style = SKPaintStyle.Fill,
-                    });
-                    g.DrawRect(rect, new SKPaint
-                    {
-                        Color = SKColors.DarkBlue,
-                        Style = SKPaintStyle.Stroke,
-                        StrokeWidth = 1.0f,
-                        IsStroke = true,
-                    });
-
-                    if (score.Breath)
-                    {
-                        g.DrawPath(
-                            CreateBreathMark(rect.Top - height - 1, rect.Left + rect.Width, 9, 14),
-                            new SKPaint() { Color = SKColors.Blue, IsStroke = true, StrokeWidth = 1.6f, IsAntialias = true });
-                    }
-
-                    // 歌詞
-                    g.DrawText(score.Lyrics, new SKPoint(rect.Left, rect.Top), lyricsTypography);
-
-                }
-
-                // ピッチの描画
-                {
-                    const int Period = RenderConfig.FramePeriod;
-
-                    var pitches = targetPhrases
-                        .Where(p => p.F0 is not null)
-                        .SelectMany(p => Parse2(p.F0!, 0, 1, p.BeginTime / Period))
-                        .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
-                        .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
-
-                    float pitchOffset = (float)keyHeight / 2;
-
-                    int offsetMs = (beginFrameIdx * Period) - beginTime;
-
-                    foreach (var pitchGroup in pitches)
-                    {
-                        var points = new SKPoint[pitchGroup.Last().TotalEndIndex - pitchGroup.First().TotalBeginIndex + 1];
-                        int pointsIdx = 0;
-
-                        foreach (var pitch in pitchGroup)
-                        {
-                            // 描画開始／終了インデックス
-                            (int beginIdx, int endIdx) = GetDrawRange(
-                                pitch.PhraseBeginFrameIdx + pitch.BeginIndex, pitch.EndIndex - pitch.BeginIndex + 1,
-                                beginFrameIdx, endFrameIdx, 0);
-
-                            if (beginIdx >= endIdx)
-                            {
-                                Debug.WriteLine($"Beg: {beginIdx}, End: {endIdx}");
-                                continue;
-                            }
-
-                            int f = beginIdx - pitch.PhraseBeginFrameIdx;
-
-                            for (int idx = 0, length = endIdx - beginIdx; idx < length; ++idx)
-                            {
-                                int frameIdx = idx + f;
-
-                                points[pointsIdx++] = new SKPoint(
-                                    scaling.ToDisplayScaling((offsetMs + ((frameIdx + pitch.PhraseBeginFrameIdx) * Period) - beginTime) * renderInfo.WidthStretch),
-                                    scaling.ToDisplayScaling(height - pitchOffset - ((float)FrequencyToScale(pitch.Data[frameIdx]) * keyHeight)));
-                            }
-                        }
-
-                        if (pointsIdx > 0)
-                        {
-                            g.DrawPoints(SKPointMode.Polygon, points[0..pointsIdx], new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
-                        }
-                    }
-                }
-            }
-        }
-
-        return image;
-    }
-
-
-
-    /// <summary>
-    /// 描画範囲を取得する
-    /// </summary>
-    /// <param name="dataBeginIdx">データの開智位置</param>
-    /// <param name="dataCount">データ数</param>
-    /// <param name="rangeBeginIdx">範囲開始位置</param>
-    /// <param name="rangeEndIdx">範囲終了位置</param>
-    /// <param name="margin">前後のマージン</param>
-    /// <returns></returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static (int beginIdx, int endIdx) GetDrawRange(int dataBeginIdx, int dataCount, int rangeBeginIdx, int rangeEndIdx, int margin)
-        => (Math.Max(dataBeginIdx, rangeBeginIdx - margin),
-            Math.Min(dataBeginIdx + dataCount, rangeEndIdx + margin));
-
-    /// <summary>
-    /// ルーラを描画する
-    /// </summary>
-    /// <param name="renderInfo">描画情報</param>
-    /// <returns>描画内容</returns>
-    private SKBitmap CreateRulerImage(RenderInfo renderInfo, RenderRangeInfo renderRange)
-    {
-        var scaling = renderInfo.Scaling;
-
-        int renderWidth = renderInfo.RenderWidth;
-        int renderHeight = renderInfo.RenderRulerHeight;
-        var rulerLines = this._rulerLines;
-
-        var image = new SKBitmap(renderWidth, renderHeight, isOpaque: true);
-
-        using (var g = new SKCanvas(image))
-        {
-            g.DrawRect(0, 0, renderWidth, renderHeight, new SKPaint() { Color = SKColors.Black });
-
-            if (rulerLines is not null)
-            {
-                // 描画開始・終了位置
-                int beginTime = renderRange.BeginTime;
-
-                // 小節、4分音符、8分音符時の描画位置
-                float measureLineY = 0.0f;
-                float beat4thLineY = renderHeight * 0.4f;
-                float beat8thLineY = renderHeight * 0.7f;
-
-                foreach (var rulerLine in rulerLines)
-                {
-                    float scaledX = scaling.ToDisplayScaling(((int)rulerLine.Time - beginTime) * renderInfo.WidthStretch);
-
-                    var linePosY = rulerLine.LineType switch
-                    {
-                        LineType.Measure => measureLineY,
-                        LineType.Whole or LineType.Note2th or LineType.Note4th => beat4thLineY,
-                        _ => beat8thLineY,
-                    };
-
-                    g.DrawLine(
-                        scaledX, linePosY,
-                        scaledX, renderHeight,
-                        new SKPaint { StrokeWidth = 1, Color = SKColors.White });
-                }
-
-            }
-        }
-
-        return image;
-    }
-
-    private SKBitmap CreateDynamicsImage(RenderInfo renderInfo, RenderRangeInfo rangeInfo)
-    {
-        var scaling = renderInfo.Scaling;
-
-        // 描画開始・終了位置
-        int beginTime = rangeInfo.BeginTime;
-        int endTime = rangeInfo.EndTime;
-
-        // フレームの描画範囲
-        int beginFrameIdx = beginTime / RenderConfig.FramePeriod;
-        int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
-
-        int frames = endFrameIdx - beginFrameIdx;
-
-        (int renderWidth, int renderHeight) = (renderInfo.RenderDisplayWidth, renderInfo.DynamicRenderHeight);
-
-        var track = this.Track;
-        var features = track?.AudioFeatures;
-        if (features is null)
-        {
-            return new(renderWidth, renderHeight, SKColorType.Rgb888x, SKAlphaType.Unknown);
-        }
-
-        SKBitmap image;
-
-        var phrases = features.Phrases!;
-
-        // 描画対象のフレーズ情報
-        var targetPhrases = phrases
-                    .Where(p => beginTime <= p.EndTime && p.BeginTime <= endTime);
-
-        // Mgcデータの次元数
-        int dimension = 60; // mgc.Length / f0.Length
-
-        // 背景を塗りつぶす
-        // MEMO: アルファ値なしの場合は初期化不要
-        //using (var g = new SKCanvas(image))
-        //{
-        //    g.DrawRect(0, 0, image.Width, image.Height, new SKPaint { Color = SKColors.Black, });
-        //    g.Flush();
-        //}
-
-        // Mgcデータの下限値
-        const double min = -30d;
-
-        const int Period = RenderConfig.FramePeriod;
-
-        var dynamicsGroups = targetPhrases
-             .Where(p => p.Mgc is not null)
-             .SelectMany(p => Parse2(p.Mgc!, min, dimension, p.BeginTime / Period))
-             .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
-             .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
-
-        int offsetMs = (beginFrameIdx * Period) - beginTime;
-
-        var list = new List<SKPoint[]>(phrases.Length);
-
-        using (var spectrumImage = new SKBitmap(frames, dimension, SKColorType.Rgb888x, SKAlphaType.Unknown))
-        {
-            var rawPixels = spectrumImage.GetPixelSpan();
-            var pixels = MemoryMarshal.Cast<byte, RGBX>(
-                MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(rawPixels), rawPixels.Length));
-
-            foreach (var dynamicsGroup in dynamicsGroups)
-            {
-                var points = new SKPoint[dynamicsGroup.Last().TotalEndIndex - dynamicsGroup.First().TotalBeginIndex + 1];
-                int pointsIdx = 0;
-
-                foreach (var dynamics in dynamicsGroup)
-                {
-                    // 描画開始／終了インデックス
-                    (int beginIdx, int endIdx) = GetDrawRange(
-                        dynamics.PhraseBeginFrameIdx + dynamics.BeginIndex, dynamics.EndIndex - dynamics.BeginIndex + 1,
-                        beginFrameIdx, endFrameIdx, 0);
-
-                    if (beginIdx >= endIdx)
-                    {
-                        continue;
-                    }
-
-                    int f = beginIdx - dynamics.PhraseBeginFrameIdx;
-
-                    for (int idx = 0, length = (endIdx - beginIdx); idx < length; ++idx)
-                    {
-                        int frameIdx = idx + f;
-
-                        double v = 0;
-                        for (int dim = 0; dim < dimension; ++dim)
-                        {
-                            int x = frameIdx + dynamics.PhraseBeginFrameIdx - beginFrameIdx;
-                            int y = (dimension - dim - 1) * frames;
-
-                            double value = dynamics.Data[(frameIdx * dimension) + dim];
-
-                            v += value;
-
-                            // byte color = (byte)(baseColor - ((value - min) / (-min) * baseColor));
-                            const byte baseColor = 100;
-                            byte color = (byte)(Math.Min(v - min, -min) / (-min) * baseColor);
-
-                            pixels[y + x].SetColor(allColor: color);
-                        }
-
-                        {
-                            double value = dynamics.Data[frameIdx * dimension];
-
-                            float x = scaling.ToDisplayScaling((offsetMs + ((frameIdx + dynamics.PhraseBeginFrameIdx) * Period) - beginTime) * renderInfo.WidthStretch);
-                            float y = (float)((1 - ((value + (-min)) / (-min))) * renderHeight);
-                            points[pointsIdx++] = new(x, y);
-                        }
-                    }
-                }
-
-                if (pointsIdx > 0)
-                {
-                    list.Add(points[0..pointsIdx]);
-                }
-            }
-
-            image = spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.None);
-        }
-
-
-        using (var g = new SKCanvas(image))
-        {
-            foreach (var pt in list)
-            {
-                g.DrawPoints(SKPointMode.Polygon, pt, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
-            }
-        }
-
-        return image;
-    }
-
-    /// <summary>
     /// フレーム位置を時間(ミリ秒)に変換する
     /// </summary>
     /// <param name="frameIdx">フレームのインデックス</param>
@@ -1128,7 +672,7 @@ public partial class PlotEditor : UserControl
             return;
         }
 
-        var renderInfo = this._renderInfo;
+        var renderInfo = this._viewBoxInfo;
         if (renderInfo is null)
         {
             return;
@@ -1161,111 +705,6 @@ public partial class PlotEditor : UserControl
         //{
         //    g.DrawRect(SKRect.Create(0, (float)renderedY, scaledWidth, (float)(h - renderedY)), this._whiteKeyPaint);
         //}
-    }
-
-    /// <summary>
-    /// 周波数値を12音階律のスケールに変換する
-    /// </summary>
-    /// <param name="frequency">周波数</param>
-    /// <returns>12音階率</returns>
-    private static double FrequencyToScale(double frequency)
-    {
-        // http://signalprocess.binarized.work/2019/03/26/convert_frequency_to_cent/
-        return 12 * Math.Log2(frequency / 440) + 69;
-    }
-
-
-    public static List<Class1> Parse(IReadOnlyCollection<double> values, double min, int offset = 0)
-    {
-        var items = new List<Class1>(values.Count);
-
-        int idx = 0;
-
-        int tempIdx = 0;
-        List<double>? tempItems = null;
-
-        foreach (var value in values)
-        {
-            try
-            {
-                if (value <= min)
-                {
-                    if (tempItems is not null)
-                    {
-                        if (tempItems.Count > 1)
-                        {
-                            items.Add(new Class1(offset + tempIdx, tempItems.ToArray()));
-                        }
-                        tempItems = null;
-                    }
-                    continue;
-                }
-
-                if (tempItems == null)
-                {
-                    tempItems = new List<double>();
-                    tempIdx = idx;
-                }
-                tempItems.Add(value);
-            }
-            finally
-            {
-                ++idx;
-            }
-        }
-
-        if (tempItems != null)
-        {
-            items.Add(new Class1(offset + tempIdx, tempItems.ToArray()));
-        }
-
-        return items;
-    }
-
-    public record PartInt(int BeginIndex, int EndIndex, int PhraseBeginFrameIdx, double[] Data)
-    {
-        public int TotalBeginIndex => this.PhraseBeginFrameIdx + this.BeginIndex;
-        public int TotalEndIndex => this.PhraseBeginFrameIdx + this.EndIndex;
-    }
-
-    public static List<PartInt> Parse2(double[] values, double min, int dimension, int offset)
-    {
-        int length = values.Length / dimension;
-        var items = new List<PartInt>(length);
-
-        int? detectIdx = null;
-
-        for (int idx = 0; idx < length; ++idx)
-        {
-            if (values[idx * dimension] <= min)
-            {
-                if (detectIdx is not null)
-                {
-                    int endIdx = idx - 1;
-                    if (endIdx > detectIdx)
-                    {
-                        items.Add(new(detectIdx.Value, endIdx, offset, values));
-                    }
-
-                    detectIdx = null;
-                }
-
-                continue;
-            }
-
-            detectIdx ??= idx;
-        }
-
-        if (detectIdx is not null)
-        {
-            int endIndex = length - 1;
-            if (endIndex > detectIdx)
-            {
-                items.Add(new(detectIdx.Value, endIndex, offset, values));
-            }
-        }
-
-        return items;
     }
 
     /// <summary>
@@ -1330,7 +769,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnScoreMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        var renderInfo = this._renderInfo;
+        var renderInfo = this._viewBoxInfo;
         var modifiers = Keyboard.Modifiers;
 
         if (modifiers == ModifierKeys.Control)
@@ -1407,14 +846,12 @@ public partial class PlotEditor : UserControl
         }
     }
 
-    /// <summary>
+    /// <summary> 
     /// 横の拡大率を変更する
     /// </summary>
     /// <param name="newZoomLevel"></param>
     private void ChangeHorizontalScale(double newZoomLevel)
     {
-        var scaling = this._scaling;
-
         double oldZoomLevel = this.ScaleX;
         if (oldZoomLevel == newZoomLevel)
         {
@@ -1426,7 +863,7 @@ public partial class PlotEditor : UserControl
 
         var mousePosition = Mouse.GetPosition(element);
 
-        var renderInfo = this._renderInfo;
+        var renderInfo = this._viewBoxInfo;
 
         double width = renderInfo.RenderWidth;
 
@@ -1451,7 +888,7 @@ public partial class PlotEditor : UserControl
     /// <param name="newHeight"></param>
     private void ChangeKeyHeightSize(int newHeight)
     {
-        var renderInfo = this._renderInfo;
+        var renderInfo = this._viewBoxInfo;
         var scaling = renderInfo.Scaling;
 
         int oldHeight = this.KeyHeight;
@@ -1468,7 +905,7 @@ public partial class PlotEditor : UserControl
 
         // マウス位置(%)
         double posY = mousePosition.Y;
-        int rulerHeight = this._renderInfo.UnscaledRulerHeight;
+        int rulerHeight = this._viewBoxInfo.UnscaledRulerHeight;
         double percentage = CalcRatioWithLowerOffset(posY, rulerHeight, height);
 
         double zoom = (double)newHeight / oldHeight;
@@ -1515,7 +952,7 @@ public partial class PlotEditor : UserControl
     {
         Debug.WriteLine("Mouse down.");
 
-        var renderInfo = this._renderInfo;
+        var renderInfo = this._viewBoxInfo;
         var scaling = renderInfo.Scaling;
         var element = (UIElement)sender;
 
@@ -1553,7 +990,7 @@ public partial class PlotEditor : UserControl
         //    Debug.WriteLine($"Mouse move. Left: {e.LeftButton}");
         //}
 
-        var renderInfo = this._renderInfo;
+        var renderInfo = this._viewBoxInfo;
         int beginTime = this.GetRenderBeginTimeMs();
 
         if (this._mouseMode == MouseControlMode.Seek)
@@ -1574,8 +1011,8 @@ public partial class PlotEditor : UserControl
 
             int conditionTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
 
-            var noteLines = this._noteLines;
-            if (this.IsQuantizeSnapping && noteLines is not null)
+            var noteLines = this._renderCommon?.RangeScoreRenderInfo?.NoteLines;
+            if (this.IsQuantizeSnapping && noteLines != null)
             {
                 // スナッピング有効時にシークバーを罫線に沿うようにする
                 int rangeBegin = (int)noteLines.First().Time;
@@ -1591,7 +1028,7 @@ public partial class PlotEditor : UserControl
                 }
                 else
                 {
-                    for (int idx = 1; idx < noteLines.Length; ++idx)
+                    for (int idx = 1; idx < noteLines.Count; ++idx)
                     {
                         int begin = (int)noteLines[idx - 1].Time;
                         int end = (int)noteLines[idx - 0].Time - 1;
@@ -1617,8 +1054,8 @@ public partial class PlotEditor : UserControl
         }
         else if (this._mouseMode == MouseControlMode.PutNote)
         {
-            var score = this._score;
-            if (score is not null)
+            var trackScoreInfo = this._trackScoreInfo;
+            if (trackScoreInfo != null)
             {
                 var mousePosition = e.GetPosition(this);
                 int conditionTime = this._putNoteBeginTime;
@@ -1626,7 +1063,7 @@ public partial class PlotEditor : UserControl
 
                 int currentCursorPosition = GetConditionTime(renderInfo, beginTime, ref mousePosition);
 
-                decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize, currentCursorPosition);
+                decimal duration = ScoreDrawingUtil.GetNoteDuration(trackScoreInfo.Score, conditionTime, this.Quantize, currentCursorPosition);
 
                 // 図形の位置を変更
                 this.MoveBorder(renderInfo, keyIndex, conditionTime - beginTime, (int)duration + 1);
@@ -1634,10 +1071,9 @@ public partial class PlotEditor : UserControl
         }
         else
         {
-            var score = this._score;
-
+            var trackScoreInfo = this._trackScoreInfo;
             var mousePosition = e.GetPosition(this);
-            if (score is not null && IsWithinPianoRoll(renderInfo, ref mousePosition))
+            if (trackScoreInfo != null && IsWithinPianoRoll(renderInfo, ref mousePosition))
             {
                 // キーのインデックスを計算する
                 // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
@@ -1645,20 +1081,20 @@ public partial class PlotEditor : UserControl
 
                 int conditionTime = this.FindJustBeforeQuantizeSnapping(renderInfo, beginTime, ref mousePosition);
 
-                decimal duration = ScoreDrawingUtil.GetNoteDuration(score, conditionTime, this.Quantize);
+                decimal duration = ScoreDrawingUtil.GetNoteDuration(trackScoreInfo.Score, conditionTime, this.Quantize);
 
                 this.MoveBorder(renderInfo, keyIndex, (conditionTime - beginTime), (int)duration + 1);
             }
         }
     }
 
-    private int GetKeyIndex(RenderInfo renderInfo, ref Point mousePosition)
+    private int GetKeyIndex(ViewDrawingBoxInfo renderInfo, ref Point mousePosition)
     {
         int scrollPosition = this.GetVScrollPosition();
         return (int)((renderInfo.UnscaledScoreHeight - (scrollPosition + (mousePosition.Y - renderInfo.UnscaledRulerHeight))) / renderInfo.KeyHeight);
     }
 
-    private void MoveBorder(RenderInfo renderInfo, int keyIndex, int time, int duration)
+    private void MoveBorder(ViewDrawingBoxInfo renderInfo, int keyIndex, int time, int duration)
     {
         var scaling = renderInfo.Scaling;
 
@@ -1681,12 +1117,12 @@ public partial class PlotEditor : UserControl
     private void HideBorder()
         => this.PART_Rectangle.Visibility = Visibility.Collapsed;
 
-    private int FindJustBeforeQuantizeSnapping(RenderInfo renderInfo, int beginTime, ref Point mousePosition)
+    private int FindJustBeforeQuantizeSnapping(ViewDrawingBoxInfo renderInfo, int beginTime, ref Point mousePosition)
     {
         int conditionTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
 
-        var noteLines = this._noteLines;
-        if (noteLines is not null)
+        var noteLines = this._renderCommon?.RangeScoreRenderInfo?.NoteLines;
+        if (noteLines != null)
         {
             // スナッピング有効時にシークバーを罫線に沿うようにする
             int rangeBegin = (int)noteLines.First().Time;
@@ -1702,7 +1138,7 @@ public partial class PlotEditor : UserControl
             }
             else
             {
-                for (int idx = 1; idx < noteLines.Length; ++idx)
+                for (int idx = 1; idx < noteLines.Count; ++idx)
                 {
                     int begin = (int)noteLines[idx - 1].Time;
                     int end = (int)noteLines[idx - 0].Time - 1;
@@ -1721,7 +1157,7 @@ public partial class PlotEditor : UserControl
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetConditionTime(RenderInfo renderInfo, int beginTime, ref Point mousePosition)
+    private static int GetConditionTime(ViewDrawingBoxInfo renderInfo, int beginTime, ref Point mousePosition)
     {
         double width = renderInfo.UnscaledWidth;
         double percentageX = mousePosition.X / width;
@@ -1769,7 +1205,7 @@ public partial class PlotEditor : UserControl
         // TODO: スナッピング有効時にシークバー位置がずれるので何とかする
         // → シークバーの位置を再計算すれば何とかなりそう
 
-        var renderInfo = this._renderInfo;
+        var renderInfo = this._viewBoxInfo;
 
         double width = renderInfo.RenderWidth;
         double posX = Mouse.GetPosition(this).X;
@@ -1792,11 +1228,11 @@ public partial class PlotEditor : UserControl
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsWithinRuler(RenderInfo renderInfo, ref Point mousePosition)
+    private static bool IsWithinRuler(ViewDrawingBoxInfo renderInfo, ref Point mousePosition)
         => mousePosition.Y <= renderInfo.RenderRulerHeight;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsWithinPianoRoll(RenderInfo renderInfo, ref Point mousePosition)
+    private static bool IsWithinPianoRoll(ViewDrawingBoxInfo renderInfo, ref Point mousePosition)
         => mousePosition.Y > renderInfo.RenderRulerHeight;
 
     private static string GetLyrics(PartScore score)
@@ -1808,8 +1244,8 @@ public partial class PlotEditor : UserControl
 
     private void OnLyricsTextBoxSelectionChanged(object sender, RoutedEventArgs e)
     {
-        var score = this._score;
-        if (score is null)
+        var trackScoreInfo = this._trackScoreInfo;
+        if (trackScoreInfo is null)
             return;
 
         var textBox = (sender as TextBox)!;
@@ -1819,7 +1255,7 @@ public partial class PlotEditor : UserControl
 
         int bracketNestCount = 0;
 
-        var node = score.Phrases.First!;
+        var node = trackScoreInfo.Score.Phrases.First!;
 
         // 選択中の文字位置からどの(何番目の)音符にあたるかを走査する
         for (int idx = 0; idx < text.Length && idx < selection && node.Next is not null; ++idx)
@@ -1867,25 +1303,4 @@ public partial class PlotEditor : UserControl
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsBracketEnd(ref char @char)
     => @char == ')' || @char == '）';
-
-    /// <summary>ブレスマークのパスを生成する</summary>
-    private static SKPath CreateBreathMark(float top, float left, float width, float height)
-    {
-        float halfWidth = (width - 1) / 2;
-
-        SKPoint[] points =
-        {
-            // 左上
-            new(left - halfWidth, top),
-            // 下
-            new(left, top + height),
-            // 右上
-            new(left + halfWidth, top),
-        };
-
-        var path = new SKPath();
-        path.AddPoly(points, close: false);
-
-        return path;
-    }
 }
