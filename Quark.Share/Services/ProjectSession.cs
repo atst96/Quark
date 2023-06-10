@@ -17,9 +17,9 @@ internal class ProjectSession
         // TODO: クラスを整理する
         public INeutrinoTrack Track { get; }
 
-        public NeutrinoV1Phrase Phrase { get; }
+        public INeutrinoPhrase Phrase { get; }
 
-        public EstimateQueueInfo(INeutrinoTrack track, NeutrinoV1Phrase phrase)
+        public EstimateQueueInfo(INeutrinoTrack track, INeutrinoPhrase phrase)
         {
             this.Track = track;
             this.Phrase = phrase;
@@ -43,8 +43,8 @@ internal class ProjectSession
         this.Project = project;
         this.NeutrinoV1 = neutrinoV1;
         this.NeutrinoV2 = neutrinoV2;
-        this._estimateQueue = new(1, this.ProcessEstimateQueue);
-        this._audioRenderQueue = new(2, this.ProcessAudioRenderQueue);
+        this._estimateQueue = new(2, this.ProcessEstimateQueue);
+        this._audioRenderQueue = new(1, this.ProcessAudioRenderQueue);
 
         this.BeginSession();
     }
@@ -90,7 +90,7 @@ internal class ProjectSession
 
         if (info.Track is NeutrinoV1Track v1Track)
         {
-            var phrase = info.Phrase;
+            var phrase = (NeutrinoV1Phrase)info.Phrase;
 
             phrase.SetStatus(PhraseStatus.EstimateProcessing);
             v1Track.RaiseFeatureChanged();
@@ -150,7 +150,7 @@ internal class ProjectSession
 
         if (info.Track is NeutrinoV1Track v1Track)
         {
-            var phrase = info.Phrase;
+            var phrase = (NeutrinoV1Phrase)info.Phrase;
 
             phrase.SetStatus(PhraseStatus.AudioRenderProcessing);
             v1Track.RaiseFeatureChanged();

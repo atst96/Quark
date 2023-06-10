@@ -1,13 +1,18 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Cysharp.Diagnostics;
+using Quark.Components;
+using Quark.Data.Projects;
 using Quark.Extensions;
 using Quark.Models.Neutrino;
+using Quark.Projects.Tracks;
 
 namespace Quark.Utils;
 
-/// <summary>NEUTRINOに関するUtilクラス</summary>
+/// <summary>
+/// NEUTRINOに関するUtilクラス
+/// </summary>
 public static partial class NeutrinoUtil
 {
     /// <summary>フレーズ情報パース用の正規表現</summary>
@@ -60,7 +65,10 @@ public static partial class NeutrinoUtil
     /// </summary>
     /// <param name="phraseContent">NEUTRINOから出力されたフレーズ情報</param>
     /// <returns></returns>
-    public static (PhraseInfo[], NeutrinoV1Phrase[]) ParsePhrases(string phraseContent, TimingInfo[] timing)
+    public static (PhraseInfo[], T[]) ParsePhrases<T>(
+        string phraseContent, TimingInfo[] timing,
+        Func<int, int, int, string, PhraseStatus, T> func)
+        where T : INeutrinoPhrase
     {
         var parsedPhrases = ParseWithRegex<PhraseInfo>(phraseContent, GetPhraseRegex(),
             r => new(
@@ -70,7 +78,7 @@ public static partial class NeutrinoUtil
                 r.GetValue("label")))
             .ToArray();
 
-        var phrases = new NeutrinoV1Phrase[parsedPhrases.Count(p => p.IsVoiced)];
+        var phrases = new T[parsedPhrases.Count(p => p.IsVoiced)];
 
         for (int idx = 0, destIdx = 0; idx < parsedPhrases.Length; ++idx)
         {
@@ -89,7 +97,7 @@ public static partial class NeutrinoUtil
                 ? (parsedPhrases[idx + 1].Time - 1)
                 : (int)Math.Ceiling(timing.Last().EndTimeNs / 10000d);
 
-            phrases[destIdx++] = new(no, beginTime, endFrameIdx, label, PhraseStatus.WaitEstimate);
+            phrases[destIdx++] = func(no, beginTime, endFrameIdx, label, PhraseStatus.WaitEstimate);
         }
 
         return (parsedPhrases, phrases);

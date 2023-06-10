@@ -197,7 +197,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             this.CurrentProject = this._projects.Open(msg.Response[0]);
             this._projectSession = this.CurrentProject.Session;
 
-            if (this.CurrentProject.Tracks.LastOrDefault() is NeutrinoV1Track t)
+            if (this.CurrentProject.Tracks.LastOrDefault() is INeutrinoTrack t)
             {
                 this.CurrentTrack = t;
                 this.InitAudio(t);
@@ -226,7 +226,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
 
         var path = msg.Response[0];
-        var track = this.CurrentProject!.Tracks.ImportFromMusicXml(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
+        var track = this.CurrentProject!.Tracks.ImportFromMusicXmlV1(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
         this.CurrentTrack = track;
         this.InitAudio(track);
     }
@@ -234,7 +234,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private IWavePlayer _player;
     private WaveDataStream _waveStream;
 
-    private void InitAudio(NeutrinoV1Track track)
+    private void InitAudio(INeutrinoTrack track)
     {
         this._waveStream?.Dispose();
 
@@ -274,8 +274,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
     }
 
-    private NeutrinoV1Track _currentTrack;
-    public NeutrinoV1Track CurrentTrack
+    private INeutrinoTrack _currentTrack;
+    public INeutrinoTrack CurrentTrack
     {
         get => this._currentTrack;
         set

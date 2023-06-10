@@ -13,4 +13,6 @@ public interface INeutrinoPhrase
     public string Label { get; }
 
     public PhraseStatus Status { get; }
+
+    public void SetStatus(PhraseStatus status);
 }

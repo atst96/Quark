@@ -120,15 +120,15 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>トラック情報</summary>
-    internal NeutrinoV1Track? Track
+    internal INeutrinoTrack? Track
     {
-        get => (NeutrinoV1Track)this.GetValue(TrackProperty);
+        get => (INeutrinoTrack)this.GetValue(TrackProperty);
         set => this.SetValue(TrackProperty, value);
     }
 
     /// <summary><see cref="Track"/>プロパティ</summary>
     public static readonly DependencyProperty TrackProperty =
-        DependencyProperty.Register(nameof(Track), typeof(NeutrinoV1Track), typeof(PlotEditor), new PropertyMetadata(null, OnTrackPropertyChanged));
+        DependencyProperty.Register(nameof(Track), typeof(INeutrinoTrack), typeof(PlotEditor), new PropertyMetadata(null, OnTrackPropertyChanged));
 
     /// <summary>シークバーの選択位置</summary>
     public TimeSpan SelectionTime
@@ -199,13 +199,13 @@ public partial class PlotEditor : UserControl
     {
         if (d is PlotEditor editor)
         {
-            if (e.OldValue is NeutrinoV1Track oldTrack)
+            if (e.OldValue is INeutrinoTrack oldTrack)
             {
                 oldTrack.FeatureChanged -= editor.OnTrackFeatureChanged;
                 oldTrack.TimingEstimated -= editor.OnTimingEstimated;
             }
 
-            if (e.NewValue is NeutrinoV1Track newTrack)
+            if (e.NewValue is INeutrinoTrack newTrack)
             {
                 newTrack.FeatureChanged += editor.OnTrackFeatureChanged;
                 newTrack.TimingEstimated += editor.OnTimingEstimated;
@@ -337,7 +337,7 @@ public partial class PlotEditor : UserControl
     /// トラック情報を読み込む
     /// </summary>
     /// <param name="track">トラック情報</param>
-    private void LoadTrack(NeutrinoV1Track track)
+    private void LoadTrack(INeutrinoTrack track)
     {
         // 楽譜情報解析
 

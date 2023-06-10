@@ -1,16 +1,14 @@
-using Quark.Audio;
+﻿using Quark.Audio;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
-using Quark.Projects.Neutrino;
+using Quark.Neutrino;
 using Quark.Utils;
 
 namespace Quark.Projects.Tracks;
 
 internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
 {
-    private Project _project;
-
     public event EventHandler TimingEstimated;
 
     public event EventHandler FeatureChanged;
@@ -27,15 +25,15 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
 
     public PhraseInfo[] RawPhrases { get; set; } = Array.Empty<PhraseInfo>();
 
-    INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
-
     public NeutrinoV1Phrase[] Phrases { get; set; } = Array.Empty<NeutrinoV1Phrase>();
+
+    INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
 
     public WaveData WaveData { get; } = new();
 
-    public NeutrinoV1Track(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
+    public NeutrinoV1Track(Project project, string trackName, string musicXml, ModelInfo model)
+        : base(project, trackName)
     {
-        this._project = project;
         this.Singer = model;
         this.MusicXml = musicXml;
 
@@ -45,8 +43,6 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     public NeutrinoV1Track(Project project, NeutrinoV1TrackConfig config, IEnumerable<ModelInfo> models)
         : base(project, config)
     {
-        this._project = project;
-
         var singer = config.Singer;
         if (singer is not null)
         {

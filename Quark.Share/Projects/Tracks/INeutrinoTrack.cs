@@ -1,4 +1,5 @@
-﻿using Quark.Models.Neutrino;
+﻿using Quark.Audio;
+using Quark.Models.Neutrino;
 
 namespace Quark.Projects.Tracks;
 
@@ -27,4 +28,6 @@ public interface INeutrinoTrack
     public bool HasTimings();
 
     public long GetTotalFramesCount();
+
+    public WaveData WaveData { get; }
 }
