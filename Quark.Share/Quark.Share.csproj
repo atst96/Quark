@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="MemoryPack" Version="1.9.15" />
+    <PackageReference Include="ProcessX" Version="1.5.5" />
     <PackageReference Include="SkiaSharp" Version="2.88.3" />
   </ItemGroup>
 

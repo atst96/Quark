@@ -1,5 +1,7 @@
-﻿using System.Text;
+using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
+using Cysharp.Diagnostics;
 using Quark.Extensions;
 using Quark.Models.Neutrino;
 
@@ -98,4 +100,66 @@ public static partial class NeutrinoUtil
 
     public static byte[] ToString(PhraseInfo[] phrases)
         => Encoding.UTF8.GetBytes(string.Join("\n", phrases.Select(i => string.Join(" ", i.No, i.Time, (i.IsVoiced ? 0 : 1), i.IsVoiced))));
+
+    /// <summary>標準出力される進捗情報をパースするための正規表現</summary>
+    private static readonly Regex ProgressRegex = new(@"^.+Progress\s*=\s*(?<progress>\d+)\s*%.+$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// NEUTRINOを実行する
+    /// </summary>
+    /// <param name="command">実行ファイル</param>
+    /// <param name="args">コマンドライン引数</param>
+    /// <param name="workdir">作業ディレクトリ</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns><see cref="Task"/></returns>
+    /// <exception cref="NeutrinoExecuteException">実行失敗情報</exception>
+    public static async Task Execute(string command, string? args = null, string? workdir = null, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        // 実行開始から終了までの一連の流れを特定するための識別子
+        var guid = Guid.NewGuid().ToString("N");
+
+        // 実行開始ログ
+        Trace.WriteLine($"{guid}: === START NEUTRINO ===");
+        Trace.WriteLine($"{guid}: Pwd: {workdir}");
+        Trace.WriteLine($"{guid}: Execute: {command} {args}");
+
+        bool isInitializing = true;
+
+        // 出力情報を保持しておく
+        StringBuilder output = new StringBuilder();
+
+        try
+        {
+            await foreach (var line in ProcessX.StartAsync(command, args, workdir).WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                Trace.WriteLine($"{guid}: {line}");
+                output.AppendLine(line);
+
+                double? progressValue = null;
+
+                var m = ProgressRegex.Match(line);
+                if (m.Success)
+                {
+                    isInitializing = false;
+                    progressValue = double.Parse(m.Groups["progress"].Value);
+                }
+
+                progress?.Report(new(isInitializing ? ProgressReportType.Idertimate : ProgressReportType.InProgress, line, progressValue));
+            }
+        }
+        catch (ProcessErrorException pee)
+        {
+            // 実行失敗時
+            progress?.Report(new(ProgressReportType.Error, null, 100));
+
+            throw new NeutrinoExecuteException(
+                command, workdir, args, pee.ExitCode, output.ToString(), pee);
+        }
+        finally
+        {
+            // 実行終了ログ
+            Trace.WriteLine($"{guid}: === END NEUTRINO ===");
+        }
+    }
 }
