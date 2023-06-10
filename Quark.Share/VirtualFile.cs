@@ -40,7 +40,7 @@ public class VirtualFile : IDisposable
         byte[] data;
         using (var ms = new MemoryStream())
         {
-            server.CopyTo(ms);
+            await server.CopyToAsync(ms).ConfigureAwait(false);
             data = ms.ToArray();
         }
 

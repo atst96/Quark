@@ -107,7 +107,7 @@ public static partial class NeutrinoUtil
         => Encoding.UTF8.GetBytes(string.Join("\n", timings.Select(i => string.Join(" ", i.BeginTimeNs, i.EndTimeNs, i.Phoneme))));
 
     public static byte[] ToString(PhraseInfo[] phrases)
-        => Encoding.UTF8.GetBytes(string.Join("\n", phrases.Select(i => string.Join(" ", i.No, i.Time, (i.IsVoiced ? 0 : 1), i.IsVoiced))));
+        => Encoding.UTF8.GetBytes(string.Join("\n", phrases.Select(i => string.Join(" ", i.No, i.Time, (i.IsVoiced ? 0 : 1), i.Label))));
 
     /// <summary>標準出力される進捗情報をパースするための正規表現</summary>
     private static readonly Regex ProgressRegex = new(@"^.+Progress\s*=\s*(?<progress>\d+)\s*%.+$", RegexOptions.Compiled);
