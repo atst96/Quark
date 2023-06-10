@@ -1,5 +1,5 @@
 ﻿namespace Quark.Data.Projects;
-internal enum ProgressReportType
+public enum ProgressReportType
 {
     Idertimate,
     InProgress,

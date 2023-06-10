@@ -1,4 +1,4 @@
-﻿using Quark.Audio;
+using Quark.Audio;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
@@ -105,7 +105,7 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
         // Label
         if (!this.HasScoreTiming())
         {
-            var result = await session.NeutrinoV1.ConvertMusicXmlToTiming(this.MusicXml);
+            var result = await session.NeutrinoV1.ConvertMusicXmlToTiming(new ConvertMusicXmlToTimingOption { MusicXml = this.MusicXml });
             if (result is null)
             {
                 // TODO: 実行失敗時
@@ -128,7 +128,8 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
             this.Timings = NeutrinoUtil.ParseTiming(result.Timing);
             this.TimingEstimated?.Invoke(this, EventArgs.Empty);
 
-            (this.RawPhrases, this.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, this.Timings);
+            (this.RawPhrases, this.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, this.Timings,
+                (int no, int beginTime, int endTime, string label, PhraseStatus status) => new NeutrinoV1Phrase(no, beginTime, endTime, label, status));
 
             session.AddEstimateQueue(this, this.Phrases);
         }

@@ -2,8 +2,11 @@
 
 public static class FileExtensions
 {
-    /// <summary>ラベル</summary>
-    public const string MusicXML = ".musicxml";
+    /// <summary>MusicXML(XML)</summary>
+    public const string Xml = ".xml";
+
+    /// <summary>MusicXML(musicxml)</summary>
+    public const string MusicXml = ".musicxml";
 
     /// <summary>ラベル</summary>
     public const string Label = ".lab";

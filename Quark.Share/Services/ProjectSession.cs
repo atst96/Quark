@@ -1,4 +1,4 @@
-﻿using Quark.Components;
+using Quark.Components;
 using Quark.DependencyInjection;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
@@ -123,9 +123,9 @@ internal class ProjectSession
             }
             else
             {
-                var (f0, mgc, bap) = result;
+                var (_, f0, mgc, bap, _) = result;
 
-                phrase.SetAudioFeatures(f0, mgc, bap);
+                phrase.SetAudioFeatures(f0!, mgc!, bap!);
                 phrase.SetStatus(PhraseStatus.WaitAudioRender);
                 v1Track.RaiseFeatureChanged();
 
@@ -159,8 +159,8 @@ internal class ProjectSession
             byte[]? data;
             try
             {
-                data = await this.NeutrinoV1.OutputPreviewWavWorld(phrase).ConfigureAwait(false);
-                //data = await this.NeutrinoV1.OutputPreviewWavNsf(phrase, features).ConfigureAwait(false);
+                data = await this.NeutrinoV1.SynthesisWorld(phrase).ConfigureAwait(false);
+                //data = await this.NeutrinoV1.SynthesisNSF(phrase, v1Track.Singer).ConfigureAwait(false);
             }
             catch (AggregateException aex) when (aex.InnerException is TaskCanceledException)
             {
@@ -177,7 +177,6 @@ internal class ProjectSession
                 v1Track.RaiseFeatureChanged();
                 return;
             }
-
 
             if (data is null)
             {
