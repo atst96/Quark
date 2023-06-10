@@ -1,4 +1,6 @@
-﻿namespace Quark.Neutrino;
+﻿using Quark.Models.Neutrino;
+
+namespace Quark.Neutrino;
 
 /// <summary>
 /// </summary>
@@ -7,5 +9,9 @@
 /// <param name="F0">F0</param>
 /// <param name="Mspec">メルスペクトログラム</param>
 public record EstimateFeaturesResultV2(
-    float[] F0,
-    float[] Mspec);
+    string? Timing,
+    float[]? F0,
+    float[]? Mspec,
+    float[]? Mgc,
+    float[]? Bap,
+    string? Phrases);

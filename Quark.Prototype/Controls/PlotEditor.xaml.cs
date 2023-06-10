@@ -53,7 +53,7 @@ public partial class PlotEditor : UserControl
     private RenderInfoCommon _renderCommon;
     private PianoRollRenderer _pianoRollRenderer;
     private RulerRenderer _rulerRenderer;
-    private DynamicsRendererV1 _dynamicsRenderer;
+    private DynamicsRendererV2 _dynamicsRenderer;
 
     /// <summary>横伸長率の初期値</summary>
     private const double DefaultScaleX = 0.125;
@@ -553,7 +553,7 @@ public partial class PlotEditor : UserControl
         this._renderCommon = renderInfoCommon;
         this._pianoRollRenderer = new PianoRollRenderer(renderInfoCommon);
         this._rulerRenderer = new RulerRenderer(renderInfoCommon);
-        this._dynamicsRenderer = new DynamicsRendererV1(renderInfoCommon);
+        this._dynamicsRenderer = new DynamicsRendererV2(renderInfoCommon);
     }
 
     /// <summary>

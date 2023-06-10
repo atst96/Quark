@@ -11,7 +11,7 @@ internal class PianoRollRenderer
 
     private PianoRollNoteRenderer _noteRenderer;
 
-    private PitchRendererV1 _pitchRenderer;
+    private PitchRendererV2 _pitchRenderer;
 
     public PianoRollRenderer(RenderInfoCommon renderInfo)
     {

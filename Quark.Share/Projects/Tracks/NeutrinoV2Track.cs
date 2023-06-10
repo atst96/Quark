@@ -1,21 +1,35 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using Quark.Audio;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
+using Quark.Neutrino;
 using Quark.Projects.Neutrino;
+using Quark.Utils;
 
 namespace Quark.Projects.Tracks;
 
-internal class NeutrinoV2Track : TrackBase
+internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
 {
-    public ModelInfo? Singer { get; set; }
+    public event EventHandler TimingEstimated;
+
+    public event EventHandler FeatureChanged;
+
+    public ModelInfo Singer { get; set; }
 
     public string MusicXml { get; set; }
 
     public byte[]? FullTiming { get; set; }
 
     public byte[]? MonoTiming { get; set; }
+
+    public TimingInfo[] Timings { get; set; } = Array.Empty<TimingInfo>();
+
+    public PhraseInfo[] RawPhrases { get; set; } = Array.Empty<PhraseInfo>();
+
+    public NeutrinoV2Phrase[] Phrases { get; set; } = Array.Empty<NeutrinoV2Phrase>();
+
+    INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
+    public WaveData WaveData { get; } = new();
 
     private Dictionary<string, AudioFeaturesV2> _audioFeatures = new();
 
@@ -26,6 +40,8 @@ internal class NeutrinoV2Track : TrackBase
     {
         this.Singer = model;
         this.MusicXml = musicXml;
+
+        _ = this.Load();
     }
 
     public NeutrinoV2Track(Project project, NeutrinoV2TrackConfig config, IEnumerable<ModelInfo> models)
@@ -54,6 +70,8 @@ internal class NeutrinoV2Track : TrackBase
                 Mspec = value.Mspec,
             });
         }
+
+        _ = this.Load();
     }
 
     public override TrackBaseConfig GetConfig()
@@ -90,5 +108,62 @@ internal class NeutrinoV2Track : TrackBase
             this._audioFeatures.Add(modelId, f);
             return f;
         }
+    }
+    private async Task Load()
+    {
+        var session = this.Project.Session;
+
+        // Label
+        if (!this.HasScoreTiming())
+        {
+            var result = await session.NeutrinoV2.ConvertMusicXmlToTiming(new ConvertMusicXmlToTimingOption { MusicXml = this.MusicXml });
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
+            }
+
+            this.FullTiming = result.FullTiming;
+            this.MonoTiming = result.MonoTiming;
+        }
+
+        if (!this.HasTimings())
+        {
+            var result = await session.NeutrinoV2.GetTiming(this);
+            if (result is null)
+            {
+                // TODO: 実行失敗時
+                return;
+            }
+
+            this.Timings = NeutrinoUtil.ParseTiming(result.Timing);
+            this.TimingEstimated?.Invoke(this, EventArgs.Empty);
+
+            (this.RawPhrases, this.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, this.Timings,
+                (int no, int beginTime, int endTime, string label, PhraseStatus status) => new NeutrinoV2Phrase(no, beginTime, endTime, label, status));
+
+            session.AddEstimateQueue(this, this.Phrases);
+        }
+        else
+        {
+            var phrases = this.Phrases.Where(p => p.F0 is null);
+            session.AddEstimateQueue(this, phrases);
+
+            var phrases2 = this.Phrases.Where(p => p.F0 is not null);
+            session.AddAudioRenderQueue(this, phrases2);
+        }
+    }
+
+    public bool HasTimings() => this.Timings.Any();
+
+    internal void RaiseFeatureChanged() => this.FeatureChanged?.Invoke(this, EventArgs.Empty);
+
+    public long GetTotalFramesCount()
+    {
+        var timings = this.Timings;
+
+        return timings.Length > 0
+            ? (int)Math.Ceiling(timings.Last().EndTimeNs / 10000d / 5d)
+            : 0;
     }
 }

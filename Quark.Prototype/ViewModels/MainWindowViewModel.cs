@@ -226,7 +226,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
 
         var path = msg.Response[0];
-        var track = this.CurrentProject!.Tracks.ImportFromMusicXmlV1(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
+        var track = this.CurrentProject!.Tracks.ImportFromMusicXmlV2(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
         this.CurrentTrack = track;
         this.InitAudio(track);
     }

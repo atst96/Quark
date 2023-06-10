@@ -1,4 +1,4 @@
-﻿namespace Quark.Constants;
+namespace Quark.Constants;
 
 public static class FileExtensions
 {
@@ -21,8 +21,11 @@ public static class FileExtensions
     public const string Bap = ".bap";
 
     /// <summary>メルスペクトログラム</summary>
-    public const string Mspec = ".mspec";
+    public const string Melspec = ".melspec";
 
     /// <summary>テキストファイル</summary>
     public const string Text = ".txt";
+
+    /// <summary>WAV</summary>
+    public const string Wave = ".wav";
 }
