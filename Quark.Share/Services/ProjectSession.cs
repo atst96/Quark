@@ -43,7 +43,7 @@ internal class ProjectSession
         this.Project = project;
         this.NeutrinoV1 = neutrinoV1;
         this.NeutrinoV2 = neutrinoV2;
-        this._estimateQueue = new(2, this.ProcessEstimateQueue);
+        this._estimateQueue = new(1, this.ProcessEstimateQueue);
         this._audioRenderQueue = new(1, this.ProcessAudioRenderQueue);
 
         this.BeginSession();
