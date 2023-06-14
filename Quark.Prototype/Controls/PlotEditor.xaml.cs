@@ -714,10 +714,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnVScroll(object sender, ScrollEventArgs e)
     {
-        if (e.ScrollEventType != ScrollEventType.First)
-        {
-            this.SKElement.InvalidateVisual();
-        }
+        this.SKElement.InvalidateVisual();
     }
 
     /// <summary>
@@ -733,12 +730,9 @@ public partial class PlotEditor : UserControl
             return;
         }
 
-        if (e.ScrollEventType != ScrollEventType.First)
-        {
-            this.OnRenderBeginMsChanged(time);
-            this.Redraw();
-            this.RelocateSeekBar();
-        }
+        this.OnRenderBeginMsChanged(time);
+        this.Redraw();
+        this.RelocateSeekBar();
     }
 
     /// <summary>
@@ -812,7 +806,9 @@ public partial class PlotEditor : UserControl
         }
         else
         {
-            // キー操作がない場合
+            // その他のキー操作
+
+            // Shiftキーが押下中なら横スクロール、それ以外なら縦スクロール
             bool isHorizontal = modifiers == ModifierKeys.Shift;
             var targetScrollBar = isHorizontal
                 ? this.hScrollBar1
@@ -830,6 +826,7 @@ public partial class PlotEditor : UserControl
                     this.SetVerticalPositionOffset(-change);
                 }
                 this.Redraw();
+                this.RelocateSeekBar();
             }
             else if (e.Delta < 0)
             {
@@ -842,6 +839,7 @@ public partial class PlotEditor : UserControl
                     this.SetVerticalPositionOffset(change);
                 }
                 this.Redraw();
+                this.RelocateSeekBar();
             }
         }
     }
@@ -965,6 +963,7 @@ public partial class PlotEditor : UserControl
             if (IsWithinRuler(renderInfo, ref mousePos))
             {
                 this._mouseMode = MouseControlMode.Seek;
+                this.RelocateSeekBarForSeeking(e);
             }
             else if (IsWithinPianoRoll(renderInfo, ref mousePos))
             {
@@ -975,6 +974,8 @@ public partial class PlotEditor : UserControl
                 // キーのインデックスを計算する
                 // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
                 this._putNoteKeyIndex = this.GetKeyIndex(renderInfo, ref mousePosition);
+
+                this.RelocateNoteRectangle(e);
             }
         }
     }
@@ -990,101 +991,116 @@ public partial class PlotEditor : UserControl
         //    Debug.WriteLine($"Mouse move. Left: {e.LeftButton}");
         //}
 
+        if (this._mouseMode == MouseControlMode.Seek)
+            this.RelocateSeekBarForSeeking(e);
+        else if (this._mouseMode == MouseControlMode.PutNote)
+            this.RelocateNoteRectangle(e);
+        else
+            this.RelocatePuttableNoteRectangle(e);
+    }
+
+    private void RelocateSeekBarForSeeking(MouseEventArgs e)
+    {
         var renderInfo = this._viewBoxInfo;
         int beginTime = this.GetRenderBeginTimeMs();
 
-        if (this._mouseMode == MouseControlMode.Seek)
+        double width = renderInfo.RenderWidth;
+
+        var mousePosition = e.GetPosition(this);
+        double posX = mousePosition.X;
+
+        if (posX < AutoScrollInnerWidth)
         {
-            double width = renderInfo.RenderWidth;
+            this._mouseTimer.Start();
+        }
+        else if ((width - AutoScrollInnerWidth) < posX)
+        {
+            this._mouseTimer.Start();
+        }
 
-            var mousePosition = e.GetPosition(this);
-            double posX = mousePosition.X;
+        int conditionTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
 
-            if (posX < AutoScrollInnerWidth)
+        var noteLines = this._renderCommon?.RangeScoreRenderInfo?.NoteLines;
+        if (this.IsQuantizeSnapping && noteLines != null)
+        {
+            // スナッピング有効時にシークバーを罫線に沿うようにする
+            int rangeBegin = (int)noteLines.First().Time;
+            int rangeEnd = (int)noteLines.Last().Time;
+
+            if (conditionTime < rangeBegin)
             {
-                this._mouseTimer.Start();
+                conditionTime = rangeBegin;
             }
-            else if ((width - AutoScrollInnerWidth) < posX)
+            else if (conditionTime > rangeEnd)
             {
-                this._mouseTimer.Start();
+                conditionTime = rangeEnd;
             }
-
-            int conditionTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
-
-            var noteLines = this._renderCommon?.RangeScoreRenderInfo?.NoteLines;
-            if (this.IsQuantizeSnapping && noteLines != null)
+            else
             {
-                // スナッピング有効時にシークバーを罫線に沿うようにする
-                int rangeBegin = (int)noteLines.First().Time;
-                int rangeEnd = (int)noteLines.Last().Time;
+                for (int idx = 1; idx < noteLines.Count; ++idx)
+                {
+                    int begin = (int)noteLines[idx - 1].Time;
+                    int end = (int)noteLines[idx - 0].Time - 1;
 
-                if (conditionTime < rangeBegin)
-                {
-                    conditionTime = rangeBegin;
-                }
-                else if (conditionTime > rangeEnd)
-                {
-                    conditionTime = rangeEnd;
-                }
-                else
-                {
-                    for (int idx = 1; idx < noteLines.Count; ++idx)
+                    if (begin <= conditionTime && conditionTime <= end)
                     {
-                        int begin = (int)noteLines[idx - 1].Time;
-                        int end = (int)noteLines[idx - 0].Time - 1;
-
-                        if (begin <= conditionTime && conditionTime <= end)
+                        // 直前・直後どちらかの罫線に近い方に合わせる
+                        if (conditionTime < (begin + ((end - begin) / 2)))
                         {
-                            // 直前・直後どちらかの罫線に近い方に合わせる
-                            if (conditionTime < (begin + ((end - begin) / 2)))
-                            {
-                                conditionTime = begin;
-                            }
-                            else
-                            {
-                                conditionTime = end + 1;
-                            }
-                            break;
+                            conditionTime = begin;
                         }
+                        else
+                        {
+                            conditionTime = end + 1;
+                        }
+                        break;
                     }
                 }
             }
-
-            this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
         }
-        else if (this._mouseMode == MouseControlMode.PutNote)
+
+        this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
+    }
+
+    private void RelocateNoteRectangle(MouseEventArgs e)
+    {
+        var renderInfo = this._viewBoxInfo;
+        int beginTime = this.GetRenderBeginTimeMs();
+
+        var trackScoreInfo = this._trackScoreInfo;
+        if (trackScoreInfo != null)
         {
-            var trackScoreInfo = this._trackScoreInfo;
-            if (trackScoreInfo != null)
-            {
-                var mousePosition = e.GetPosition(this);
-                int conditionTime = this._putNoteBeginTime;
-                int keyIndex = this._putNoteKeyIndex;
-
-                int currentCursorPosition = GetConditionTime(renderInfo, beginTime, ref mousePosition);
-
-                decimal duration = ScoreDrawingUtil.GetNoteDuration(trackScoreInfo.Score, conditionTime, this.Quantize, currentCursorPosition);
-
-                // 図形の位置を変更
-                this.MoveBorder(renderInfo, keyIndex, conditionTime - beginTime, (int)duration + 1);
-            }
-        }
-        else
-        {
-            var trackScoreInfo = this._trackScoreInfo;
             var mousePosition = e.GetPosition(this);
-            if (trackScoreInfo != null && IsWithinPianoRoll(renderInfo, ref mousePosition))
-            {
-                // キーのインデックスを計算する
-                // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
-                int keyIndex = this.GetKeyIndex(renderInfo, ref mousePosition);
+            int conditionTime = this._putNoteBeginTime;
+            int keyIndex = this._putNoteKeyIndex;
 
-                int conditionTime = this.FindJustBeforeQuantizeSnapping(renderInfo, beginTime, ref mousePosition);
+            int currentCursorPosition = GetConditionTime(renderInfo, beginTime, ref mousePosition);
 
-                decimal duration = ScoreDrawingUtil.GetNoteDuration(trackScoreInfo.Score, conditionTime, this.Quantize);
+            decimal duration = ScoreDrawingUtil.GetNoteDuration(trackScoreInfo.Score, conditionTime, this.Quantize, currentCursorPosition);
 
-                this.MoveBorder(renderInfo, keyIndex, (conditionTime - beginTime), (int)duration + 1);
-            }
+            // 図形の位置を変更
+            this.MoveBorder(renderInfo, keyIndex, conditionTime - beginTime, (int)duration + 1);
+        }
+    }
+
+    private void RelocatePuttableNoteRectangle(MouseEventArgs e)
+    {
+        var renderInfo = this._viewBoxInfo;
+        int beginTime = this.GetRenderBeginTimeMs();
+
+        var trackScoreInfo = this._trackScoreInfo;
+        var mousePosition = e.GetPosition(this);
+        if (trackScoreInfo != null && IsWithinPianoRoll(renderInfo, ref mousePosition))
+        {
+            // キーのインデックスを計算する
+            // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
+            int keyIndex = this.GetKeyIndex(renderInfo, ref mousePosition);
+
+            int conditionTime = this.FindJustBeforeQuantizeSnapping(renderInfo, beginTime, ref mousePosition);
+
+            decimal duration = ScoreDrawingUtil.GetNoteDuration(trackScoreInfo.Score, conditionTime, this.Quantize);
+
+            this.MoveBorder(renderInfo, keyIndex, (conditionTime - beginTime), (int)duration + 1);
         }
     }
 
