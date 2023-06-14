@@ -68,8 +68,81 @@
 
             </TabItem>
 
-            <TabItem Header="NEUTRINO">
-                <StackPanel Margin="4">
+            <TabItem Header="NEUTRINO v1" DataContext="{Binding NeutrinoV1ViewModel, Mode=OneTime}">
+                <StackPanel Margin="8,4">
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- フォルダ -->
+                        <TextBlock
+                            Text="NEUTRINOフォルダのパス"
+                            VerticalAlignment="Center" />
+
+                        <TextBox
+                            Grid.Column="1" IsReadOnly="True"
+                            Text="{Binding Directory, Mode=OneWay}" />
+
+                        <Button
+                            Margin="4,0,0,0"
+                            Content="..."
+                            Grid.Column="2">
+                            <i:Interaction.Triggers>
+                                <i:EventTrigger EventName="Click">
+                                    <ab:FolderBrowserDialogInteractionMessageAction>
+                                        <l:DirectInteractionMessage CallbackCommand="{Binding DirectorySelectCommand, Mode=OneTime}">
+                                            <ab:FolderSelectionMessage />
+                                        </l:DirectInteractionMessage>
+                                    </ab:FolderBrowserDialogInteractionMessageAction>
+                                </i:EventTrigger>
+                            </i:Interaction.Triggers>
+                        </Button>
+                    </Grid>
+
+                    <!--レガシー版使用選択 -->
+                    <CheckBox Margin="4" IsThreeState="True"
+                        IsChecked="{Binding UseLegacyExe, Mode=TwoWay}"
+                        Content="レガシー版のNEUTRINOを使用する" />
+
+                    <TextBlock Margin="24,4,4,4" Foreground="#666">
+                        <Run Text="現在の状態: " /><!--
+                     --><Run Text="{Binding SelectExeLabel, Mode=OneWay}" />
+                    </TextBlock>
+
+                    <!--GPU使用選択-->
+                    <CheckBox Margin="4" Grid.Row="1" Grid.Column="1"
+                        IsChecked="{Binding UseGpu, Mode=TwoWay}"
+                        Content="GPUを使用する" />
+
+                    <!-- CPUスレッド数 -->
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Text="CPUスレッド数"
+                            VerticalAlignment="Center" />
+
+                        <TextBox
+                            Grid.Column="1" Width="100"
+                            Text="{Binding CpuThreads, Mode=TwoWay}" />
+                    </Grid>
+
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="NEUTRINO v2" DataContext="{Binding NeutrinoV2ViewModel, Mode=OneTime}">
+                <StackPanel Margin="8,4">
                     <Grid Margin="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="180" />
@@ -82,10 +155,8 @@
                             VerticalAlignment="Center" />
 
                         <TextBox
-                            Grid.Column="1"
-                            IsReadOnly="True"
-                            Background="{DynamicResource InputBox.Disabled.Background}"
-                            Text="{Binding NeutrinoDirectory, Mode=OneWay}" />
+                            Grid.Column="1" IsReadOnly="True"
+                            Text="{Binding Directory, Mode=OneWay}" />
 
                         <Button
                             Margin="4,0,0,0"
@@ -94,7 +165,7 @@
                             <i:Interaction.Triggers>
                                 <i:EventTrigger EventName="Click">
                                     <ab:FolderBrowserDialogInteractionMessageAction>
-                                        <l:DirectInteractionMessage CallbackCommand="{Binding NeutrinoDirectorySelectCommand, Mode=OneTime}">
+                                        <l:DirectInteractionMessage CallbackCommand="{Binding DirectorySelectCommand, Mode=OneTime}">
                                             <ab:FolderSelectionMessage />
                                         </l:DirectInteractionMessage>
                                     </ab:FolderBrowserDialogInteractionMessageAction>
@@ -102,8 +173,30 @@
                             </i:Interaction.Triggers>
                         </Button>
                     </Grid>
+
+                    <!--GPU使用選択-->
+                    <CheckBox Margin="4" Grid.Row="1" Grid.Column="1"
+                        IsChecked="{Binding UseGpu, Mode=TwoWay}"
+                        Content="GPUを使用する" />
+
+                    <!-- CPUスレッド数 -->
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Text="CPUスレッド数"
+                            VerticalAlignment="Center" />
+
+                        <TextBox
+                            Grid.Column="1" Width="100"
+                            Text="{Binding CpuThreads, Mode=TwoWay}" />
+                    </Grid>
                 </StackPanel>
             </TabItem>
+
         </TabControl>
     </Grid>
 </Window>

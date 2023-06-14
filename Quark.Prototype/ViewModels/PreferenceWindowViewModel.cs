@@ -5,6 +5,7 @@ using Quark.Data.Settings;
 using Quark.DependencyInjection;
 using Quark.Mvvm;
 using Quark.Services;
+using Quark.ViewModels.Preference;
 
 namespace Quark.ViewModels;
 
@@ -14,39 +15,57 @@ namespace Quark.ViewModels;
 [Prototype]
 internal class PreferenceWindowViewModel : ViewModelBase
 {
+    private Settings _settings;
     private SettingService _settingService;
+
+    public PreferenceNeutrinoV1ViewModel NeutrinoV1ViewModel { get; }
+
+    public PreferenceNeutrinoV2ViewModel NeutrinoV2ViewModel { get; }
 
     public PreferenceWindowViewModel(SettingService settingService) : base()
     {
         this._settingService = settingService;
         this._settings = settingService.Settings;
 
-        this.NeutrinoDirectory = this._settings.Neutrino.Directory;
+        this.NeutrinoDirectory = this._settings.NeutrinoV1.Directory;
+
+        this.NeutrinoV1ViewModel = this.AddDisposable(new PreferenceNeutrinoV1ViewModel());
+        this.NeutrinoV2ViewModel = this.AddDisposable(new PreferenceNeutrinoV2ViewModel());
+
+        this.SettingsApplyToViewModel();
     }
 
-    private ICommand? _neutrinoDirectorySelectCommand;
-    private Settings _settings;
-
-    public ICommand NeutrinoDirectorySelectCommand => this._neutrinoDirectorySelectCommand ??= new DelegateCommand<FolderSelectionMessage>(msg =>
+    /// <summary>
+    /// 設定情報を読み込んでViewModelに反映する
+    /// </summary>
+    private void SettingsApplyToViewModel()
     {
-        var directory = msg.Response;
+        var settings = this._settings;
 
-        if (directory is not null)
-        {
-            // 設定変更
-            this._settings.Neutrino.Directory = directory;
+        this.NeutrinoV1ViewModel.ApplyToViewModel(settings);
+        this.NeutrinoV2ViewModel.ApplyToViewModel(settings);
+    }
 
-            // 表示変更
-            this.NeutrinoDirectory = directory;
-            this.RaisePropertyChanged(nameof(NeutrinoDirectory));
-        }
-    });
+    /// <summary>
+    /// 画面の内容を設定情報に反映する
+    /// </summary>
+    private void ApplyToSettings()
+    {
+        var settings = this._settings;
+
+        this.NeutrinoV1ViewModel.ApplyToSettings(settings);
+        this.NeutrinoV2ViewModel.ApplyToSettings(settings);
+    }
 
     public string? NeutrinoDirectory { get; private set; }
 
-    private ICommand _closeCommand;
-    public ICommand CloseCommand => this._closeCommand ??= new DelegateCommand<CancelEventArgs>(a =>
+    private ICommand? _closeCommand;
+    public ICommand CloseCommand => this._closeCommand ??= this.AddCommand<CancelEventArgs>(a =>
     {
+        // 設定情報を反映
+        this.ApplyToSettings();
+
+        // 設定情報を保存
         this._settingService.Save();
     });
 }

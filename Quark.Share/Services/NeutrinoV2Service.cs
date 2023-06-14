@@ -60,20 +60,20 @@ internal class NeutrinoV2Service
     /// </summary>
     public IList<ModelInfo> GetModels()
     {
-        if (this._setting.Neutrino.Directory is null)
+        if (this._setting.NeutrinoV1.Directory is null)
         {
             return new List<ModelInfo>();
         }
         else
         {
-            var path = Path.Combine(this._setting.Neutrino.Directory!, ModelDirName);
+            var path = Path.Combine(this._setting.NeutrinoV1.Directory!, ModelDirName);
 
             return NeutrinoModelUtil.GetModels(path);
         }
     }
 
     /// <summary>NEUTRINOの作業ディレクトリを取得する</summary>
-    private string GetNeutrinoWorkingDirectory() => this._setting.Neutrino.Directory!;
+    private string GetNeutrinoWorkingDirectory() => this._setting.NeutrinoV2.Directory!;
 
     /// <summary>
     /// NEUTRINO内のファイルパスを取得する
@@ -301,14 +301,17 @@ internal class NeutrinoV2Service
     /// <returns></returns>
     public Task<EstimateTimingResult> GetTiming(NeutrinoV2Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
+        var setting = this._setting.NeutrinoV2;
+
         var option = new NeutrinoV2Option()
         {
             FullLabel = track.FullTiming!,
             ModelInfo = track.Singer,
             IsSkipAcousticFeaturesPrediction = true,
             IsTracePhraseInformation = true,
+            NumberOfParallel = setting.CpuThreads,
+            UseMultipleGpus = setting.UseGpu,
             IsViewInformation = true,
-            UseMultipleGpus = true,
         };
 
         return EstimateFeatures(option, progress, cancellationToken)
@@ -329,7 +332,10 @@ internal class NeutrinoV2Service
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
     public Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Track track, NeutrinoV2Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
-        => this.EstimateFeatures(new NeutrinoV2Option()
+    {
+        var setting = this._setting.NeutrinoV2;
+
+        return this.EstimateFeatures(new NeutrinoV2Option()
         {
             FullLabel = track.FullTiming!,
             TimingLabel = NeutrinoUtil.ToString(track.Timings),
@@ -337,12 +343,14 @@ internal class NeutrinoV2Service
             ModelInfo = track.Singer,
             IsSkipTimingPrediction = true,
             IsTracePhraseInformation = true,
-            IsViewInformation = true,
-            UseMultipleGpus = true,
             SinglePhrasePrediction = phrase.No,
             WorldFeaturesPrediction = true,
+            UseMultipleGpus = setting.UseGpu,
+            NumberOfParallel = setting.CpuThreads,
+            IsViewInformation = true,
         }
         , progress, cancellationToken);
+    }
 
     /// <summary>
     /// WORLDで音声合成する
@@ -425,14 +433,19 @@ internal class NeutrinoV2Service
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns>WAVファイルデータ</returns>
     public Task<byte[]> SynthesisWorld(NeutrinoV2Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
-        => this.SynthesisWorld(new WorldV2Option
+    {
+        var setting = this._setting.NeutrinoV2;
+
+        return this.SynthesisWorld(new WorldV2Option
         {
             F0 = phrase.F0!,
             Mgc = phrase.Mgc!,
             Bap = phrase.Bap!,
+            NumberOfParallel = setting.CpuThreads,
             IsViewInformation = true,
         }
         , progress, cancellationToken);
+    }
 
     /// <summary>
     /// NSFで音声合成を行う
@@ -510,15 +523,20 @@ internal class NeutrinoV2Service
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns>WAVファイルデータ</returns>
     public Task<byte[]> SynthesisNSF(NeutrinoV2Track track, NeutrinoV2Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
-        => this.SynthesisNSF(new NSFV2Option
+    {
+        var setting = this._setting.NeutrinoV2;
+
+        return this.SynthesisNSF(new NSFV2Option
         {
             F0 = phrase.F0!,
             Melspec = phrase.Mspec!,
             Model = track.Singer,
             ModelType = NSFV2Model.VA,
             SamplingRate = 48,
-            UseMultiGpus = true,
+            NumberOfParallel = setting.CpuThreads,
+            UseMultiGpus = setting.UseGpu,
             IsViewInformation = true,
         }
         , progress, cancellationToken);
+    }
 }
