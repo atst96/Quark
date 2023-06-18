@@ -1,8 +1,10 @@
-﻿namespace Quark.Components;
+﻿using System.Collections;
+
+namespace Quark.Components;
 
 /// <summary>非同期でタスクを実行するクラス</summary>
 /// <typeparam name="T">データ要素の型</typeparam>
-public class TaskQueue<T>
+public class TaskQueue<T> : IEnumerable<T>
 {
     /// <summary>排他ロック用オブジェクト</summary>
     private readonly object @_lock = new();
@@ -21,6 +23,9 @@ public class TaskQueue<T>
 
     /// <summary>最大実行数</summary>
     private readonly int _maxTaskCount;
+
+    /// <summary>現在実行中のタスク</summary>
+    public LinkedList<T> Runnings { get; } = new();
 
     /// <summary>インスタンスを生成する</summary>
     /// <param name="maxTaskCount">同時に実行できるタスク数</param>
@@ -81,7 +86,11 @@ public class TaskQueue<T>
                     continue;
 
                 //　実行中のタスク数をインクリメントする
-                ++this._currentTaskCount;
+                lock (this.@_lock)
+                {
+                    ++this._currentTaskCount;
+                    this.Runnings.AddLast(item);
+                }
 
                 this._task(item)
                     .ContinueWith(_ =>
@@ -90,7 +99,10 @@ public class TaskQueue<T>
 
                         // 実行中のタスク数をデクリメントする
                         lock (this.@_lock)
+                        {
                             --this._currentTaskCount;
+                            this.Runnings.Remove(item);
+                        }
 
                         // 次の処理
                         this.ExecuteNext();
@@ -98,4 +110,12 @@ public class TaskQueue<T>
             }
         }
     }
+
+    /// <summary>Enumeratorを取得する</summary>
+    public IEnumerator<T> GetEnumerator()
+        => this._queue.GetEnumerator();
+
+    /// <summary>Enumeratorを取得する</summary>
+    IEnumerator IEnumerable.GetEnumerator()
+        => this.GetEnumerator();
 }
