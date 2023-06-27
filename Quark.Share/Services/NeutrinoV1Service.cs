@@ -322,7 +322,7 @@ internal class NeutrinoV1Service
         return this.EstimateFeatures(new NeutrinoV1Option
         {
             FullLabel = track.FullTiming!,
-            TimingLabel = NeutrinoUtil.ToString(track.Timings),
+            TimingLabel = NeutrinoUtil.GetTimingContent(track.Timings),
             Model = track.Singer,
             IsSkipTimingPrediction = true,
             NumberOfThreads = v1Setting.CpuThreads,
@@ -347,10 +347,10 @@ internal class NeutrinoV1Service
         return this.EstimateFeatures(new NeutrinoV1Option
         {
             FullLabel = track.FullTiming!,
-            TimingLabel = NeutrinoUtil.ToString(track.Timings),
+            TimingLabel = NeutrinoUtil.GetTimingContent(track.Timings),
             Model = track.Singer,
             IsSkipTimingPrediction = true,
-            EstimatedPhrase = NeutrinoUtil.ToString(track.RawPhrases),
+            EstimatedPhrase = NeutrinoUtil.GetPhraseContent(track.RawPhrases),
             SinglePhrasePrediction = phrase.No,
             NumberOfThreads = v1Setting.CpuThreads,
             UseMultiGpus = v1Setting.UseGpu,

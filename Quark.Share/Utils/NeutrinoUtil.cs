@@ -67,7 +67,7 @@ public static partial class NeutrinoUtil
     /// <returns></returns>
     public static (PhraseInfo[], T[]) ParsePhrases<T>(
         string phraseContent, TimingInfo[] timing,
-        Func<int, int, int, string, PhraseStatus, T> func)
+        Func<int, int, int, string[][], PhraseStatus, T> func)
         where T : INeutrinoPhrase
     {
         var parsedPhrases = ParseWithRegex<PhraseInfo>(phraseContent, GetPhraseRegex(),
@@ -75,7 +75,7 @@ public static partial class NeutrinoUtil
                 r.GetValue<int>("no"),
                 r.GetValue<int>("time"),
                 r.GetValue<int>("flag") != 0,
-                r.GetValue("label")))
+                ParsePhrasePhonemes(r.GetValue("label"))))
             .ToArray();
 
         var phrases = new T[parsedPhrases.Count(p => p.IsVoiced)];
@@ -85,7 +85,7 @@ public static partial class NeutrinoUtil
             // idx: parsedPhrasesの要素インデックス
             // destIdx: phrasesの要素インデックス
 
-            (int no, int beginTime, bool isVoiced, string label) = parsedPhrases[idx];
+            (int no, int beginTime, bool isVoiced, string[][] phonemes) = parsedPhrases[idx];
 
             // TODO: 有声でない場合は省く(今後の実装で変わるかも)
             if (!isVoiced)
@@ -97,17 +97,118 @@ public static partial class NeutrinoUtil
                 ? (parsedPhrases[idx + 1].Time - 1)
                 : (int)Math.Ceiling(timing.Last().EndTimeNs / 10000d);
 
-            phrases[destIdx++] = func(no, beginTime, endFrameIdx, label, PhraseStatus.WaitEstimate);
+            phrases[destIdx++] = func(no, beginTime, endFrameIdx, phonemes, PhraseStatus.WaitEstimate);
         }
 
         return (parsedPhrases, phrases);
     }
 
-    public static byte[] ToString(TimingInfo[] timings)
-        => Encoding.UTF8.GetBytes(string.Join("\n", timings.Select(i => string.Join(" ", i.BeginTimeNs, i.EndTimeNs, i.Phoneme))));
+    /// <summary>
+    /// フレーズ情報の音素情報をパースする
+    /// </summary>
+    /// <param name="label">ラベル</param>
+    /// <returns></returns>
+    private static string[][] ParsePhrasePhonemes(string label)
+    {
+        var option = StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries;
 
-    public static byte[] ToString(PhraseInfo[] phrases)
-        => Encoding.UTF8.GetBytes(string.Join("\n", phrases.Select(i => string.Join(" ", i.No, i.Time, (i.IsVoiced ? 0 : 1), i.Label))));
+        return label.Split(',', option).Select(s => s.Split(' ', option)).ToArray();
+    }
+
+    /// <summary>タイミング情報の区切り文字</summary>
+    private const string TimingSeparator = "\n";
+
+    /// <summary>
+    /// タイミング情報のテキストデータを取得する
+    /// </summary>
+    /// <param name="timings">タイミング情報</param>
+    /// <returns></returns>
+    public static byte[] GetTimingContent(TimingInfo[] timings)
+    {
+        if (timings.Length == 0)
+            return Array.Empty<byte>();
+
+        var sb = new StringBuilder();
+
+        // 1件目のみ改行なしで書き込む
+        WriteTimingInfo(sb, timings[0]);
+
+        // 2件目以降は改行ありで書き込む
+        for (int idx = 1; idx < timings.Length; ++idx)
+        {
+            _ = sb.Append(TimingSeparator);
+            WriteTimingInfo(sb, timings[idx]);
+        }
+
+        return Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
+    /// <summary>
+    /// タイミング情報に書き込む
+    /// </summary>
+    /// <param name="sb">書込み先の<see cref="StringBuilder"/></param>
+    /// <param name="timing">タイミング情報</param>
+    private static void WriteTimingInfo(StringBuilder sb, TimingInfo timing)
+        => sb.Append($"{timing.BeginTimeNs} {timing.EndTimeNs} {timing.Phoneme}");
+
+    /// <summary>フレーズ情報の区切り文字(改行)</summary>
+    private const string PhraseSeparator = "\n";
+    /// <summary>フレーズ情報おける音素グループ?の区切り文字</summary>
+    private const string PhonemesGroupSeparator = ", ";
+    /// <summary>フレーズ情報における音素の区切り文字</summary>
+    private const string PhonemeSeparator = " ";
+
+    /// <summary>
+    /// フレーズ情報のテキストデータを作成する
+    /// </summary>
+    /// <param name="phrases">フレーズ情報</param>
+    /// <returns>バイトデータ</returns>
+    public static byte[] GetPhraseContent(PhraseInfo[] phrases)
+    {
+        if (phrases.Length == 0)
+            return Array.Empty<byte>();
+
+        var sb = new StringBuilder();
+
+        // 1見目を書き込み
+        WritePhraseInfo(sb, phrases[0]);
+
+        // 2見目意向を区切り文字とともに書込み
+        for (int idx = 1; idx < phrases.Length; ++idx)
+        {
+            _ = sb.Append(PhraseSeparator);
+            WritePhraseInfo(sb, phrases[idx]);
+        }
+
+        return Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
+    /// <summary>
+    /// フレーズ情報を書き込む
+    /// </summary>
+    /// <param name="sb">書込み対象<seealso cref="StringBuilder"/></param>
+    /// <param name="info">対象フレーズ情報</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WritePhraseInfo(StringBuilder sb, PhraseInfo info)
+    {
+        // 音素情報までの部分を書き込む
+        sb.Append($"{info.No} {info.Time} {(info.IsVoiced ? 0 : 1)} ");
+
+        // 音素情報を書き込む
+        var phonemes = info.Phoneme;
+        if (phonemes.Length == 0)
+            return;
+
+        // 1見目を書き込み
+        sb.AppendJoin(PhonemeSeparator, phonemes[0]);
+
+        // 2件目以降を区切り文字とともに書込み
+        for (int idx = 1; idx < phonemes.Length; ++idx)
+        {
+            sb.Append(PhonemesGroupSeparator);
+            sb.AppendJoin(PhonemeSeparator, phonemes[idx]);
+        }
+    }
 
     /// <summary>標準出力される進捗情報をパースするための正規表現</summary>
     private static readonly Regex ProgressRegex = new(@"^.+Progress\s*=\s*(?<progress>\d+)\s*%.+$", RegexOptions.Compiled);

@@ -10,7 +10,7 @@ public interface INeutrinoPhrase
 
     public int EndTime { get; }
 
-    public string Label { get; }
+    public string[][] Phonemes { get; }
 
     public PhraseStatus Status { get; }
 

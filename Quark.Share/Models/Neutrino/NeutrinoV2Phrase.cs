@@ -10,7 +10,7 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
     public int EndTime { get; }
 
-    public string Label { get; }
+    public string[][] Phonemes { get; }
 
     public PhraseStatus Status { get; private set; }
 
@@ -22,17 +22,17 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
     public float[]? Bap { get; private set; }
 
-    public NeutrinoV2Phrase(int no, int beginTime, int endTime, string label, PhraseStatus status)
+    public NeutrinoV2Phrase(int no, int beginTime, int endTime, string[][] label, PhraseStatus status)
     {
         this.No = no;
         this.BeginTime = beginTime;
         this.EndTime = endTime;
-        this.Label = label;
+        this.Phonemes = label;
         this.Status = status;
     }
 
     public override string ToString()
-        => $"{nameof(NeutrinoV1Phrase)} {{ No: {this.No}, BeginTime: {this.BeginTime}, EndTime: {this.EndTime}, Label: {this.Label}, Status: {this.Status} }}";
+        => $"{nameof(NeutrinoV1Phrase)} {{ No: {this.No}, BeginTime: {this.BeginTime}, EndTime: {this.EndTime}, Label: {this.Phonemes}, Status: {this.Status} }}";
 
     public void SetAudioFeatures(float[] f0, float[] mspec, float[] mgc, float[] bap)
         => (this.F0, this.Mspec, this.Mgc, this.Bap) = (f0, mspec, mgc, bap);

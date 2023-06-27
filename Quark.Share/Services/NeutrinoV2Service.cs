@@ -338,7 +338,7 @@ internal class NeutrinoV2Service
         return this.EstimateFeatures(new NeutrinoV2Option()
         {
             FullLabel = track.FullTiming!,
-            TimingLabel = NeutrinoUtil.ToString(track.Timings),
+            TimingLabel = NeutrinoUtil.GetTimingContent(track.Timings),
             InferenceMode = NeutrinoV2InferenceMode.Standard,
             ModelInfo = track.Singer,
             IsSkipTimingPrediction = true,
