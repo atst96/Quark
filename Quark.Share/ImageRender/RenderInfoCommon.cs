@@ -4,7 +4,7 @@ using Quark.Projects.Tracks;
 
 namespace Quark.ImageRender;
 
-internal class RenderInfoCommon
+public class RenderInfoCommon
 {
     public required INeutrinoTrack? Track { get; init; }
 

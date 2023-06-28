@@ -13,4 +13,7 @@ public enum MouseControlMode
 
     /// <summary>音符配置</summary>
     PutNote,
+
+    /// <summary>タイミング編集</summary>
+    EditTiming,
 }

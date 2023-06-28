@@ -10,8 +10,10 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Quark.Constants;
 using Quark.Drawing;
 using Quark.Extensions;
+using Quark.Helpers;
 using Quark.ImageRender;
 using Quark.ImageRender.Parts;
 using Quark.ImageRender.PianoRoll;
@@ -48,12 +50,14 @@ public partial class PlotEditor : UserControl
 
     private bool _isLoaded = false;
     private long _framesCount = 0;
+    private IList<TimingHandle> _timings = Array.Empty<TimingHandle>();
     private TrackScoreInfo _trackScoreInfo;
     private ViewDrawingBoxInfo _viewBoxInfo;
     private RenderInfoCommon _renderCommon;
     private PianoRollRenderer _pianoRollRenderer;
     private RulerRenderer _rulerRenderer;
     private DynamicsRendererV2 _dynamicsRenderer;
+    private TimingRenderer _timingRenderer;
 
     /// <summary>横伸長率の初期値</summary>
     private const double DefaultScaleX = 0.125;
@@ -226,10 +230,7 @@ public partial class PlotEditor : UserControl
     private void OnTimingEstimated(object? sender, EventArgs e) => this.Dispatcher.InvokeAsync(() =>
     {
         // 再描画
-        this.LoadTrack(this.Track!);
-
-        this.UpdateScrollLayout();
-        this.RelocateSeekBar();
+        this.LoadTiming();
 
     }, DispatcherPriority.Normal);
 
@@ -347,11 +348,32 @@ public partial class PlotEditor : UserControl
             Score = MusicXmlUtil.Parse(track.MusicXml),
         };
 
+        this._timings = ScoreLayoutHelper.CreateTimingHandles(track);
+
         this._framesCount = track.GetTotalFramesCount();
 
         this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
 
         this.Redraw();
+    }
+
+    private void LoadTiming()
+    {
+        var track = this.Track;
+        if (track == null)
+            return;
+
+        this._timings = ScoreLayoutHelper.CreateTimingHandles(track);
+
+        var trackInfo = this._trackScoreInfo;
+
+        this._framesCount = track.GetTotalFramesCount();
+
+        this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
+
+        this.Redraw();
+        this.UpdateScrollLayout();
+        this.RelocateSeekBar();
     }
 
     /// <summary>スクロールバーの状態を更新する</summary>
@@ -524,7 +546,7 @@ public partial class PlotEditor : UserControl
 
         var rangeInfo = new RenderRangeInfo(beginTime, endTime, offsetFrames, framesCount);
 
-        UpdateRenderInfo(new RenderInfoCommon
+        this.UpdateRenderInfo(new RenderInfoCommon
         {
             Track = this.Track,
             RenderRange = rangeInfo,
@@ -535,9 +557,12 @@ public partial class PlotEditor : UserControl
         var trackScore = this._trackScoreInfo;
         if (trackScore != null)
         {
+            var timings = this._timings;
+
             this._renderCommon.RangeScoreRenderInfo = new RangeScoreRenderInfo
             {
                 Score = trackScore.Score.GetRangeInfo(beginTime, endTime),
+                Timings = ScoreLayoutHelper.GetRenderTargets(this._timingRenderer, this._renderCommon!, timings, this._editingTimingInfo?.Target),
                 NoteLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, this.Quantize),
                 RulerLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, LineType.Note8th),
             };
@@ -554,6 +579,7 @@ public partial class PlotEditor : UserControl
         this._pianoRollRenderer = new PianoRollRenderer(renderInfoCommon);
         this._rulerRenderer = new RulerRenderer(renderInfoCommon);
         this._dynamicsRenderer = new DynamicsRendererV2(renderInfoCommon);
+        this._timingRenderer = new TimingRenderer(renderInfoCommon);
     }
 
     /// <summary>
@@ -694,6 +720,8 @@ public partial class PlotEditor : UserControl
         g.DrawBitmap(this._renderImage,
             SKRect.Create(0, scaledScoreY, scaledWidth, scaledScoreHeight),
             SKRect.Create(0, renderInfo.DisplayScorePosY, scaledWidth, scaledScoreHeight));
+
+        this._timingRenderer.Render(g);
 
         if (renderInfo.DynamicRenderHeight > 0)
         {
@@ -943,6 +971,13 @@ public partial class PlotEditor : UserControl
     }
 
     private MouseControlMode _mouseMode = MouseControlMode.None;
+
+    /// <summary>
+    /// タイミング編集情報
+    /// タイミング編集時以外はnullを設定しておく
+    /// </summary>
+    private TimingEditingInfo? _editingTimingInfo;
+
     private int _putNoteBeginTime = 0;
     private int _putNoteKeyIndex = 0;
 
@@ -967,6 +1002,38 @@ public partial class PlotEditor : UserControl
             }
             else if (IsWithinPianoRoll(renderInfo, ref mousePos))
             {
+                bool handled = false;
+
+                if (true)
+                {
+                    var timings = this._renderCommon.RangeScoreRenderInfo?.Timings;
+                    if (timings != null)
+                    {
+                        int x = scaling.ToRenderImageScaling(mousePos.X);
+                        int y = scaling.ToRenderImageScaling(mousePos.Y);
+
+                        var handle = timings.FirstOrDefault(
+                            h => h.IsSelected && h.IsCollisionDetection(x, y));
+
+                        if (handle != null)
+                        {
+                            this._mouseMode = MouseControlMode.EditTiming;
+                            int idx = this._timings!.IndexOf(handle);
+
+                            this._editingTimingInfo = new(handle)
+                            {
+                                Lower = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.BeginTimeNs,
+                                Upper = (idx == -1 || (this._timings.Count <= (idx + 1)))
+                                    ? null : this._timings[idx + 1].TimingInfo.BeginTimeNs,
+                                OffsetX = x - handle.X,
+                                Time = NeutrinoUtil.TimingTimeToMs(handle.TimingInfo.BeginTimeNs),
+                            };
+
+                            return;
+                        }
+                    }
+                }
+
                 this._mouseMode = MouseControlMode.PutNote;
                 var mousePosition = e.GetPosition(this);
                 this._putNoteBeginTime = this.FindJustBeforeQuantizeSnapping(renderInfo, this.GetRenderBeginTimeMs(), ref mousePosition);
@@ -982,6 +1049,9 @@ public partial class PlotEditor : UserControl
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
+        // カーソル
+        var cursor = Cursors.Arrow;
+
         //if (e.LeftButton == MouseButtonState.Pressed
         //    || e.RightButton == MouseButtonState.Pressed
         //    || e.MiddleButton == MouseButtonState.Pressed
@@ -995,8 +1065,86 @@ public partial class PlotEditor : UserControl
             this.RelocateSeekBarForSeeking(e);
         else if (this._mouseMode == MouseControlMode.PutNote)
             this.RelocateNoteRectangle(e);
+        else if (this._mouseMode == MouseControlMode.EditTiming)
+        {
+            var renderInfo = this._viewBoxInfo;
+            var scaling = renderInfo.Scaling;
+
+            int beginTime = this.GetRenderBeginTimeMs();
+
+            var trackScoreInfo = this._trackScoreInfo;
+            if (trackScoreInfo != null)
+            {
+                var editing = this._editingTimingInfo!;
+
+                // マウスの位置を取得、オフセット分補正する
+                var mousePosition = e.GetPosition(this);
+                mousePosition.Offset(scaling.ToRenderImageScaling(-editing.OffsetX), 0);
+
+                // マウスで選択中の時間を計算し、範囲内に収める
+                int adjustedTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
+                adjustedTime = Math.Max(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.Lower));
+                if (editing.Upper != null)
+                    adjustedTime = Math.Min(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.Upper.Value));
+
+                // レイアウト、編集中のタイミング情報を更新
+                int adjustedX = scaling.ToDisplayScaling((adjustedTime - beginTime) * renderInfo.WidthStretch);
+                editing.Target.MoveX(adjustedX);
+                editing.Time = adjustedTime;
+
+                // TODO: 再描画
+                this.SKElement.InvalidateVisual();
+            }
+        }
         else
-            this.RelocatePuttableNoteRectangle(e);
+        {
+            // this.RelocatePuttableNoteRectangle(e);
+
+            var scaling = this._renderCommon.PartRenderInfo.Scaling;
+            var point = e.GetPosition(this);
+
+            (int x, int y) = scaling.ToRenderImageScaling(point.X, point.Y);
+
+            if (IsWithinPianoRoll(this._viewBoxInfo, ref point))
+            {
+                var timings = this._renderCommon.RangeScoreRenderInfo?.Timings;
+                if (timings != null)
+                {
+                    bool noSelected = true;
+
+                    // 末尾から検索する
+                    foreach (var target in timings.Reverse())
+                    {
+                        // 選択中(マウスオーバー)判定
+                        // 選択中判定となるのは最初に見つかった要素のみ。以降は未選択とする。
+                        bool isSelected = noSelected && target.IsCollisionDetection(x, y);
+                        if (isSelected)
+                            noSelected = false;
+
+                        target.IsSelected = isSelected;
+                    }
+
+                    // 選択中のタイミングがある場合はカーソルを変更する
+                    if (!noSelected)
+                        cursor = Cursors.SizeWE;
+
+                    // TODO: 再描画
+                    this.SKElement.InvalidateVisual();
+                }
+            }
+        }
+
+        this.SetCursor(cursor);
+    }
+
+    private Cursor _cursor = Cursors.Arrow;
+
+    private void SetCursor(Cursor cursor)
+    {
+        if (this._cursor != null)
+        {
+            this.Cursor = this._cursor = cursor;
+        }
     }
 
     private void RelocateSeekBarForSeeking(MouseEventArgs e)
@@ -1198,6 +1346,20 @@ public partial class PlotEditor : UserControl
             else if (this._mouseMode == MouseControlMode.PutNote)
             {
                 this._mouseMode = MouseControlMode.None;
+            }
+            else if (this._mouseMode == MouseControlMode.EditTiming)
+            {
+                this._mouseMode = MouseControlMode.None;
+
+                var editingTiming = this._editingTimingInfo;
+                if (editingTiming != null)
+                {
+                    var track = this.Track;
+                    if (track != null)
+                        track.ChangeTiming(Array.IndexOf(track.Timings, editingTiming.Target.TimingInfo), editingTiming.Time);
+                }
+
+                this._editingTimingInfo = null;
             }
         }
     }

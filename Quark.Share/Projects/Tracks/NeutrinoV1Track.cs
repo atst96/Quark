@@ -94,6 +94,8 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
 
     internal void RaiseFeatureChanged() => this.FeatureChanged?.Invoke(this, EventArgs.Empty);
 
+    void INeutrinoTrack.RaiseFeatureChanged() => this.RaiseFeatureChanged();
+
     private async Task Load()
     {
         var session = this.Project.Session;
@@ -123,9 +125,7 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
 
             this.Timings = NeutrinoUtil.ParseTiming(result.Timing);
             this.TimingEstimated?.Invoke(this, EventArgs.Empty);
-
-            (this.RawPhrases, this.Phrases) = NeutrinoUtil.ParsePhrases(result.Phrases, this.Timings,
-                (int no, int beginTime, int endTime, string label, PhraseStatus status) => new NeutrinoV1Phrase(no, beginTime, endTime, label, status));
+            this.SetRawPhrase(result.Phrases);
 
             session.AddEstimateQueue(this, this.Phrases);
         }
@@ -148,5 +148,197 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
         return timings.Length > 0
             ? (int)Math.Ceiling(timings.Last().EndTimeNs / 10000d / 5d)
             : 0;
+    }
+
+    public void SetRawPhrase(string phrases)
+    {
+        var (raw, voices) = NeutrinoUtil.ParsePhrases(phrases, this.Timings,
+                (int no, int beginTime, int endTime, string[][] label, PhraseStatus status) => new NeutrinoV1Phrase(no, beginTime, endTime, label, status));
+
+        (this.RawPhrases, this.Phrases) = (raw, voices);
+    }
+
+    public void ChangeTiming(int timingIndex, int timeMs)
+    {
+        var timings = this.Timings;
+
+        // タイミング変更により影響を受けるフレーズを取得
+        var rawPhrases = this.RawPhrases;
+        var phrases = this.Phrases;
+
+        // 再推論対象のフレーズ
+        var reProcessPhrases = new List<NeutrinoV1Phrase>();
+
+        var phraseInfoByPhraseNumber = this.Phrases.ToDictionary(p => p.No);
+
+        for (int phraseIdx = 0, lastTimingIndex = 0; phraseIdx < rawPhrases.Length; ++phraseIdx)
+        {
+            // フレーズが見つかるまで繰り返す
+
+            // フレーズ辺りの音素数(タイミング情報の件数)を計算
+            int count = rawPhrases[phraseIdx].Phoneme.Sum(ps => ps.Length);
+
+            if (lastTimingIndex == timingIndex)
+            {
+                // フレーズ先頭のタイミングが変更された場合
+                reProcessPhrases.AddRange(this.ChangeTimingWithPrevPhrase(timeMs, rawPhrases, phrases, phraseIdx));
+                break;
+            }
+
+            int rangeLastIndex = lastTimingIndex + count - 1;
+            if (rangeLastIndex == timingIndex)
+            {
+                // フレーズ末尾のタイミングが変更された場合
+                reProcessPhrases.AddRange(this.ChangeTimingWithNextPhrase(timeMs, rawPhrases, phrases, phraseIdx));
+                break;
+            }
+            else if (timingIndex > lastTimingIndex && rangeLastIndex > timingIndex)
+            {
+                // フレーズの中間のタイミングが変更された場合
+                reProcessPhrases.AddRange(this.ChangeTimingInPhrase(rawPhrases, phrases, phraseIdx));
+                break;
+            }
+
+            lastTimingIndex += count;
+        }
+
+        // 変更したタイミングを推論用のタイミング情報に反映する
+        long timingTime = NeutrinoUtil.GetTimingTimeFromMs(timeMs);
+
+        // 変更時点と前のタイミングに反映
+        timings[timingIndex].BeginTimeNs = timingTime;
+        if (timingIndex > 0)
+            timings[timingIndex - 1].EndTimeNs = timingTime;
+
+        // 再推論を実行する
+        // TODO: 推論済みのフレーズであれば再推論の優先度を上げる
+        this.Project.Session.AddEstimateQueue(this, reProcessPhrases);
+    }
+
+    private static NeutrinoV1Phrase FindPhrase(IEnumerable<NeutrinoV1Phrase> phrase, int no)
+        => phrase.First(p => p.No == no);
+
+    /// <summary>
+    /// 前フレーズと隣接するタイミングを変更する
+    /// </summary>
+    /// <param name="timeMs"></param>
+    /// <param name="rawPhrases"></param>
+    /// <param name="phrases"></param>
+    /// <param name="phraseIdx"></param>
+    /// <returns></returns>
+    private IEnumerable<NeutrinoV1Phrase> ChangeTimingWithPrevPhrase(int timeMs, PhraseInfo[] rawPhrases, NeutrinoV1Phrase[] phrases, int phraseIdx)
+    {
+        // 直前のフレーズを再推論対象にする
+
+        if (phraseIdx > 0)
+        {
+            // 先頭フレーズの場合は直前のフレーズが存在しないのでスキップする
+
+            int prevPhraseIdx = phraseIdx - 1;
+            var prevPhrase = rawPhrases[prevPhraseIdx];
+            if (prevPhrase.IsVoiced)
+            {
+                var info = FindPhrase(phrases, prevPhrase.No);
+
+                // 出力音声を削除
+                this.ClearRenderAudio(info);
+                // フレーズの終了時間を更新
+                info.ChangeEndTime(timeMs, isClearAudioFeature: true);
+
+                yield return info;
+            }
+        }
+
+        // 現在フレーズの情報を更新し、再推論対象にする
+        var phrase = rawPhrases[phraseIdx];
+        phrase.Time = timeMs;
+
+        if (phrase.IsVoiced)
+        {
+            var info = FindPhrase(phrases, phrase.No);
+
+            // 出力音声を削除
+            this.ClearRenderAudio(info);
+            // フレーズの終了時間を更新
+            info.ChangeBeginTime(timeMs, isClearAudioFeature: true);
+
+            yield return info;
+        }
+    }
+
+    /// <summary>
+    /// 次フレーズと隣接するタイミングを変更する
+    /// </summary>
+    /// <param name="timeMs"></param>
+    /// <param name="rawPhrases"></param>
+    /// <param name="phrases"></param>
+    /// <param name="phraseIdx"></param>
+    /// <returns></returns>
+    private IEnumerable<NeutrinoV1Phrase> ChangeTimingWithNextPhrase(int timeMs, PhraseInfo[] rawPhrases, NeutrinoV1Phrase[] phrases, int phraseIdx)
+    {
+        // 現在のフレーズを再推論対象にする
+        var phrase = rawPhrases[phraseIdx];
+        if (phrase.IsVoiced)
+        {
+            var info = FindPhrase(phrases, phrase.No);
+
+            // 出力音声を削除
+            this.ClearRenderAudio(info);
+            // フレーズの終了時間を更新
+            info.ChangeEndTime(timeMs, isClearAudioFeature: true);
+
+            yield return info;
+        }
+
+        // 次フレーズの情報を更新し、再推論対象にする
+        int nextPhraseIdx = phraseIdx + 1;
+        if (nextPhraseIdx < rawPhrases.Length)
+        {
+            var nextPhrase = rawPhrases[nextPhraseIdx];
+            nextPhrase.Time = timeMs;
+
+            if (nextPhrase.IsVoiced)
+            {
+                var info = FindPhrase(phrases, nextPhrase.No);
+
+                // 出力音声を削除
+                this.ClearRenderAudio(info);
+                // フレーズの終了時間を更新
+                info.ChangeBeginTime(nextPhraseIdx);
+
+                yield return info;
+            }
+        }
+    }
+
+    /// <summary>
+    /// フレーズ内のタイミングを変更する
+    /// </summary>
+    /// <param name="rawPhrases"></param>
+    /// <param name="phrases"></param>
+    /// <param name="phraseIdx"></param>
+    /// <returns></returns>
+    private IEnumerable<NeutrinoV1Phrase> ChangeTimingInPhrase(PhraseInfo[] rawPhrases, NeutrinoV1Phrase[] phrases, int phraseIdx)
+    {
+        // 現在のフレーズのみを再推論する
+        var phrase = rawPhrases[phraseIdx];
+
+        var info = FindPhrase(phrases, phrase.No);
+
+        // 出力音声を削除
+        this.ClearRenderAudio(info);
+        // フレーズの終了時間を更新
+        info.ClearAudioFeatures();
+
+        yield return info;
+    }
+
+    /// <summary>
+    /// フレーズの音声情報を消去する
+    /// </summary>
+    /// <param name="phrase">フレーズ情報</param>
+    private void ClearRenderAudio(INeutrinoPhrase phrase)
+    {
+        this.WaveData.SilenceAtTimeRange(phrase.BeginTime, phrase.EndTime);
     }
 }

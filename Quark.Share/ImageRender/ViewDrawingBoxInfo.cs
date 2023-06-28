@@ -6,7 +6,7 @@ namespace Quark.Controls;
 /// 音響情報を描画するための情報
 /// スケーリング100%時の1pxを1msとする。
 /// </summary>
-internal class ViewDrawingBoxInfo
+public class ViewDrawingBoxInfo
 {
     public RenderScaleInfo Scaling { get; }
 

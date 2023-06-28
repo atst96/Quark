@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Cysharp.Diagnostics;
@@ -285,4 +286,20 @@ public static partial class NeutrinoUtil
             Trace.WriteLine($"{guid}: === END NEUTRINO ===");
         }
     }
+
+    /// <summary>
+    /// ミリ秒をタイミング用の時間(100ns)に変換する
+    /// </summary>
+    /// <param name="timeMs">ミリ秒数</param>
+    /// <returns>100ns換算した時間</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static long GetTimingTimeFromMs(int timeMs) => timeMs * 10000;
+
+    /// <summary>
+    /// タイミング用の時間(100ns)をミリ秒に変換する
+    /// </summary>
+    /// <param name="time">時間(100ns)</param>
+    /// <returns>ミリ秒</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int TimingTimeToMs(long time) => (int)(time / 10000);
 }

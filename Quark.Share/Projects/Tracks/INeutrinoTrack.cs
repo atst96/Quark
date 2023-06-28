@@ -30,4 +30,8 @@ public interface INeutrinoTrack
     public long GetTotalFramesCount();
 
     public WaveData WaveData { get; }
+
+    public void ChangeTiming(int timingIndex, int timeMs);
+
+    internal void RaiseFeatureChanged();
 }
