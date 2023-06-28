@@ -49,6 +49,34 @@ public class WaveData
     }
 
     /// <summary>
+    /// 指定時間の範囲を無音化する。
+    /// <paramref name="endTimeMs"/>がnullの場合は末尾まで無音化する。
+    /// </summary>
+    /// <param name="beginTimeMs">開始時間(ミリ秒)</param>
+    /// <param name="endTimeMs">終了時間(ミリ秒)</param>
+    public void SilenceAtTimeRange(int beginTimeMs, int? endTimeMs = null)
+    {
+        lock (this.@_lock)
+        {
+            int maxLength = this._data.Length;
+
+            // 開始位置を計算
+            int beginPosition = int.Max(0, int.Min(maxLength, WavUtil.CalcDataPosition48k16bitMono(beginTimeMs)));
+
+            // 終了位置を計算、endMsがnullの場合はデータの末尾まで
+            int endPosition = endTimeMs.HasValue
+                ? int.Max(0, int.Min(maxLength, WavUtil.CalcDataPosition48k16bitMono(endTimeMs.Value)))
+                : maxLength;
+
+            if (endPosition <= beginPosition)
+                // 終了時間が開始時間と同じか開始時間より前の場合は何もしない
+                return;
+
+            this._data.AsSpan(beginPosition..endPosition).Clear();
+        }
+    }
+
+    /// <summary>
     /// WAVEデータを書き込む
     /// </summary>
     /// <param name="offset">データ位置</param>
