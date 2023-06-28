@@ -201,7 +201,7 @@ internal class ProjectSession
             phrase.SetStatus(PhraseStatus.EstimateProcessing);
             v1Track.RaiseFeatureChanged();
 
-            EstimateFeaturesResultV1? result;
+            EstimateFeaturesResultV1 result;
             try
             {
                 result = await this.NeutrinoV1.EstimateFeatures(
@@ -224,7 +224,7 @@ internal class ProjectSession
                 return;
             }
 
-            var (_, f0, mgc, bap, _) = result;
+            var (_, f0, mgc, bap, phrases) = result;
 
             phrase.SetAudioFeatures(f0!, mgc!, bap!);
             phrase.SetStatus(PhraseStatus.WaitAudioRender);
@@ -239,7 +239,7 @@ internal class ProjectSession
             phrase.SetStatus(PhraseStatus.EstimateProcessing);
             v2Track.RaiseFeatureChanged();
 
-            EstimateFeaturesResultV2? result;
+            EstimateFeaturesResultV2 result;
             try
             {
                 result = await this.NeutrinoV2.EstimateFeatures(
@@ -262,7 +262,7 @@ internal class ProjectSession
                 return;
             }
 
-            var (_, f0, mspec, mgc, bap, _) = result;
+            var (_, f0, mspec, mgc, bap, phrases) = result;
 
             phrase.SetAudioFeatures(f0!, mspec!, mgc!, bap!);
             phrase.SetStatus(PhraseStatus.WaitAudioRender);

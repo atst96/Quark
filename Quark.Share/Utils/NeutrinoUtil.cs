@@ -223,7 +223,21 @@ public static partial class NeutrinoUtil
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns><see cref="Task"/></returns>
     /// <exception cref="NeutrinoExecuteException">実行失敗情報</exception>
-    public static async Task Execute(string command, string? args = null, string? workdir = null, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public static Task Execute(string command, string? args = null, string? workdir = null, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+        => Execute(Guid.NewGuid(), command, args, workdir, progress, cancellationToken);
+
+    /// <summary>
+    /// NEUTRINOを実行する
+    /// </summary>
+    /// <param name="executionId">実行時識別ID</param>
+    /// <param name="command">実行ファイル</param>
+    /// <param name="args">コマンドライン引数</param>
+    /// <param name="workdir">作業ディレクトリ</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns><see cref="Task"/></returns>
+    /// <exception cref="NeutrinoExecuteException">実行失敗情報</exception>
+    public static async Task Execute(Guid executionId, string command, string? args = null, string? workdir = null, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
         // 実行開始から終了までの一連の流れを特定するための識別子
         var guid = Guid.NewGuid().ToString("N");
