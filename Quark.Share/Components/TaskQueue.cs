@@ -3,17 +3,18 @@
 namespace Quark.Components;
 
 /// <summary>非同期でタスクを実行するクラス</summary>
-/// <typeparam name="T">データ要素の型</typeparam>
-public class TaskQueue<T> : IEnumerable<T>
+/// <typeparam name="TElement">データ要素の型</typeparam>
+/// <typeparam name="TPriority">優先度を示す情報</typeparam>
+public class TaskQueue<TElement, TPriority> : IReadOnlyCollection<TElement>
 {
     /// <summary>排他ロック用オブジェクト</summary>
     private readonly object @_lock = new();
 
     /// <summary>データ処理時のタスク</summary>
-    private readonly Func<T, Task> _task;
+    private readonly Func<TElement, Task> _task;
 
     /// <summary>データキュー</summary>
-    private readonly Queue<T> _queue = new();
+    private readonly PriorityQueue<TElement, TPriority> _queue = new();
 
     /// <summary>セッションの有効/無効フラグ</summary>
     private bool _isEnabled = false;
@@ -25,12 +26,15 @@ public class TaskQueue<T> : IEnumerable<T>
     private readonly int _maxTaskCount;
 
     /// <summary>現在実行中のタスク</summary>
-    public LinkedList<T> Runnings { get; } = new();
+    public LinkedList<TElement> Runnings { get; } = new();
+
+    /// <summary>キューの件数</summary>
+    public int Count => this._queue.Count;
 
     /// <summary>インスタンスを生成する</summary>
     /// <param name="maxTaskCount">同時に実行できるタスク数</param>
     /// <param name="task">データ処理タスク</param>
-    public TaskQueue(int maxTaskCount, Func<T, Task> task)
+    public TaskQueue(int maxTaskCount, Func<TElement, Task> task)
     {
         if (maxTaskCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxTaskCount));
@@ -61,10 +65,10 @@ public class TaskQueue<T> : IEnumerable<T>
 
     /// <summary>処理データを追加する</summary>
     /// <param name="item">処理対象のデータ</param>
-    public void Enqueue(T item)
+    public void Enqueue(TElement item, TPriority priority)
     {
         lock (this._lock)
-            this._queue.Enqueue(item);
+            this._queue.Enqueue(item, priority);
 
         this.ExecuteNext();
     }
@@ -79,7 +83,7 @@ public class TaskQueue<T> : IEnumerable<T>
         lock (this.@_lock)
         {
             // 次の実行が可能かつキューから取得できればキューから削除する
-            while (this.CanNext() && this._queue.TryDequeue(out var item))
+            while (this.CanNext() && this._queue.TryDequeue(out var item, out _))
             {
                 // キャンセル済みなら現在要素の処理をスキップする
                 if (item is ITaskCancellable cancellable && cancellable.IsCancelled)
@@ -111,11 +115,8 @@ public class TaskQueue<T> : IEnumerable<T>
         }
     }
 
-    /// <summary>Enumeratorを取得する</summary>
-    public IEnumerator<T> GetEnumerator()
-        => this._queue.GetEnumerator();
+    public IEnumerator<TElement> GetEnumerator()
+        => this._queue.UnorderedItems.Select(i => i.Element).GetEnumerator();
 
-    /// <summary>Enumeratorを取得する</summary>
-    IEnumerator IEnumerable.GetEnumerator()
-        => this.GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 }

@@ -13,41 +13,15 @@ namespace Quark.Services;
 [Singleton]
 internal class ProjectSession
 {
-    private class EstimateQueueInfo
-    {
-        // TODO: クラスを整理する
-
-        /// <summary>トラック</summary>
-        public INeutrinoTrack Track { get; }
-
-        /// <summary>フレーズ情報</summary>
-        public INeutrinoPhrase Phrase { get; }
-
-        /// <summary>キャンセル用トークン</summary>
-        private readonly CancellationTokenSource _tokenSource = new();
-
-        public EstimateQueueInfo(INeutrinoTrack track, INeutrinoPhrase phrase)
-        {
-            this.Track = track;
-            this.Phrase = phrase;
-        }
-
-        /// <summary>キャンセル用トークンを取得する</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public CancellationToken GetCancellationToken() => this._tokenSource.Token;
-
-        /// <summary>現在のタスクをキャンセルする</summary>
-        public void Cancel()
-            => this._tokenSource.Cancel();
-    }
-
     private bool _isSessionStarted = false;
 
     public Project Project { get; }
 
-    private readonly TaskQueue<EstimateQueueInfo> _estimateQueue;
+    private volatile Dictionary<EstimatePriority, int> _estimateQueueCount = new();
+    private readonly TaskQueue<EstimateQueueInfo, int> _estimateQueue;
 
-    private readonly TaskQueue<EstimateQueueInfo> _audioRenderQueue;
+    private volatile Dictionary<EstimatePriority, int> _audioRenderQueueCount = new();
+    private readonly TaskQueue<EstimateQueueInfo, int> _audioRenderQueue;
 
     public NeutrinoV1Service NeutrinoV1 { get; }
 
@@ -87,7 +61,7 @@ internal class ProjectSession
     /// <typeparam name="T">型情報</typeparam>
     /// <param name="queue">取得対象のキュー</param>
     /// <returns>タスク情報</returns>
-    private IEnumerable<T> EnumerateQueue<T>(TaskQueue<T> queue)
+    private IEnumerable<TElement> EnumerateQueue<TElement, TPriority>(TaskQueue<TElement, TPriority> queue)
         => queue.Runnings.Concat(queue);
 
     /// <summary>
@@ -145,7 +119,7 @@ internal class ProjectSession
             queue.Cancel();
     }
 
-    public void AddEstimateQueue(INeutrinoTrack track, INeutrinoPhrase? phrase)
+    public void AddEstimateQueue(INeutrinoTrack track, INeutrinoPhrase? phrase, EstimatePriority priority = EstimatePriority.Sequence)
     {
         if (phrase == null)
             return;
@@ -153,37 +127,68 @@ internal class ProjectSession
         // 既存の処理をキャンセル
         this.CancelForEstimate(track, phrase);
 
-        this._estimateQueue.Enqueue(new(track, phrase));
+        this._estimateQueue.Enqueue(new(track, phrase, priority), GetEstimatePriority(priority));
 
         phrase.SetStatus(PhraseStatus.WaitEstimate);
         track.RaiseFeatureChanged();
     }
+    private int GetEstimatePriority<TElement>(Dictionary<EstimatePriority, int> dict, TaskQueue<TElement, int> queue, EstimatePriority priority)
+    {
+        int offset = (int)priority;
+        if (dict.ContainsKey(priority))
+        {
+            // 該当のキーが存在する場合
 
-    public void AddEstimateQueue(INeutrinoTrack track, IEnumerable<INeutrinoPhrase> phrases)
+            if (queue.Count == 0)
+            {
+                // キューが空の場合はカウントをリセットする
+                dict[priority] = 0;
+                return offset;
+            }
+            else
+            {
+                // キューが空でない場合はカウントをインクリメントする
+                return offset + (++dict[priority]);
+            }
+        }
+        else
+        {
+            dict.Add(priority, 0);
+            return offset;
+        }
+    }
+
+    private int GetEstimatePriority(EstimatePriority priority)
+        => this.GetEstimatePriority(this._estimateQueueCount, this._estimateQueue, priority);
+
+    public void AddEstimateQueue(INeutrinoTrack track, IEnumerable<INeutrinoPhrase> phrases, EstimatePriority priority = EstimatePriority.Sequence)
     {
         this.CancelForEstimate(track, phrases);
 
         foreach (var phrase in phrases)
         {
             phrase.SetStatus(PhraseStatus.WaitEstimate);
-            this._estimateQueue.Enqueue(new(track, phrase));
+            this._estimateQueue.Enqueue(new(track, phrase, priority), GetEstimatePriority(priority));
         }
 
         track.RaiseFeatureChanged();
     }
 
-    public void AddAudioRenderQueue(NeutrinoV1Track track, IEnumerable<NeutrinoV1Phrase> phrases)
+    public void AddAudioRenderQueue(NeutrinoV1Track track, IEnumerable<NeutrinoV1Phrase> phrases, EstimatePriority priority = EstimatePriority.Sequence)
     {
         foreach (var phrase in phrases)
-            this._audioRenderQueue.Enqueue(new(track, phrase));
+            this._audioRenderQueue.Enqueue(new(track, phrase, priority), GetAudioRenderPriority(priority));
 
         track.RaiseFeatureChanged();
     }
 
-    public void AddAudioRenderQueue(NeutrinoV2Track track, IEnumerable<NeutrinoV2Phrase> phrases)
+    private int GetAudioRenderPriority(EstimatePriority priority)
+        => this.GetEstimatePriority(this._audioRenderQueueCount, this._audioRenderQueue, priority);
+
+    public void AddAudioRenderQueue(NeutrinoV2Track track, IEnumerable<NeutrinoV2Phrase> phrases, EstimatePriority priority = EstimatePriority.Sequence)
     {
         foreach (var phrase in phrases)
-            this._audioRenderQueue.Enqueue(new(track, phrase));
+            this._audioRenderQueue.Enqueue(new(track, phrase, priority), GetAudioRenderPriority(priority));
 
         track.RaiseFeatureChanged();
     }
@@ -230,7 +235,7 @@ internal class ProjectSession
             phrase.SetStatus(PhraseStatus.WaitAudioRender);
             v1Track.RaiseFeatureChanged();
 
-            this._audioRenderQueue.Enqueue(new(v1Track, phrase));
+            this._audioRenderQueue.Enqueue(new(v1Track, phrase, info.Priority), this.GetAudioRenderPriority(info.Priority));
         }
         else if (info.Track is NeutrinoV2Track v2Track)
         {
@@ -268,7 +273,7 @@ internal class ProjectSession
             phrase.SetStatus(PhraseStatus.WaitAudioRender);
             v2Track.RaiseFeatureChanged();
 
-            this._audioRenderQueue.Enqueue(new(v2Track, phrase));
+            this._audioRenderQueue.Enqueue(new(v2Track, phrase, info.Priority), this.GetAudioRenderPriority(info.Priority));
         }
     }
 
