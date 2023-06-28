@@ -9,7 +9,7 @@ public partial class NeutrinoV2TrackConfig : TrackBaseConfig
 {
     public string? Singer { get; init; }
 
-    public IDictionary<string, AudioFeaturesV2Config> Features { get; set; }
+    public AudioFeaturesV2Config Features { get; set; }
 
     public string MusicXml { get; set; }
 
@@ -20,7 +20,7 @@ public partial class NeutrinoV2TrackConfig : TrackBaseConfig
     }
 #pragma warning restore CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
 
-    public NeutrinoV2TrackConfig(string trackId, string trackName, string musicXml, byte[]? fullTiming, byte[]? monoTiming, string? singer, IDictionary<string, AudioFeaturesV2Config> features)
+    public NeutrinoV2TrackConfig(string trackId, string trackName, string musicXml, byte[]? fullTiming, byte[]? monoTiming, string? singer, AudioFeaturesV2Config features)
         : base(trackId, trackName, fullTiming, monoTiming)
     {
         this.Singer = singer;

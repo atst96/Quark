@@ -23,9 +23,9 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
 
     public TimingInfo[] Timings { get; set; } = Array.Empty<TimingInfo>();
 
-    public PhraseInfo[] RawPhrases { get; set; } = Array.Empty<PhraseInfo>();
+    public PhraseInfo[] RawPhrases { get; private set; } = Array.Empty<PhraseInfo>();
 
-    public NeutrinoV1Phrase[] Phrases { get; set; } = Array.Empty<NeutrinoV1Phrase>();
+    public NeutrinoV1Phrase[] Phrases { get; private set; } = Array.Empty<NeutrinoV1Phrase>();
 
     INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
 
@@ -65,7 +65,7 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     {
         bool hasAudioFeatures = config.F0 != null && config.Mgc != null && config.Bap != null;
 
-        var phrase = new NeutrinoV1Phrase(config.No, config.BeginTime, config.EndTime, config.Label, (hasAudioFeatures ? PhraseStatus.WaitAudioRender : PhraseStatus.WaitEstimate));
+        var phrase = new NeutrinoV1Phrase(config.No, config.BeginTime, config.EndTime, config.Phonemes, (hasAudioFeatures ? PhraseStatus.WaitAudioRender : PhraseStatus.WaitEstimate));
 
         if (hasAudioFeatures)
         {
@@ -88,7 +88,7 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     }
 
     private PhraseInfoV1 ToConfig(NeutrinoV1Phrase i) => new(
-        i.No, i.BeginTime, i.EndTime, i.Label, i.F0, i.Mgc, i.Bap);
+        i.No, i.BeginTime, i.EndTime, i.Phonemes, i.F0, i.Mgc, i.Bap);
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
