@@ -96,7 +96,7 @@ public static partial class NeutrinoUtil
             // 最後の要素の場合はタイミング情報の最後から終了位置を取得する。
             int endFrameIdx = parsedPhrases.Length > (idx + 1)
                 ? (parsedPhrases[idx + 1].Time - 1)
-                : (int)Math.Ceiling(timing.Last().EndTimeNs / 10000d);
+                : (int)Math.Ceiling(timing.Last().EditedEndTime100Ns / 10000d);
 
             phrases[destIdx++] = func(no, beginTime, endFrameIdx, phonemes, PhraseStatus.WaitEstimate);
         }
@@ -150,7 +150,7 @@ public static partial class NeutrinoUtil
     /// <param name="sb">書込み先の<see cref="StringBuilder"/></param>
     /// <param name="timing">タイミング情報</param>
     private static void WriteTimingInfo(StringBuilder sb, TimingInfo timing)
-        => sb.Append($"{timing.BeginTimeNs} {timing.EndTimeNs} {timing.Phoneme}");
+        => sb.Append($"{timing.EditedBeginTime100Ns} {timing.EditedEndTime100Ns} {timing.Phoneme}");
 
     /// <summary>フレーズ情報の区切り文字(改行)</summary>
     private const string PhraseSeparator = "\n";

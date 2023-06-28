@@ -1022,11 +1022,11 @@ public partial class PlotEditor : UserControl
 
                             this._editingTimingInfo = new(handle)
                             {
-                                Lower = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.BeginTimeNs,
+                                Lower = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.EditedBeginTime100Ns,
                                 Upper = (idx == -1 || (this._timings.Count <= (idx + 1)))
-                                    ? null : this._timings[idx + 1].TimingInfo.BeginTimeNs,
+                                    ? null : this._timings[idx + 1].TimingInfo.EditedBeginTime100Ns,
                                 OffsetX = x - handle.X,
-                                Time = NeutrinoUtil.TimingTimeToMs(handle.TimingInfo.BeginTimeNs),
+                                Time = NeutrinoUtil.TimingTimeToMs(handle.TimingInfo.EditedBeginTime100Ns),
                             };
 
                             return;

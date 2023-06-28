@@ -4,6 +4,7 @@ using Quark.ImageRender;
 using Quark.Models.Neutrino;
 using SkiaSharp;
 using Quark.Projects.Tracks;
+using Quark.Utils;
 
 namespace Quark.Helpers;
 
@@ -88,10 +89,10 @@ public class ScoreLayoutHelper
                 continue;
             }
 
-            if (!(tBegin <= t.BeginTimeNs && t.BeginTimeNs <= tEnd))
+            if (!(tBegin <= t.EditedBeginTime100Ns && t.EditedBeginTime100Ns <= tEnd))
                 continue;
 
-            int time = Extract(t.BeginTimeNs);
+            int time = NeutrinoUtil.TimingTimeToMs(t.EditedBeginTime100Ns);
             int x = scaling.ToDisplayScaling((time - beginTime) * renderInfo.WidthStretch);
 
             // 行レベル
@@ -135,6 +136,4 @@ public class ScoreLayoutHelper
         latestAreaXPerLevel.Add(currentX);
         return latestAreaXPerLevel.Count - 1;
     }
-
-    private static int Extract(long timing) => (int)(timing / 10000);
 }

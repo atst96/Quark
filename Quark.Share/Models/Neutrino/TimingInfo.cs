@@ -2,24 +2,41 @@
 
 namespace Quark.Models.Neutrino;
 
+/// <summary>
+/// タイミング情報
+/// </summary>
 [MemoryPackable]
 public partial class TimingInfo
 {
-    public long BeginTimeNs { get; set; }
+    /// <summary>編集前の開始タイミング</summary>
+    public long OriginBeginTime100Ns { get; }
 
-    public long EndTimeNs { get; set; }
+    /// <summary>編集前の終了タイミング</summary>
+    public long OriginEndTime100Ns { get; }
 
+    /// <summary>編集済みの開始タイミング</summary>
+    public long EditedBeginTime100Ns { get; set; }
+
+    /// <summary>編集済みの終了タイミング</summary>
+    public long EditedEndTime100Ns { get; set; }
+
+    /// <summary>フレーズ情報</summary>
     public string Phoneme { get; set; }
 
+#pragma warning disable CS8618
+    /// <summary>コンストラクタ</summary>
     [MemoryPackConstructor]
-#pragma warning disable CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
     private TimingInfo() { }
-#pragma warning restore CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
+#pragma warning restore CS8618
 
-    public TimingInfo(long beginTimeNs, long endTimeNs, string phoneme)
+    /// <summary>コンストラクタ</summary>
+    /// <param name="beginTime100Ns">開始タイミング</param>
+    /// <param name="endTime100Ns">終了タイミング</param>
+    /// <param name="phoneme">音素情報</param>
+    public TimingInfo(long beginTime100Ns, long endTime100Ns, string phoneme)
     {
-        this.BeginTimeNs = beginTimeNs;
-        this.EndTimeNs = endTimeNs;
+        (this.OriginBeginTime100Ns, this.EditedBeginTime100Ns) = (beginTime100Ns, beginTime100Ns);
+        (this.OriginEndTime100Ns, this.EditedEndTime100Ns) = (endTime100Ns, endTime100Ns);
         this.Phoneme = phoneme;
     }
 }

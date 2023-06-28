@@ -3,6 +3,7 @@ using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
+using Quark.Services;
 using Quark.Utils;
 
 namespace Quark.Projects.Tracks;
@@ -146,7 +147,7 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
         var timings = this.Timings;
 
         return timings.Length > 0
-            ? (int)Math.Ceiling(timings.Last().EndTimeNs / 10000d / 5d)
+            ? (int)Math.Ceiling(timings.Last().EditedEndTime100Ns / 10000d / 5d)
             : 0;
     }
 
@@ -206,13 +207,13 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
         long timingTime = NeutrinoUtil.GetTimingTimeFromMs(timeMs);
 
         // 変更時点と前のタイミングに反映
-        timings[timingIndex].BeginTimeNs = timingTime;
+        timings[timingIndex].EditedBeginTime100Ns = timingTime;
         if (timingIndex > 0)
-            timings[timingIndex - 1].EndTimeNs = timingTime;
+            timings[timingIndex - 1].EditedEndTime100Ns = timingTime;
 
         // 再推論を実行する
         // TODO: 推論済みのフレーズであれば再推論の優先度を上げる
-        this.Project.Session.AddEstimateQueue(this, reProcessPhrases);
+        this.Project.Session.AddEstimateQueue(this, reProcessPhrases, EstimatePriority.Edit);
     }
 
     private static NeutrinoV1Phrase FindPhrase(IEnumerable<NeutrinoV1Phrase> phrase, int no)
