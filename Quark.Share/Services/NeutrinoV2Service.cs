@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Threading;
 using Microsoft.VisualBasic;
 using Quark.Components;
 using Quark.Constants;
@@ -9,6 +10,7 @@ using Quark.Models.Neutrino;
 using Quark.Neutrino;
 using Quark.Projects.Tracks;
 using Quark.Utils;
+using static Quark.Controls.ViewDrawingBoxInfo;
 
 namespace Quark.Services;
 
@@ -448,6 +450,73 @@ internal class NeutrinoV2Service
     }
 
     /// <summary>
+    /// WORKDで音声合成する
+    /// </summary>
+    /// <param name="track">トラック</param>
+    /// <param name="path">出力先</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>WAVファイルデータ</returns>
+    public async Task SynthesisWorld(NeutrinoV2Track track, string path, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var setting = this._setting.NeutrinoV2;
+
+        var timings = track.Timings;
+        var phrases = track.Phrases;
+
+        if (timings.Length == 0 || phrases.Length == 0)
+            return;
+
+        const int mgcDimension = NeutrinoConfig.MgcDimension;
+        const int bapDimension = NeutrinoConfig.BapDimension;
+
+        int frameCount = NeutrinoUtil.MsToFrameIndex(NeutrinoUtil.TimingTimeToMs(timings[^1].EditedEndTime100Ns));
+
+        // F0
+        float[] f0 = new float[frameCount];
+        // スペクトル包絡(※各フレームの先頭の値の初期値を-60.0とする)
+        float[] mgc = ArrayUtil.CreateAndInitSegmentFirst(frameCount, mgcDimension, NeutrinoConfig.MgcLowerF);
+        // 非同期成分
+        float[] bap = new float[frameCount * bapDimension];
+
+        // 各フレーズの音響情報を配列にコピーする
+        foreach (var phrase in phrases)
+        {
+            int length = NeutrinoUtil.MsToFrameIndex(phrase.EndTime - phrase.BeginTime);
+            if (length <= 0)
+                continue;
+
+            int frameIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
+
+            var srcF0 = phrase.F0;
+            if (srcF0?.Length > 0)
+                srcF0.AsSpan(..length).CopyTo(f0.AsSpan(frameIdx));
+
+            var srcMgc = phrase.Mgc;
+            if (srcMgc?.Length > 0)
+                srcMgc.AsSpan(..(length * mgcDimension)).CopyTo(mgc.AsSpan(frameIdx * mgcDimension));
+
+            var srcBap = phrase.Bap;
+            if (srcBap?.Length > 0)
+                srcBap.AsSpan(..(length * bapDimension)).CopyTo(bap.AsSpan(frameIdx * bapDimension));
+        }
+
+        // 音声出力
+        byte[] data = await this.SynthesisWorld(new WorldV2Option
+        {
+            F0 = f0,
+            Mgc = mgc,
+            Bap = bap,
+            NumberOfParallel = setting.CpuThreads,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken).ConfigureAwait(false);
+
+        // ファイルに書き出し
+        File.WriteAllBytes(path, data);
+    }
+
+    /// <summary>
     /// NSFで音声合成を行う
     /// </summary>
     /// <param name="option">合成オプション</param>
@@ -459,6 +528,7 @@ internal class NeutrinoV2Service
         using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
         using (var mspecFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Melspec))
         using (var wavFile = new VirtualFile(FileExtensions.Wave))
+        using (var additionalDisposable = new DisposableCollection())
         {
             // 実行ファイル
             var command = this.GetNeutrinoPath(NsfExe);
@@ -477,6 +547,16 @@ internal class NeutrinoV2Service
 
             if (option.NumberOfParallelInSession != null)
                 args.Append(" -p ").Append(option.NumberOfParallelInSession);
+
+            if (option.MultiPhrasePrediction?.Length > 0)
+            {
+                // labファイルの作成
+                var timingFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label);
+                timingFile.Write(NeutrinoUtil.GetTimingContent(option.MultiPhrasePrediction));
+                additionalDisposable.Add(timingFile);
+
+                args.Append(" -l ").AppendDoubleQuoted(timingFile.Path);
+            }
 
             if (option.UseSingleGpu != null)
                 args.Append(" -g ").Append(option.UseSingleGpu);
@@ -538,5 +618,69 @@ internal class NeutrinoV2Service
             IsViewInformation = true,
         }
         , progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// トラック全体をNSFで音声合成を行う
+    /// </summary>
+    /// <param name="track">トラック情報</param>
+    /// <param name="path">出力先</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns></returns>
+    public async Task SynthesisNSF(NeutrinoV2Track track, string path, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var setting = this._setting.NeutrinoV2;
+
+        var timings = track.Timings;
+        var phrases = track.Phrases;
+
+        if (timings.Length == 0 || phrases.Length == 0)
+            return;
+
+        const int mspecDimension = NeutrinoConfig.MspecDimension;
+
+        int frameCount = NeutrinoUtil.MsToFrameIndex(NeutrinoUtil.TimingTimeToMs(timings[^1].EditedEndTime100Ns));
+
+        // F0
+        float[] f0 = new float[frameCount];
+        // メルスペクトログラム
+        float[] mspec = new float[frameCount * mspecDimension];
+
+        // 各フレーズの音響情報を配列にコピーする
+        foreach (var phrase in phrases)
+        {
+            int length = NeutrinoUtil.MsToFrameIndex(phrase.EndTime - phrase.BeginTime);
+            if (length <= 0)
+                continue;
+
+            int frameIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
+
+            var srcF0 = phrase.F0;
+            if (srcF0?.Length > 0)
+                srcF0.AsSpan(..length).CopyTo(f0.AsSpan(frameIdx));
+
+            var srcMspec = phrase.Mspec;
+            if (srcMspec?.Length > 0)
+                srcMspec.AsSpan(..(length * mspecDimension)).CopyTo(mspec.AsSpan(frameIdx * mspecDimension));
+        }
+
+        // 音声出力
+        byte[] data = await this.SynthesisNSF(new NSFV2Option
+        {
+            F0 = f0,
+            Melspec = mspec,
+            Model = track.Singer,
+            ModelType = NSFV2Model.VA,
+            SamplingRate = 48,
+            NumberOfParallel = setting.CpuThreads,
+            UseMultiGpus = setting.UseGpu,
+            MultiPhrasePrediction = track.Timings,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken).ConfigureAwait(false);
+
+        // ファイルに書き出し
+        File.WriteAllBytes(path, data);
     }
 }

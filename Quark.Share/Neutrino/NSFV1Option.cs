@@ -32,7 +32,7 @@ public class NSFV1Option
     public bool IsUseGpu { get; init; }
 
     /// <summary>複数フレーズの合成(-l filename)</summary>
-    public string? MultiPhrasePrediction { get; init; }
+    public TimingInfo[]? MultiPhrasePrediction { get; init; }
 
     /// <summary>GPU ID</summary>
     public int? GpuId { get; init; }

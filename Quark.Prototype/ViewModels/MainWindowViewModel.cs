@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Livet.Messaging;
@@ -74,6 +75,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         set => this.RaisePropertyChangedIfSet(ref this._selectedModelInfo, value);
     }
 
+    public bool IsProjectCreated => this._currentProject != null;
+
     /// <summary>
     /// 現在のプロジェクト
     /// </summary>
@@ -84,6 +87,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         {
             if (this.RaisePropertyChangedIfSet(ref this._currentProject, value, nameof(this.HasProject)))
             {
+                this.RaisePropertyChanged(nameof(this.IsProjectCreated));
+
                 this.SetTitle(value!.Name);
                 if (value.Tracks.FirstOrDefault() is NeutrinoV1Track track)
                 {
@@ -229,6 +234,67 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         var track = this.CurrentProject!.Tracks.ImportFromMusicXmlV2(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
         this.CurrentTrack = track;
         this.InitAudio(track);
+    }
+
+    public async void OnWaveExportFileSelected(SavingFileSelectionMessage msg)
+    {
+        if (!this.HasProject || msg is not { Response.Length: > 0 })
+        {
+            return;
+        }
+
+        var track = this.CurrentTrack;
+        var path = msg.Response[0];
+
+        var progress = this.ProgressWindowViewModel;
+        progress.Clear();
+
+        Task task;
+        if (track is NeutrinoV1Track v1Track)
+        {
+            var service = this._neutrinoV1;
+
+            // TODO: 出力方法を選択できるようにする
+            bool isWorldOutput = false;
+            // bool isWorldOutput =  track.OutputConfig.ExportType == ExprotType.World
+
+            task = isWorldOutput
+                // WORLDで合成
+                ? service.SynthesisWorld(v1Track, path, progress)
+                // NSFで合成
+                : service.SynthesisNSF(v1Track, path, progress);
+        }
+        else if (track is NeutrinoV2Track v2Track)
+        {
+            var service = this._neutrinoV2;
+
+            // TODO: 出力方法を選択できるようにする
+            bool isWorldOutput = false;
+            // bool isWorldOutput =  track.OutputConfig.ExportType == ExprotType.World
+
+            task = isWorldOutput
+                 // WORLDで合成
+                 ? service.SynthesisWorld(v2Track, path, progress)
+                 // NSFで合成
+                 : service.SynthesisNSF(v2Track, path, progress);
+        }
+        else
+        {
+            throw new NotSupportedException("");
+        }
+
+        // 進捗ダイアログを表示
+        _ = this.Messenger.RaiseAsync(new("OpenProgressWindow"));
+
+        try
+        {
+            await task;
+            progress.Close();
+        }
+        catch (Exception)
+        {
+            // TODO: 
+        }
     }
 
     private IWavePlayer _player;

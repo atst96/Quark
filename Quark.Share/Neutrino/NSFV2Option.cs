@@ -20,6 +20,8 @@ public class NSFV2Option
 
     public int? NumberOfParallelInSession { get; init; }
 
+    public TimingInfo[]? MultiPhrasePrediction { get; init; }
+
     public int? UseSingleGpu { get; init; }
 
     public bool UseMultiGpus { get; init; }

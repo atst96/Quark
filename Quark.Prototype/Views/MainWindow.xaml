@@ -89,7 +89,7 @@
                 </MenuItem>
             </MenuItem>
 
-            <MenuItem Header="プロジェクト(_P)">
+            <MenuItem Header="プロジェクト(_P)" IsEnabled="{Binding IsProjectCreated, Mode=OneWay}">
                 <MenuItem Header="MusicXMLをインポート(_I)">
                     <i:Interaction.Triggers>
                         <i:EventTrigger EventName="Click">
@@ -98,6 +98,20 @@
                                     <l:OpeningFileSelectionMessage Filter="MusicXML|*.musicxml" />
                                 </l:DirectInteractionMessage>
                             </l:OpenFileDialogInteractionMessageAction>
+                        </i:EventTrigger>
+                    </i:Interaction.Triggers>
+                </MenuItem>
+
+                <Separator />
+
+                <MenuItem Header="トラックの音声を出力">
+                    <i:Interaction.Triggers>
+                        <i:EventTrigger EventName="Click">
+                            <l:SaveFileDialogInteractionMessageAction>
+                                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnWaveExportFileSelected">
+                                    <l:SavingFileSelectionMessage Filter="WAV音声ファイル|*.wav" />
+                                </l:DirectInteractionMessage>
+                            </l:SaveFileDialogInteractionMessageAction>
                         </i:EventTrigger>
                     </i:Interaction.Triggers>
                 </MenuItem>

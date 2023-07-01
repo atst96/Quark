@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Cysharp.Diagnostics;
 using Quark.Components;
+using Quark.Constants;
 using Quark.Data.Projects;
 using Quark.Extensions;
 using Quark.Models.Neutrino;
@@ -212,7 +213,7 @@ public static partial class NeutrinoUtil
     }
 
     /// <summary>標準出力される進捗情報をパースするための正規表現</summary>
-    private static readonly Regex ProgressRegex = new(@"^.+Progress\s*=\s*(?<progress>\d+)\s*%.+$", RegexOptions.Compiled);
+    private static readonly Regex ProgressRegex = new(@"^.+Progress\s*=\s*(?<progress>\d+)\s*%.+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
     /// NEUTRINOを実行する
@@ -302,4 +303,20 @@ public static partial class NeutrinoUtil
     /// <returns>ミリ秒</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int TimingTimeToMs(long time) => (int)(time / 10000);
+
+    /// <summary>
+    /// ミリ秒をフレーム位置に変換する
+    /// </summary>
+    /// <param name="ms">時間(ミリ秒)</param>
+    /// <returns>フレーム位置</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int MsToFrameIndex(int ms) => ms / NeutrinoConfig.FramePeriod;
+
+    /// <summary>
+    /// フレーム位置をミリ秒に変換する
+    /// </summary>
+    /// <param name="frameIndex">フレーム位置</param>
+    /// <returns>時間(ミリ秒)</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int FrameIndexToMs(int frameIndex) => frameIndex * NeutrinoConfig.FramePeriod;
 }

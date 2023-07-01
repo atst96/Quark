@@ -366,7 +366,7 @@ internal class NeutrinoV1Service
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
-    public async Task<byte[]?> SynthesisWorld(WorldV1Option option, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<byte[]> SynthesisWorld(WorldV1Option option, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
         using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
         using (var mgcFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Mgc))
@@ -441,7 +441,7 @@ internal class NeutrinoV1Service
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
-    public Task<byte[]?> SynthesisWorld(NeutrinoV1Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public Task<byte[]> SynthesisWorld(NeutrinoV1Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
         var settings = this._setting.NeutrinoV1;
 
@@ -457,18 +457,55 @@ internal class NeutrinoV1Service
     }
 
     /// <summary>
+    /// トラック全体をWORLDで音声合成を行う。
+    /// </summary>
+    /// <param name="track">トラック情報</param>
+    /// <param name="path">出力先</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns></returns>
+    public async Task SynthesisWorld(NeutrinoV1Track track, string path, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var settings = this._setting.NeutrinoV1;
+
+        var timings = track.Timings;
+        var phrases = track.Phrases;
+
+        if (timings.Length == 0 || phrases.Length == 0)
+            return;
+
+        // f0, mgc, bapを取得
+        (double[] f0, double[] mgc, double[] bap) = GetSynthesisParameters(track);
+
+        // 音声出力
+        byte[] data = await this.SynthesisWorld(new WorldV1Option
+        {
+            F0 = f0,
+            Mgc = mgc,
+            Bap = bap,
+            NumberOfParallel = settings.CpuThreads,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken).ConfigureAwait(false);
+
+        // ファイルに書き出し
+        File.WriteAllBytes(path, data);
+    }
+
+    /// <summary>
     /// NSFで音声合成を行う。
     /// </summary>
     /// <param name="option">合成オプション</param>
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns>出力データ(WAVファイルデータ)</returns>
-    public async Task<byte[]?> SynthesisNSF(NSFV1Option option, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<byte[]> SynthesisNSF(NSFV1Option option, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
         using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
         using (var mgcFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Mgc))
         using (var bapFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Bap))
         using (var wavFile = new VirtualFile(FileExtensions.Wave))
+        using (var additionalDisposable = new DisposableCollection())
         {
             // 一時ファイルのタイミング情報を書き込む
             f0File.Write(DataConvertUtil.CastToByte(option.F0));
@@ -490,9 +527,15 @@ internal class NeutrinoV1Service
             if (option.NumberOfParallelInSession != null)
                 args.Append(" -p ").Append(option.NumberOfParallelInSession);
 
-            // TODO: 未実装
-            //if (option.MultiPhrasePrediction != null)
-            //    args.Append(" -l ").Append(option.MultiPhrasePrediction); 
+            if (option.MultiPhrasePrediction?.Length > 0)
+            {
+                // labファイルの作成
+                var timingFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label);
+                timingFile.Write(NeutrinoUtil.GetTimingContent(option.MultiPhrasePrediction));
+                additionalDisposable.Add(timingFile);
+
+                args.Append(" -l ").AppendDoubleQuoted(timingFile.Path);
+            }
 
             if (option.IsUseGpu)
                 args.Append(" -g");
@@ -534,7 +577,7 @@ internal class NeutrinoV1Service
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
-    public Task<byte[]?> SynthesisNSF(NeutrinoV1Phrase phrase, ModelInfo modelInfo, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public Task<byte[]> SynthesisNSF(NeutrinoV1Phrase phrase, ModelInfo modelInfo, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
         var settings = this._setting.NeutrinoV1;
 
@@ -550,5 +593,93 @@ internal class NeutrinoV1Service
             IsViewInformation = true,
         }
         , progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// トラック全体をNSFで音声合成を行う
+    /// </summary>
+    /// <param name="track">トラック情報</param>
+    /// <param name="path">出力先</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns></returns>
+    public async Task SynthesisNSF(NeutrinoV1Track track, string path, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var settings = this._setting.NeutrinoV1;
+
+        var timings = track.Timings;
+        var phrases = track.Phrases;
+
+        if (timings.Length == 0 || phrases.Length == 0)
+            return;
+
+        // f0, mgc, bapを取得
+        (double[] f0, double[] mgc, double[] bap) = GetSynthesisParameters(track);
+
+        // 音声出力
+        byte[] data = await this.SynthesisNSF(new NSFV1Option
+        {
+            SamplingRate = 48,
+            F0 = f0,
+            Mgc = mgc,
+            Bap = bap,
+            Model = track.Singer,
+            MultiPhrasePrediction = track.Timings,
+            IsUseGpu = settings.UseGpu,
+            NumberOfParallel = settings.CpuThreads,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken).ConfigureAwait(false);
+
+        // ファイルに書き出し
+        File.WriteAllBytes(path, data);
+    }
+
+    /// <summary>
+    /// 音声合成用のパラメータ(f0, mgc, bap)を取得する
+    /// </summary>
+    /// <param name="track">トラック</param>
+    /// <returns></returns>
+    private static (double[] f0, double[] mgc, double[] bap) GetSynthesisParameters(NeutrinoV1Track track)
+    {
+        const int mgcDimension = NeutrinoConfig.MgcDimension;
+        const int bapDimension = NeutrinoConfig.BapDimension;
+
+        var timings = track.Timings;
+        var phrases = track.Phrases;
+
+        // フレーム数
+        int frameCount = NeutrinoUtil.MsToFrameIndex(NeutrinoUtil.TimingTimeToMs(timings[^1].EditedEndTime100Ns));
+
+        // F0
+        double[] f0 = new double[frameCount];
+        // スペクトル包絡
+        double[] mgc = ArrayUtil.CreateAndInitSegmentFirst(frameCount, mgcDimension, NeutrinoConfig.MgcLower);
+        // 非同期成分
+        double[] bap = new double[frameCount * bapDimension];
+
+        // 各フレーズの音響情報を配列にコピーする
+        foreach (var phrase in phrases)
+        {
+            int length = NeutrinoUtil.MsToFrameIndex(phrase.EndTime - phrase.BeginTime);
+            if (length <= 0)
+                continue;
+
+            int frameIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
+
+            var srcF0 = phrase.F0;
+            if (srcF0?.Length > 0)
+                srcF0.AsSpan(..length).CopyTo(f0.AsSpan(frameIdx));
+
+            var srcMgc = phrase.Bap;
+            if (srcMgc?.Length > 0)
+                srcMgc.AsSpan(..(length * mgcDimension)).CopyTo(mgc.AsSpan(frameIdx * mgcDimension));
+
+            var srcBap = phrase.Bap;
+            if (srcBap?.Length > 0)
+                srcBap.AsSpan(..(length * bapDimension)).CopyTo(bap.AsSpan(frameIdx * bapDimension));
+        }
+
+        return (f0, mgc, bap);
     }
 }
