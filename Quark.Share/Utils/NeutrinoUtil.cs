@@ -294,7 +294,7 @@ public static partial class NeutrinoUtil
     /// <param name="timeMs">ミリ秒数</param>
     /// <returns>100ns換算した時間</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static long GetTimingTimeFromMs(int timeMs) => timeMs * 10000;
+    public static long GetTimingTimeFromMs(int timeMs) => (long)timeMs * 10000;
 
     /// <summary>
     /// タイミング用の時間(100ns)をミリ秒に変換する

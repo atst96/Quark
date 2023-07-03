@@ -64,8 +64,8 @@ public class ScoreLayoutHelper
         int beginTime = rangeInfo.BeginTime;
         int endTime = rangeInfo.EndTime;
 
-        long tBegin = beginTime * 10000;
-        long tEnd = endTime * 10000;
+        long tBegin = NeutrinoUtil.GetTimingTimeFromMs(beginTime);
+        long tEnd = NeutrinoUtil.GetTimingTimeFromMs(endTime);
 
         // 1行辺りの高さ
         int fontHeight = renderer.GetTextHeight();

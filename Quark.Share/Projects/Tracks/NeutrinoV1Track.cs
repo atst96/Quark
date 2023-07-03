@@ -296,16 +296,12 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
         if (nextPhraseIdx < rawPhrases.Length)
         {
             var nextPhrase = rawPhrases[nextPhraseIdx];
-            nextPhrase.Time = timeMs;
-
             if (nextPhrase.IsVoiced)
             {
                 var info = FindPhrase(phrases, nextPhrase.No);
 
                 // 出力音声を削除
                 this.ClearRenderAudio(info);
-                // フレーズの終了時間を更新
-                info.ChangeBeginTime(nextPhraseIdx);
 
                 yield return info;
             }
