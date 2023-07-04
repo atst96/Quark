@@ -111,11 +111,11 @@ internal class NeutrinoV1Service
             var command = this.GetNeutrinoPath(MusicXmlExe);
 
             // コマンドライン引数の作成
-            var args = new StringBuilder($@"""{musicXmlFile.Path}"" ""{fullLabFile.FilePath}"" ""{monoLabFile.FilePath}""");
+            var args = new StringBuilder();
+            args.Append($@"""{musicXmlFile.Path}"" ""{fullLabFile.FilePath}"" ""{monoLabFile.FilePath}""");
+
             if (!string.IsNullOrEmpty(option.Directory))
-            {
                 args.Append(" -x ").Append(option.Directory);
-            }
 
             // ファイル受信処理のキャンセラ
             using var receiveTaskCanceler = new CancellationTokenSource();
@@ -185,7 +185,8 @@ internal class NeutrinoV1Service
             var command = this.GetNeutrinoPath((v1Setting.UseLegacyExe ?? IsLegacy()) ? NeutrinoLegacyExe : NeutrinoExe);
 
             // コマンドライン引数の作成
-            var args = new StringBuilder($@"""{fullLabFile.Path}"" ""{timingFilePath}"" ""{f0File.FilePath}"" ""{mgcFile.FilePath}"" ""{bapFile.FilePath}"" {this.GetModelPath(option.Model.ModelId)}");
+            var args = new StringBuilder();
+            args.Append($@"""{fullLabFile.Path}"" ""{timingFilePath}"" ""{f0File.FilePath}"" ""{mgcFile.FilePath}"" ""{bapFile.FilePath}"" {this.GetModelPath(option.Model.ModelId)}");
 
             if (option.NumberOfThreads != null)
                 args.Append(" -n ").Append(option.NumberOfThreads);
@@ -382,7 +383,8 @@ internal class NeutrinoV1Service
             bapFile.Write(DataConvertUtil.CastToByte(option.Bap));
 
             // コマンドライン引数の作成
-            var args = new StringBuilder($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" -o ""{wavFile.FilePath}""");
+            var args = new StringBuilder();
+            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" -o ""{wavFile.FilePath}""");
 
             if (option.PitchShift != null)
                 args.Append(" -f ").Append(option.PitchShift);
@@ -516,7 +518,8 @@ internal class NeutrinoV1Service
             var command = this.GetNeutrinoPath(NsfExe);
 
             // コマンドライン引数の組み立て
-            var args = new StringBuilder($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" ""{this.GetModelPath(option.Model.ModelId)}model_nsf.bin"" ""{wavFile.FilePath}""");
+            var args = new StringBuilder();
+            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" ""{this.GetModelPath(option.Model.ModelId)}model_nsf.bin"" ""{wavFile.FilePath}""");
 
             if (option.SamplingRate != null)
                 args.Append(" -s ").Append(option.SamplingRate);

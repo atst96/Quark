@@ -1,6 +1,4 @@
 ﻿using System.Text;
-using System.Threading;
-using Microsoft.VisualBasic;
 using Quark.Components;
 using Quark.Constants;
 using Quark.Data.Projects;
@@ -10,7 +8,6 @@ using Quark.Models.Neutrino;
 using Quark.Neutrino;
 using Quark.Projects.Tracks;
 using Quark.Utils;
-using static Quark.Controls.ViewDrawingBoxInfo;
 
 namespace Quark.Services;
 
@@ -106,11 +103,11 @@ internal class NeutrinoV2Service
             var command = this.GetNeutrinoPath(MusicXmlExe);
 
             // コマンドライン引数の作成
-            var args = new StringBuilder($@"""{musicXmlFile.Path}"" ""{fullLabFile.FilePath}"" ""{monoLabFile.FilePath}""");
+            var args = new StringBuilder();
+            args.Append($@"""{musicXmlFile.Path}"" ""{fullLabFile.FilePath}"" ""{monoLabFile.FilePath}""");
+
             if (!string.IsNullOrEmpty(option.Directory))
-            {
                 args.Append(" -x ").Append(option.Directory);
-            }
 
             // ファイル受信処理のキャンセラ
             using var receiveTaskCanceler = new CancellationTokenSource();
@@ -149,7 +146,6 @@ internal class NeutrinoV2Service
         VirtualFile? mgcFile = null;
         VirtualFile? bapFile = null;
         VirtualFile? receivePhraseFile = null;
-        TempFile? sendPhraseFile = null;
         VirtualFile? receiveTimingFile = null;
 
         using (var fullLabFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
@@ -181,7 +177,8 @@ internal class NeutrinoV2Service
                 timingFilePath = receiveTimingFile.FilePath;
             }
 
-            var args = new StringBuilder($@"""{fullLabFile.Path}"" ""{timingFilePath}"" ""{f0File.FilePath}"" ""{mspecFile.FilePath}"" {this.GetModelPath(option.ModelInfo.ModelId)}");
+            var args = new StringBuilder();
+            args.Append($@"""{fullLabFile.Path}"" ""{timingFilePath}"" ""{f0File.FilePath}"" ""{mspecFile.FilePath}"" {this.GetModelPath(option.ModelInfo.ModelId)}");
 
             if (option.NumberOfParallel != null)
                 args.Append(" -n ").Append(option.NumberOfParallel);
@@ -212,7 +209,7 @@ internal class NeutrinoV2Service
                 bapFile = new VirtualFile(FileExtensions.Bap);
                 additionalDisposables.Add(bapFile);
 
-                args.Append($@" -w ""{mgcFile.FilePath}"" ""{bapFile.FilePath}""");
+                args.Append(" -w ").AppendDoubleQuoted(mgcFile.FilePath).Append(' ').AppendDoubleQuoted(bapFile.FilePath);
             }
 
             if (option.SinglePhrasePrediction != null)
@@ -228,7 +225,7 @@ internal class NeutrinoV2Service
             {
                 if (option.EstimatedPhrases != null)
                 {
-                    sendPhraseFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Text);
+                    var sendPhraseFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Text);
                     sendPhraseFile.Write(option.EstimatedPhrases);
 
                     additionalDisposables.Add(sendPhraseFile);
@@ -373,7 +370,8 @@ internal class NeutrinoV2Service
             var command = this.GetNeutrinoPath(WorldExe);
 
             // コマンドライン引数の作成
-            var args = new StringBuilder($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" ""{wavFile.FilePath}""");
+            var args = new StringBuilder();
+            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" ""{wavFile.FilePath}""");
 
             if (option.PitchShift != null)
                 args.Append(" -f ").Append(option.PitchShift);
@@ -534,7 +532,8 @@ internal class NeutrinoV2Service
             var command = this.GetNeutrinoPath(NsfExe);
 
             // コマンドライン引数の作成
-            var args = new StringBuilder($@"""{f0File.Path}"" ""{mspecFile.Path}"" "".\model\{option.Model.ModelId}\vs.bin"" {wavFile.FilePath}");
+            var args = new StringBuilder();
+            args.Append($@"""{f0File.Path}"" ""{mspecFile.Path}"" "".\model\{option.Model.ModelId}\{option.ModelType.FileName}"" {wavFile.FilePath}");
 
             if (option.SamplingRate != null)
                 args.Append(" -s ").Append(option.SamplingRate);
