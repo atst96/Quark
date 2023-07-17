@@ -46,6 +46,12 @@
                 </l:DirectInteractionMessage>
             </l:SaveFileDialogInteractionMessageAction>
         </l:InteractionMessageTrigger>
+
+        <i:KeyTrigger Key="Esc" FiredOn="KeyDown">
+            <!--Escキー押下時-->
+            <i:CallMethodAction MethodName="CancelEdit" TargetObject="{Binding ElementName=PloatEditor1, Mode=OneTime}" />
+        </i:KeyTrigger>
+
     </i:Interaction.Triggers>
     <i:Interaction.Behaviors>
         <lb:WindowClosingBehavior Command="{Binding OnClosingCommand, Mode=OneTime}" />

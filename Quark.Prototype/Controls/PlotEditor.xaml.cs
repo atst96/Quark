@@ -506,6 +506,19 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>
+    /// ピアノロール上の描画位置(X)を取得する
+    /// </summary>
+    /// <param name="timeMs">時間(ミリ秒)</param>
+    /// <returns></returns>
+    private int GetScoreLocationX(int timeMs)
+    {
+        var renderInfo = this._viewBoxInfo;
+        var scaling = renderInfo.Scaling;
+
+        return scaling.ToDisplayScaling((timeMs - this.GetRenderBeginTimeMs()) * renderInfo.WidthStretch);
+    }
+
+    /// <summary>
     /// 描画領域のサイズを取得する
     /// </summary>
     /// <returns></returns>
@@ -970,7 +983,29 @@ public partial class PlotEditor : UserControl
         }
     }
 
+    /// <summary>編集モード</summary>
     private MouseControlMode _mouseMode = MouseControlMode.None;
+
+    /// <summary>
+    /// 編集モードを変更する
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="mode"></param>
+    /// <param name="receiver"></param>
+    /// <param name="value"></param>
+    private void ChangeMouseMode<T>(MouseControlMode mode, out T? receiver, T value) where T : class
+    {
+        this.CancelEdit();
+        (this._mouseMode, receiver) = (mode, value);
+    }
+
+    /// <summary>
+    /// 編集モードをキャンセルする
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="receiver"></param>
+    private void ClearMouseMode<T>(out T? receiver) where T : class
+        => (this._mouseMode, receiver) = (MouseControlMode.None, default);
 
     /// <summary>
     /// タイミング編集情報
@@ -1006,28 +1041,23 @@ public partial class PlotEditor : UserControl
 
                 if (true)
                 {
-                    var timings = this._renderCommon.RangeScoreRenderInfo?.Timings;
-                    if (timings != null)
+                    var rangeTimings = this._renderCommon.RangeScoreRenderInfo?.Timings;
+                    if (rangeTimings != null)
                     {
-                        int x = scaling.ToRenderImageScaling(mousePos.X);
-                        int y = scaling.ToRenderImageScaling(mousePos.Y);
+                        (int x, int y) = scaling.ToRenderImageScaling(mousePos.X, mousePos.Y);
 
-                        var handle = timings.FirstOrDefault(
-                            h => h.IsSelected && h.IsCollisionDetection(x, y));
-
+                        var handle = rangeTimings.FirstOrDefault(h => h.IsSelected && h.IsCollisionDetection(x, y));
                         if (handle != null)
                         {
-                            this._mouseMode = MouseControlMode.EditTiming;
                             int idx = this._timings!.IndexOf(handle);
 
-                            this._editingTimingInfo = new(handle)
+                            this.ChangeMouseMode(MouseControlMode.EditTiming, out this._editingTimingInfo, new(handle, handle.TimingInfo.EditedBeginTime100Ns)
                             {
-                                Lower = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.EditedBeginTime100Ns,
-                                Upper = (idx == -1 || (this._timings.Count <= (idx + 1)))
+                                LowerTime100Ns = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.EditedBeginTime100Ns,
+                                UpperTime100Ns = (idx == -1 || (this._timings.Count <= (idx + 1)))
                                     ? null : this._timings[idx + 1].TimingInfo.EditedBeginTime100Ns,
                                 OffsetX = x - handle.X,
-                                Time = NeutrinoUtil.TimingTimeToMs(handle.TimingInfo.EditedBeginTime100Ns),
-                            };
+                            });
 
                             return;
                         }
@@ -1083,14 +1113,14 @@ public partial class PlotEditor : UserControl
 
                 // マウスで選択中の時間を計算し、範囲内に収める
                 int adjustedTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
-                adjustedTime = Math.Max(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.Lower));
-                if (editing.Upper != null)
-                    adjustedTime = Math.Min(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.Upper.Value));
+                adjustedTime = Math.Max(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.LowerTime100Ns));
+                if (editing.UpperTime100Ns != null)
+                    adjustedTime = Math.Min(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.UpperTime100Ns.Value));
 
                 // レイアウト、編集中のタイミング情報を更新
-                int adjustedX = scaling.ToDisplayScaling((adjustedTime - beginTime) * renderInfo.WidthStretch);
+                int adjustedX = this.GetScoreLocationX(adjustedTime);
                 editing.Target.MoveX(adjustedX);
-                editing.Time = adjustedTime;
+                editing.CurrentTimeMs = adjustedTime;
 
                 // TODO: 再描画
                 this.SKElement.InvalidateVisual();
@@ -1349,18 +1379,58 @@ public partial class PlotEditor : UserControl
             }
             else if (this._mouseMode == MouseControlMode.EditTiming)
             {
-                this._mouseMode = MouseControlMode.None;
+                this.DetermineTimingEdit();
+            }
+        }
+    }
 
-                var editingTiming = this._editingTimingInfo;
-                if (editingTiming != null)
+    /// <summary>
+    /// タイミング編集を確定する
+    /// </summary>
+    public void CancelTimingEdit()
+    {
+        var renderInfo = this._viewBoxInfo;
+
+        var editing = this._editingTimingInfo;
+        if (editing != null)
+        {
+            int adjustedX = this.GetScoreLocationX(NeutrinoUtil.TimingTimeToMs(editing.InitialTime100Ns));
+            editing.Target.MoveX(adjustedX);
+
+            // TODO: 再描画
+            this.SKElement.InvalidateVisual();
+        }
+
+        this.ClearMouseMode(out this._editingTimingInfo);
+    }
+
+    /// <summary>
+    /// タイミング編集を確定する
+    /// </summary>
+    public void DetermineTimingEdit()
                 {
+        var editing = this._editingTimingInfo;
+        if (editing != null)
+        {
                     var track = this.Track;
-                    if (track != null)
-                        track.ChangeTiming(Array.IndexOf(track.Timings, editingTiming.Target.TimingInfo), editingTiming.Time);
+            track?.ChangeTiming(Array.IndexOf(track.Timings, editing.Target.TimingInfo), editing.CurrentTimeMs);
                 }
 
-                this._editingTimingInfo = null;
+        this.ClearMouseMode(out this._editingTimingInfo);
             }
+
+    /// <summary>
+    /// 編集操作をキャンセルする(Esc押下時)
+    /// </summary>
+    public void CancelEdit()
+    {
+        // エスケープキーが押下された場合
+        // マウス操作の作業をキャンセルする
+        switch (this._mouseMode)
+        {
+            case MouseControlMode.EditTiming:
+                this.CancelTimingEdit();
+                return;
         }
     }
 
