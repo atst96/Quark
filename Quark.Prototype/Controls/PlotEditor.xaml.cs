@@ -224,7 +224,7 @@ public partial class PlotEditor : UserControl
     private void OnTrackFeatureChanged(object? sender, EventArgs e) => this.Dispatcher.InvokeAsync(() =>
     {
         // 再描画
-        this.Redraw();
+        this.UpdateRenderContent();
     }, DispatcherPriority.Render);
 
     private void OnTimingEstimated(object? sender, EventArgs e) => this.Dispatcher.InvokeAsync(() =>
@@ -279,7 +279,7 @@ public partial class PlotEditor : UserControl
     private static void OnQuantizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         // 再描画
-        ((PlotEditor)d).Redraw();
+        ((PlotEditor)d).UpdateRenderContent();
     }
 
     /// <summary>
@@ -354,7 +354,7 @@ public partial class PlotEditor : UserControl
 
         this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
 
-        this.Redraw();
+        this.UpdateRenderContent();
     }
 
     private void LoadTiming()
@@ -371,7 +371,7 @@ public partial class PlotEditor : UserControl
 
         this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
 
-        this.Redraw();
+        this.UpdateRenderContent();
         this.UpdateScrollLayout();
         this.RelocateSeekBar();
     }
@@ -423,7 +423,7 @@ public partial class PlotEditor : UserControl
             ColorInfo = this.ColorInfo,
             PartRenderInfo = this._viewBoxInfo,
         });
-        this.Redraw();
+        this.UpdateRenderContent();
         this.UpdateScrollLayout();
         this.RelocateSeekBar();
     }
@@ -493,7 +493,7 @@ public partial class PlotEditor : UserControl
                 {
                     this.SetRenderBeginMs((int)value);
                     this.RelocateSeekBar(TimeSpan.FromMilliseconds(value), time, true);
-                    this.Redraw();
+                    this.UpdateRenderContent();
                 }
 
                 return;
@@ -540,7 +540,7 @@ public partial class PlotEditor : UserControl
     /// <summary>
     /// 描画する内容を再生成する
     /// </summary>
-    private void UpdateRenderImage()
+    private void UpdateRenderContent(bool redraw = true)
     {
         if (this.ActualWidth <= 0 || this.ActualHeight <= 0)
             return;
@@ -584,6 +584,9 @@ public partial class PlotEditor : UserControl
         DisposableUtil.ExchangeDisposable(ref this._renderImage, this._pianoRollRenderer.CreateImage());
         DisposableUtil.ExchangeDisposable(ref this._rulerImage, this._rulerRenderer.CreateImage());
         DisposableUtil.ExchangeDisposable(ref this._dynamicImage, this._dynamicsRenderer.CreateImage());
+
+        if (redraw)
+            this.Redraw();
     }
 
     private void UpdateRenderInfo(RenderInfoCommon renderInfoCommon)
@@ -599,10 +602,7 @@ public partial class PlotEditor : UserControl
     /// 画面を再描画する
     /// </summary>
     private void Redraw()
-    {
-        this.UpdateRenderImage();
-        this.SKElement.InvalidateVisual();
-    }
+        => this.SKElement.InvalidateVisual();
 
     /// <summary>
     /// 描画領域のサイズ変更時
@@ -611,7 +611,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnRenderSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        this.Redraw();
+        this.UpdateRenderContent();
         this.UpdateScrollLayout();
         this.RelocateSeekBar();
     }
@@ -755,7 +755,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnVScroll(object sender, ScrollEventArgs e)
     {
-        this.SKElement.InvalidateVisual();
+        this.Redraw();
     }
 
     /// <summary>
@@ -772,7 +772,7 @@ public partial class PlotEditor : UserControl
         }
 
         this.OnRenderBeginMsChanged(time);
-        this.Redraw();
+        this.UpdateRenderContent();
         this.RelocateSeekBar();
     }
 
@@ -866,7 +866,7 @@ public partial class PlotEditor : UserControl
                 {
                     this.SetVerticalPositionOffset(-change);
                 }
-                this.Redraw();
+                this.UpdateRenderContent();
                 this.RelocateSeekBar();
             }
             else if (e.Delta < 0)
@@ -879,7 +879,7 @@ public partial class PlotEditor : UserControl
                 {
                     this.SetVerticalPositionOffset(change);
                 }
-                this.Redraw();
+                this.UpdateRenderContent();
                 this.RelocateSeekBar();
             }
         }
@@ -1122,8 +1122,8 @@ public partial class PlotEditor : UserControl
                 editing.Target.MoveX(adjustedX);
                 editing.CurrentTimeMs = adjustedTime;
 
-                // TODO: 再描画
-                this.SKElement.InvalidateVisual();
+                // 再描画
+                this.Redraw();
             }
         }
         else
@@ -1158,8 +1158,8 @@ public partial class PlotEditor : UserControl
                     if (!noSelected)
                         cursor = Cursors.SizeWE;
 
-                    // TODO: 再描画
-                    this.SKElement.InvalidateVisual();
+                    // 再描画
+                    this.Redraw();
                 }
             }
         }
@@ -1397,8 +1397,8 @@ public partial class PlotEditor : UserControl
             int adjustedX = this.GetScoreLocationX(NeutrinoUtil.TimingTimeToMs(editing.InitialTime100Ns));
             editing.Target.MoveX(adjustedX);
 
-            // TODO: 再描画
-            this.SKElement.InvalidateVisual();
+            // 再描画
+            this.Redraw();
         }
 
         this.ClearMouseMode(out this._editingTimingInfo);
@@ -1464,14 +1464,14 @@ public partial class PlotEditor : UserControl
             int degree = (int)((posX >= -AutoScrollOuterWidth) ? (posX - AutoScrollInnerWidth) : -(AutoScrollInnerWidth + AutoScrollOuterWidth));
             this.SetRenderBeginMs(Math.Max(0, this.GetRenderBeginTimeMs() + (int)(degree / scaleX)));
             // TODO: 再レンダリングの処理を見直す
-            this.Redraw();
+            this.UpdateRenderContent();
         }
         else if ((width - AutoScrollInnerWidth) < posX)
         {
             int degree = (int)((posX <= (width + AutoScrollOuterWidth)) ? (posX - width + AutoScrollInnerWidth) : (AutoScrollInnerWidth + AutoScrollOuterWidth));
             this.SetRenderBeginMsOffset((int)(degree / scaleX));
             // TODO: 再レンダリングの処理を見直す
-            this.Redraw();
+            this.UpdateRenderContent();
         }
     }
 
