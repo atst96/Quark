@@ -1112,7 +1112,7 @@ public partial class PlotEditor : UserControl
                 mousePosition.Offset(scaling.ToRenderImageScaling(-editing.OffsetX), 0);
 
                 // マウスで選択中の時間を計算し、範囲内に収める
-                int adjustedTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
+                int adjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition);
                 adjustedTime = Math.Max(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.LowerTime100Ns));
                 if (editing.UpperTime100Ns != null)
                     adjustedTime = Math.Min(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.UpperTime100Ns.Value));
@@ -1351,12 +1351,21 @@ public partial class PlotEditor : UserControl
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetConditionTime(ViewDrawingBoxInfo renderInfo, int beginTime, ref Point mousePosition)
+    private static int GetConditionTime(ViewDrawingBoxInfo renderInfo, int timeMs, ref Point mousePosition)
     {
         double width = renderInfo.UnscaledWidth;
         double percentageX = mousePosition.X / width;
 
-        return Math.Max(0, beginTime + (int)(width * percentageX / renderInfo.WidthStretch)); ;
+        return Math.Max(0, timeMs + (int)(width * percentageX / renderInfo.WidthStretch));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int GetConditionTimeRoundFrame(ViewDrawingBoxInfo renderInfo, int timeMs, ref Point mousePosition)
+    {
+        // 最小単位
+        const int unit = NeutrinoConfig.FramePeriod;
+
+        return (int)Math.Round(GetConditionTime(renderInfo, timeMs, ref mousePosition) / (double)unit) * unit;
     }
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
