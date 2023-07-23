@@ -11,8 +11,8 @@ public class EstimateQueueInfo
     /// <summary>トラック</summary>
     public INeutrinoTrack Track { get; }
 
-    /// <summary>フレーズ情報</summary>
-    public INeutrinoPhrase Phrase { get; }
+    /// <summary>フレーズ情報。トラック全体の場合はNULL</summary>
+    public INeutrinoPhrase? Phrase { get; }
 
     /// <summary>優先度</summary>
     public EstimatePriority Priority { get; }
@@ -20,7 +20,7 @@ public class EstimateQueueInfo
     /// <summary>キャンセル用トークン</summary>
     private readonly CancellationTokenSource _tokenSource = new();
 
-    public EstimateQueueInfo(INeutrinoTrack track, INeutrinoPhrase phrase, EstimatePriority priority)
+    public EstimateQueueInfo(INeutrinoTrack track, INeutrinoPhrase? phrase, EstimatePriority priority)
     {
         this.Track = track;
         this.Phrase = phrase;

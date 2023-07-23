@@ -1,4 +1,5 @@
 ﻿using Quark.Components;
+using Quark.Constants;
 using Quark.DependencyInjection;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
@@ -6,7 +7,6 @@ using Quark.Projects;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 
 namespace Quark.Services;
 
@@ -33,7 +33,7 @@ internal class ProjectSession
         this.NeutrinoV1 = neutrinoV1;
         this.NeutrinoV2 = neutrinoV2;
         this._estimateQueue = new(1, this.ProcessEstimateQueue);
-        this._audioRenderQueue = new(1, this.ProcessAudioRenderQueue);
+        this._audioRenderQueue = new(1, this.ProcessSynthesisQueue);
 
         this.BeginSession();
     }
@@ -58,7 +58,7 @@ internal class ProjectSession
     /// <summary>
     /// キューに登録したタスクを現在実行中のものを含めて列挙する
     /// </summary>
-    /// <typeparam name="T">型情報</typeparam>
+    /// <typeparam name="TElement">型情報</typeparam>
     /// <param name="queue">取得対象のキュー</param>
     /// <returns>タスク情報</returns>
     private IEnumerable<TElement> EnumerateQueue<TElement, TPriority>(TaskQueue<TElement, TPriority> queue)
@@ -161,6 +161,22 @@ internal class ProjectSession
     private int GetEstimatePriority(EstimatePriority priority)
         => this.GetEstimatePriority(this._estimateQueueCount, this._estimateQueue, priority);
 
+    public void AddEstimateQueue(INeutrinoTrack track, EstimatePriority priority = EstimatePriority.Sequence)
+    {
+        var phrases = track.Phrases;
+
+        this.CancelForEstimate(track, phrases);
+
+        foreach (var phrase in phrases)
+        {
+            phrase.SetStatus(PhraseStatus.WaitEstimate);
+        }
+
+        this._estimateQueue.Enqueue(new(track, null, priority), GetEstimatePriority(priority));
+
+        track.RaiseFeatureChanged();
+    }
+
     public void AddEstimateQueue(INeutrinoTrack track, IEnumerable<INeutrinoPhrase> phrases, EstimatePriority priority = EstimatePriority.Sequence)
     {
         this.CancelForEstimate(track, phrases);
@@ -193,15 +209,98 @@ internal class ProjectSession
         track.RaiseFeatureChanged();
     }
 
-    private async Task ProcessEstimateQueue(EstimateQueueInfo info)
+    public void AddAudioRenderQueue(INeutrinoTrack track, EstimatePriority priority = EstimatePriority.Sequence)
+    {
+        var phrases = track.Phrases;
+
+        this.CancelForEstimate(track, phrases);
+
+        foreach (var phrase in phrases)
+        {
+            phrase.SetStatus(PhraseStatus.WaitAudioRender);
+        }
+
+        this._audioRenderQueue.Enqueue(new(track, null, priority), GetEstimatePriority(priority));
+
+        track.RaiseFeatureChanged();
+    }
+
+    /// <summary>
+    /// 推論キューを処理する
+    /// </summary>
+    /// <param name="queueInfo"></param>
+    /// <returns></returns>
+    private async Task ProcessEstimateQueue(EstimateQueueInfo queueInfo)
     {
         // セッションが開始されていなければ処理を抜ける
         if (!this._isSessionStarted)
             return;
 
-        if (info.Track is NeutrinoV1Track v1Track)
+        if (queueInfo.Track is NeutrinoV1Track v1Track)
         {
-            var phrase = (NeutrinoV1Phrase)info.Phrase;
+            if (queueInfo.Phrase == null)
+            {
+                // フレーズ指定がない場合はトラック全体を推論する
+
+                foreach (var phrases in v1Track.Phrases)
+                    phrases.SetStatus(PhraseStatus.EstimateProcessing);
+                v1Track.RaiseFeatureChanged();
+                v1Track.IsBusy = true;
+
+                EstimateFeaturesResultV1 result;
+                try
+                {
+                    result = await this.NeutrinoV1.EstimateFeatures(
+                        v1Track, cancellationToken: queueInfo.GetCancellationToken()).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // キャンセル時は何もしない
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    // 例外発生時
+                    Debug.WriteLine($"{ex.Message}: {ex.StackTrace}");
+                    Debugger.Break();
+
+                    // TODO: 失敗時
+                    // 個別の推論として再登録する
+                    UpdatePhraseStatus(v1Track, PhraseStatus.EstimateError);
+                    this.AddAudioRenderQueue(v1Track, v1Track.Phrases, queueInfo.Priority);
+                    return;
+                }
+                finally
+                {
+                    v1Track.IsBusy = false;
+                }
+
+                double[] f0 = result.F0!;
+                double[] mgc = result.Mgc!;
+                double[] bap = result.Bap!;
+
+                foreach (var phrase in v1Track.Phrases)
+                {
+                    int framesCount = f0.Length;
+
+                    int start = Math.Min(framesCount, Math.Max(0, NeutrinoUtil.MsToFrameIndex(phrase.BeginTime)));
+                    int end = Math.Min(framesCount, Math.Max(0, NeutrinoUtil.MsToFrameIndex(phrase.EndTime - 1)));
+
+                    phrase.SetAudioFeatures(
+                        f0[start..end],
+                        mgc[(start * NeutrinoConfig.MgcDimension)..(end * NeutrinoConfig.MgcDimension)],
+                        bap[(start * NeutrinoConfig.BapDimension)..(end * NeutrinoConfig.BapDimension)]);
+                    phrase.SetStatus(PhraseStatus.WaitAudioRender);
+                }
+                v1Track.RaiseFeatureChanged();
+
+                this._audioRenderQueue.Enqueue(new(v1Track, null, queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
+            }
+            else
+        {
+                // フレーズ指定がある場合は単体のフレーズのみ推論する
+
+                var phrase = (NeutrinoV1Phrase)queueInfo.Phrase;
 
             phrase.SetStatus(PhraseStatus.EstimateProcessing);
             v1Track.RaiseFeatureChanged();
@@ -210,7 +309,7 @@ internal class ProjectSession
             try
             {
                 result = await this.NeutrinoV1.EstimateFeatures(
-                    v1Track, phrase, cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
+                        v1Track, phrase, cancellationToken: queueInfo.GetCancellationToken()).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -235,11 +334,72 @@ internal class ProjectSession
             phrase.SetStatus(PhraseStatus.WaitAudioRender);
             v1Track.RaiseFeatureChanged();
 
-            this._audioRenderQueue.Enqueue(new(v1Track, phrase, info.Priority), this.GetAudioRenderPriority(info.Priority));
+                this._audioRenderQueue.Enqueue(new(v1Track, phrase, queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
+            }
         }
-        else if (info.Track is NeutrinoV2Track v2Track)
+        else if (queueInfo.Track is NeutrinoV2Track v2Track)
         {
-            var phrase = (NeutrinoV2Phrase)info.Phrase;
+            if (queueInfo.Phrase == null)
+            {
+                foreach (var phrases in v2Track.Phrases)
+                    phrases.SetStatus(PhraseStatus.EstimateProcessing);
+                v2Track.RaiseFeatureChanged();
+                v2Track.IsBusy = true;
+
+                EstimateFeaturesResultV2 result;
+                try
+                {
+                    result = await this.NeutrinoV2.EstimateFeatures(
+                        v2Track, cancellationToken: queueInfo.GetCancellationToken()).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // キャンセル時は何もしない
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    // 例外発生時
+                    Debug.WriteLine($"{ex.Message}: {ex.StackTrace}");
+                    Debugger.Break();
+
+                    // TODO: 失敗時
+                    // 個別の推論として再登録する
+                    UpdatePhraseStatus(v2Track, PhraseStatus.EstimateError);
+                    this.AddAudioRenderQueue(v2Track, v2Track.Phrases, queueInfo.Priority);
+                    return;
+                }
+                finally
+                {
+                    v2Track.IsBusy = false;
+                }
+
+                float[] f0 = result.F0!;
+                float[] mspec = result.Mspec!;
+                float[] mgc = result.Mgc!;
+                float[] bap = result.Bap!;
+
+                foreach (var phrase in v2Track.Phrases)
+                {
+                    int framesCount = f0.Length;
+
+                    int start = Math.Min(framesCount, Math.Max(0, NeutrinoUtil.MsToFrameIndex(phrase.BeginTime)));
+                    int end = Math.Min(framesCount, Math.Max(0, NeutrinoUtil.MsToFrameIndex(phrase.EndTime - 1)));
+
+                    phrase.SetAudioFeatures(
+                        f0[start..end],
+                        mspec[(start * NeutrinoConfig.MspecDimension)..(end * NeutrinoConfig.MspecDimension)],
+                        mgc[(start * NeutrinoConfig.MgcDimension)..(end * NeutrinoConfig.MgcDimension)],
+                        bap[(start * NeutrinoConfig.BapDimension)..(end * NeutrinoConfig.BapDimension)]);
+                    phrase.SetStatus(PhraseStatus.WaitAudioRender);
+        }
+                v2Track.RaiseFeatureChanged();
+
+                this._audioRenderQueue.Enqueue(new(v2Track, null, queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
+            }
+            else
+        {
+                var phrase = (NeutrinoV2Phrase)queueInfo.Phrase;
 
             phrase.SetStatus(PhraseStatus.EstimateProcessing);
             v2Track.RaiseFeatureChanged();
@@ -248,7 +408,7 @@ internal class ProjectSession
             try
             {
                 result = await this.NeutrinoV2.EstimateFeatures(
-                    v2Track, phrase, cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
+                        v2Track, phrase, cancellationToken: queueInfo.GetCancellationToken()).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -273,23 +433,71 @@ internal class ProjectSession
             phrase.SetStatus(PhraseStatus.WaitAudioRender);
             v2Track.RaiseFeatureChanged();
 
-            this._audioRenderQueue.Enqueue(new(v2Track, phrase, info.Priority), this.GetAudioRenderPriority(info.Priority));
+                this._audioRenderQueue.Enqueue(new(v2Track, phrase, queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
         }
+    }
     }
 
     /// <summary>
+    /// 音声合成キューを処理する
     /// </summary>
-    /// <param name="track"></param>
-    /// <param name="phrase"></param>
+    /// <param name="queueInfo"></param>
+    private async Task ProcessSynthesisQueue(EstimateQueueInfo queueInfo)
     private async Task ProcessAudioRenderQueue(EstimateQueueInfo info)
     {
         // セッションが開始されていなければ処理を抜ける
         if (!this._isSessionStarted)
             return;
 
-        if (info.Track is NeutrinoV1Track v1Track)
+        if (queueInfo.Track is NeutrinoV1Track v1Track)
         {
-            var phrase = (NeutrinoV1Phrase)info.Phrase;
+            if (queueInfo.Phrase == null)
+            {
+                // フレーズの指定がない場合はトラック全体を合成する
+                UpdatePhraseStatus(v1Track, PhraseStatus.AudioRenderProcessing);
+                v1Track.RaiseFeatureChanged();
+                v1Track.IsBusy = true;
+
+                // 音声データを出力する
+                byte[]? data;
+                try
+                {
+                    data = await this.NeutrinoV1.SynthesisWorld(v1Track, cancellationToken: queueInfo.GetCancellationToken()).ConfigureAwait(false);
+                    // data = await this.NeutrinoV1.SynthesisNSF(v1Track,
+                    //     cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // キャンセル時は何もしない
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    // 実行中に例外発生時
+                    Debug.WriteLine($"{ex.Message}: {ex.StackTrace}");
+
+                    // TODO: 失敗時
+                    UpdatePhraseStatus(v1Track, PhraseStatus.AudioRenderError);
+                    v1Track.RaiseFeatureChanged();
+                    return;
+                }
+                finally
+                {
+                    v1Track.IsBusy = false;
+                }
+
+                // 出力した音声データをキャッシュに書き込む
+                // WAVEファイルとして出力されているので、WAVEヘッダ部分を取り除いて書き込む。
+                var wav = v1Track.WaveData;
+                wav.Clear();
+                wav.Write(0, WavUtil.AsSpanData(data));
+
+                UpdatePhraseStatus(v1Track, PhraseStatus.Complete);
+                v1Track.RaiseFeatureChanged();
+            }
+            else
+            {
+                var phrase = (NeutrinoV1Phrase)queueInfo.Phrase;
 
             phrase.SetStatus(PhraseStatus.AudioRenderProcessing);
             v1Track.RaiseFeatureChanged();
@@ -299,7 +507,7 @@ internal class ProjectSession
             try
             {
                 data = await this.NeutrinoV1.SynthesisWorld(
-                    phrase, cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
+                        phrase, cancellationToken: queueInfo.GetCancellationToken()).ConfigureAwait(false);
                 // data = await this.NeutrinoV1.SynthesisNSF(phrase, v1Track.Singer,
                 //     cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
             }
@@ -323,14 +531,62 @@ internal class ProjectSession
             // WAVEファイルとして出力されているので、WAVEヘッダ部分を取り除いて書き込む。
             v1Track.WaveData.Write(
                 WavUtil.CalcDataPosition48k16bitMono(phrase.BeginTime),
-                data.AsSpan(WavUtil.WaveHeaderSize));
+                    WavUtil.AsSpanData(data));
 
             phrase.SetStatus(PhraseStatus.Complete);
             v1Track.RaiseFeatureChanged();
         }
-        else if (info.Track is NeutrinoV2Track v2Track)
+        }
+        else if (queueInfo.Track is NeutrinoV2Track v2Track)
         {
-            var phrase = (NeutrinoV2Phrase)info.Phrase;
+            if (queueInfo.Phrase == null)
+            {
+                // フレーズの指定がない場合はトラック全体を合成する
+                UpdatePhraseStatus(v2Track, PhraseStatus.AudioRenderProcessing);
+                v2Track.RaiseFeatureChanged();
+                v2Track.IsBusy = true;
+
+                // 音声データを出力する
+                byte[]? data;
+                try
+                {
+                    //data = await this.NeutrinoV2.SynthesisWorld(
+                    //    v2Track, cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
+                    data = await this.NeutrinoV2.SynthesisNSF(
+                        v2Track, cancellationToken: queueInfo.GetCancellationToken()).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // キャンセル時は何もしない
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    // 実行中に例外発生時
+                    Debug.WriteLine($"{ex.Message}: {ex.StackTrace}");
+
+                    // TODO: 失敗時
+                    UpdatePhraseStatus(v2Track, PhraseStatus.AudioRenderError);
+                    v2Track.RaiseFeatureChanged();
+                    return;
+                }
+                finally
+                {
+                    v2Track.IsBusy = false;
+                }
+
+                // 出力した音声データをキャッシュに書き込む
+                // WAVEファイルとして出力されているので、WAVEヘッダ部分を取り除いて書き込む。
+                var wav = v2Track.WaveData;
+                wav.Clear();
+                wav.Write(0, WavUtil.AsSpanData(data));
+
+                UpdatePhraseStatus(v2Track, PhraseStatus.Complete);
+                v2Track.RaiseFeatureChanged();
+            }
+            else
+        {
+                var phrase = (NeutrinoV2Phrase)queueInfo.Phrase;
 
             phrase.SetStatus(PhraseStatus.AudioRenderProcessing);
             v2Track.RaiseFeatureChanged();
@@ -339,10 +595,10 @@ internal class ProjectSession
             byte[]? data;
             try
             {
-                // data = await this.NeutrinoV2.SynthesisWorld(
-                //     phrase, cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
+                    //data = await this.NeutrinoV2.SynthesisWorld(
+                    //    phrase, cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
                 data = await this.NeutrinoV2.SynthesisNSF(
-                    v2Track, phrase, cancellationToken: info.GetCancellationToken()).ConfigureAwait(false);
+                        v2Track, phrase, cancellationToken: queueInfo.GetCancellationToken()).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -364,10 +620,24 @@ internal class ProjectSession
             // WAVEファイルとして出力されているので、WAVEヘッダ部分を取り除いて書き込む。
             v2Track.WaveData.Write(
                 WavUtil.CalcDataPosition48k16bitMono(phrase.BeginTime),
-                data.AsSpan(WavUtil.WaveHeaderSize));
+                    WavUtil.AsSpanData(data));
 
             phrase.SetStatus(PhraseStatus.Complete);
             v2Track.RaiseFeatureChanged();
+        }
+    }
+}
+
+    /// <summary>
+    /// トラック内の全フレーズのステータスを更新する。
+    /// </summary>
+    /// <param name="track">トラック</param>
+    /// <param name="status">遷移先ステータス</param>
+    private static void UpdatePhraseStatus(INeutrinoTrack track, PhraseStatus status)
+    {
+        foreach (var phrase in track.Phrases)
+        {
+            phrase.SetStatus(status);
         }
     }
 }

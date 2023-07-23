@@ -10,6 +10,8 @@ internal abstract class TrackBase
 
     public string TrackName { get; set; }
 
+    public bool IsBusy { get; internal set; } = false;
+
     private TrackBase(Project project, string trackId, string trackName)
     {
         this.Project = project;

@@ -1,4 +1,5 @@
-﻿using Quark.Audio;
+﻿using System.Diagnostics;
+using Quark.Audio;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
@@ -91,6 +92,8 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
     private async Task Load()
     {
         var session = this.Project.Session;
+        // TODO: 設定から取得する
+        bool isBulkEstimation = true;
 
         // Label
         if (!this.HasScoreTiming())
@@ -119,15 +122,30 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
             this.TimingEstimated?.Invoke(this, EventArgs.Empty);
             this.SetRawPhrase(result.Phrases);
 
-            session.AddEstimateQueue(this, this.Phrases);
+            if (isBulkEstimation)
+                session.AddEstimateQueue(this);
+            else
+                session.AddEstimateQueue(this, this.Phrases);
         }
         else
         {
-            var phrases = this.Phrases.Where(p => p.F0 is null);
-            session.AddEstimateQueue(this, phrases);
+            var estimatePhrases = this.Phrases.Where(p => !p.F0?.Any() ?? true);
+            if (estimatePhrases.Any())
+            {
+                if (isBulkEstimation && estimatePhrases.Count() == this.Phrases.Length)
+                    session.AddEstimateQueue(this);
+                else
+                    session.AddEstimateQueue(this, estimatePhrases);
+            }
 
-            var phrases2 = this.Phrases.Where(p => p.F0 is not null);
-            session.AddAudioRenderQueue(this, phrases2);
+            var synthesisPhrases = this.Phrases.Where(p => p.F0?.Any() ?? false);
+            if (synthesisPhrases.Any())
+            {
+                if (isBulkEstimation && synthesisPhrases.Count() == this.Phrases.Length)
+                    session.AddAudioRenderQueue(this);
+                else
+                    session.AddAudioRenderQueue(this, synthesisPhrases);
+            }
         }
     }
 

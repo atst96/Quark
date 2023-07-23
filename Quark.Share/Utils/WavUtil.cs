@@ -72,4 +72,11 @@ public static class WavUtil
         // ストリームに書き込み
         stream.Write(headerData);
     }
+
+    /// <summary>
+    /// WAVデータをデータ部のみのバイト配列(Span)に変換する
+    /// </summary>
+    /// <param name="data">WAVデータ</param>
+    /// <returns></returns>
+    public static Span<byte> AsSpanData(byte[] data) => data.AsSpan(WaveHeaderSize..);
 }

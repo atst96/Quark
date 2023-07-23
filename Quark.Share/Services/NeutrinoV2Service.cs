@@ -326,6 +326,33 @@ internal class NeutrinoV2Service
     /// 音響情報の推論処理を行う
     /// </summary>
     /// <param name="track">トラック情報</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns></returns>
+    public Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var setting = this._setting.NeutrinoV2;
+
+        return this.EstimateFeatures(new NeutrinoV2Option()
+        {
+            FullLabel = track.FullTiming!,
+            TimingLabel = NeutrinoUtil.GetTimingContent(track.Timings),
+            InferenceMode = NeutrinoV2InferenceMode.Standard,
+            ModelInfo = track.Singer,
+            IsSkipTimingPrediction = true,
+            IsTracePhraseInformation = true,
+            WorldFeaturesPrediction = true,
+            UseMultipleGpus = setting.UseGpu,
+            NumberOfParallel = setting.CpuThreads,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// 音響情報の推論処理を行う
+    /// </summary>
+    /// <param name="track">トラック情報</param>
     /// <param name="phrase">フレーズ情報</param>
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
@@ -428,6 +455,30 @@ internal class NeutrinoV2Service
     /// <summary>
     /// WORKDで音声合成する
     /// </summary>
+    /// <param name="track">トラック情報</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>WAVファイルデータ</returns>
+    public Task<byte[]> SynthesisWorld(NeutrinoV2Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var setting = this._setting.NeutrinoV2;
+
+        (float[] f0, float[] mgc, float[] bap) = GetAudioFeaturesForWorld(track);
+
+        return this.SynthesisWorld(new WorldV2Option
+        {
+            F0 = f0,
+            Mgc = mgc,
+            Bap = bap,
+            NumberOfParallel = setting.CpuThreads,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// WORKDで音声合成する
+    /// </summary>
     /// <param name="phrase">フレーズ情報</param>
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
@@ -465,9 +516,30 @@ internal class NeutrinoV2Service
         if (timings.Length == 0 || phrases.Length == 0)
             return;
 
-        const int mgcDimension = NeutrinoConfig.MgcDimension;
-        const int bapDimension = NeutrinoConfig.BapDimension;
+        (float[] f0, float[] mgc, float[] bap) = GetAudioFeaturesForWorld(track);
 
+        // 音声出力
+        byte[] data = await this.SynthesisWorld(new WorldV2Option
+        {
+            F0 = f0,
+            Mgc = mgc,
+            Bap = bap,
+            NumberOfParallel = setting.CpuThreads,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken).ConfigureAwait(false);
+
+        // ファイルに書き出し
+        File.WriteAllBytes(path, data);
+    }
+
+    private static (float[] f0, float[] mgc, float[] bap) GetAudioFeaturesForWorld(NeutrinoV2Track track)
+    {
+        var timings = track.Timings;
+        var phrases = track.Phrases;
+
+        int mgcDimension = NeutrinoConfig.MgcDimension;
+        int bapDimension = NeutrinoConfig.BapDimension;
         int frameCount = NeutrinoUtil.MsToFrameIndex(NeutrinoUtil.TimingTimeToMs(timings[^1].EditedEndTime100Ns));
 
         // F0
@@ -499,19 +571,7 @@ internal class NeutrinoV2Service
                 srcBap.AsSpan(..(length * bapDimension)).CopyTo(bap.AsSpan(frameIdx * bapDimension));
         }
 
-        // 音声出力
-        byte[] data = await this.SynthesisWorld(new WorldV2Option
-        {
-            F0 = f0,
-            Mgc = mgc,
-            Bap = bap,
-            NumberOfParallel = setting.CpuThreads,
-            IsViewInformation = true,
-        }
-        , progress, cancellationToken).ConfigureAwait(false);
-
-        // ファイルに書き出し
-        File.WriteAllBytes(path, data);
+        return (f0, mgc, bap);
     }
 
     /// <summary>
@@ -597,6 +657,34 @@ internal class NeutrinoV2Service
     /// NSFで音声合成を行う
     /// </summary>
     /// <param name="track">トラック情報</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>WAVファイルデータ</returns>
+    public Task<byte[]> SynthesisNSF(NeutrinoV2Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var setting = this._setting.NeutrinoV2;
+
+        (float[] f0, float[] mspec) = GetAudioFeatures(track);
+
+        return this.SynthesisNSF(new NSFV2Option
+        {
+            F0 = f0,
+            Melspec = mspec,
+            Model = track.Singer,
+            ModelType = NSFV2Model.VA,
+            SamplingRate = 48,
+            MultiPhrasePrediction = track.Timings,
+            NumberOfParallel = setting.CpuThreads,
+            UseMultiGpus = setting.UseGpu,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// NSFで音声合成を行う
+    /// </summary>
+    /// <param name="track">トラック情報</param>
     /// <param name="phrase">フレーズ情報</param>
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
@@ -637,6 +725,32 @@ internal class NeutrinoV2Service
         if (timings.Length == 0 || phrases.Length == 0)
             return;
 
+        (float[] f0, float[] mspec) = GetAudioFeatures(track);
+
+        // 音声出力
+        byte[] data = await this.SynthesisNSF(new NSFV2Option
+        {
+            F0 = f0,
+            Melspec = mspec,
+            Model = track.Singer,
+            ModelType = NSFV2Model.VA,
+            SamplingRate = 48,
+            NumberOfParallel = setting.CpuThreads,
+            UseMultiGpus = setting.UseGpu,
+            MultiPhrasePrediction = track.Timings,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken).ConfigureAwait(false);
+
+        // ファイルに書き出し
+        File.WriteAllBytes(path, data);
+    }
+
+    private static (float[], float[]) GetAudioFeatures(NeutrinoV2Track track)
+    {
+        var timings = track.Timings;
+        var phrases = track.Phrases;
+
         const int mspecDimension = NeutrinoConfig.MspecDimension;
 
         int frameCount = NeutrinoUtil.MsToFrameIndex(NeutrinoUtil.TimingTimeToMs(timings[^1].EditedEndTime100Ns));
@@ -664,22 +778,6 @@ internal class NeutrinoV2Service
                 srcMspec.AsSpan(..(length * mspecDimension)).CopyTo(mspec.AsSpan(frameIdx * mspecDimension));
         }
 
-        // 音声出力
-        byte[] data = await this.SynthesisNSF(new NSFV2Option
-        {
-            F0 = f0,
-            Melspec = mspec,
-            Model = track.Singer,
-            ModelType = NSFV2Model.VA,
-            SamplingRate = 48,
-            NumberOfParallel = setting.CpuThreads,
-            UseMultiGpus = setting.UseGpu,
-            MultiPhrasePrediction = track.Timings,
-            IsViewInformation = true,
-        }
-        , progress, cancellationToken).ConfigureAwait(false);
-
-        // ファイルに書き出し
-        File.WriteAllBytes(path, data);
+        return (f0, mspec);
     }
 }

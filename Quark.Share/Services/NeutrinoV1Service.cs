@@ -439,6 +439,31 @@ internal class NeutrinoV1Service
     /// <summary>
     /// WORKDで音声合成する。
     /// </summary>
+    /// <param name="track">トラック情報</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns></returns>
+    public Task<byte[]> SynthesisWorld(NeutrinoV1Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var settings = this._setting.NeutrinoV1;
+
+        // f0, mgc, bapを取得
+        (double[] f0, double[] mgc, double[] bap) = GetSynthesisParameters(track);
+
+        return this.SynthesisWorld(new WorldV1Option
+        {
+            F0 = f0,
+            Mgc = mgc,
+            Bap = bap,
+            NumberOfParallel = settings.CpuThreads,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// WORKDで音声合成する。
+    /// </summary>
     /// <param name="phrase">フレーズ情報</param>
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
@@ -570,6 +595,34 @@ internal class NeutrinoV1Service
             // 出力ファイルの内容を返却
             return await wavTask.ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// NSFで音声合成を行う。
+    /// </summary>
+    /// <param name="track">トラック情報</param>
+    /// <param name="progress">進捗通知</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns></returns>
+    public Task<byte[]> SynthesisNSF(NeutrinoV1Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var settings = this._setting.NeutrinoV1;
+
+        // f0, mgc, bapを取得
+        (double[] f0, double[] mgc, double[] bap) = GetSynthesisParameters(track);
+
+        return this.SynthesisNSF(new NSFV1Option()
+        {
+            SamplingRate = 48,
+            F0 = f0,
+            Mgc = mgc,
+            Bap = bap,
+            Model = track.Singer,
+            IsUseGpu = settings.UseGpu,
+            NumberOfParallel = settings.CpuThreads,
+            IsViewInformation = true,
+        }
+        , progress, cancellationToken);
     }
 
     /// <summary>
