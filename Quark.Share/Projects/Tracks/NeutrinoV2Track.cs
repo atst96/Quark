@@ -64,6 +64,7 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
             if (p.F0?.Any() ?? false)
             {
                 ph.SetAudioFeatures(p.F0!, p.Mspec!, p.Mgc!, p.Bap!);
+                ph.SetEdited(p.EditedF0, p.EditedDynamics);
                 ph.SetStatus(PhraseStatus.WaitAudioRender);
             }
 
@@ -81,7 +82,7 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
 
             Timing = this.Timings,
             RawPhraseInfo = this.RawPhrases,
-            Phrases = this.Phrases.Select(p => new PhraseInfoV2(p.No, p.BeginTime, p.EndTime, p.Phonemes, p.F0, p.Mspec, p.Mgc, p.Bap)).ToArray(),
+            Phrases = this.Phrases.Select(p => new PhraseInfoV2(p.No, p.BeginTime, p.EndTime, p.Phonemes, p.F0, p.Mspec, p.Mgc, p.Bap, p.EditedF0, p.EditedDynamics)).ToArray(),
         };
 
         return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, features);
@@ -350,5 +351,10 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
     private void ClearRenderAudio(INeutrinoPhrase phrase)
     {
         this.WaveData.SilenceAtTimeRange(phrase.BeginTime, phrase.EndTime);
+    }
+
+    public void ReSynthesis(DateTime updatedDateTime)
+    {
+        this.Project.Session.AddAudioRenderQueue(this, this.Phrases.Where(p => p.LastUpdated >= updatedDateTime));
     }
 }

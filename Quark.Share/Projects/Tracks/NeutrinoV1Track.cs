@@ -71,6 +71,7 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
         if (hasAudioFeatures)
         {
             phrase.SetAudioFeatures(config.F0!, config.Mgc!, config.Bap!);
+            phrase.SetEdited(config.EditedF0, config.EditedDynamics);
         }
 
         return phrase;
@@ -89,7 +90,7 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     }
 
     private PhraseInfoV1 ToConfig(NeutrinoV1Phrase i) => new(
-        i.No, i.BeginTime, i.EndTime, i.Phonemes, i.F0, i.Mgc, i.Bap);
+        i.No, i.BeginTime, i.EndTime, i.Phonemes, i.F0, i.Mgc, i.Bap, i.EditedF0, i.EditedDynamics);
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
@@ -348,5 +349,9 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     private void ClearRenderAudio(INeutrinoPhrase phrase)
     {
         this.WaveData.SilenceAtTimeRange(phrase.BeginTime, phrase.EndTime);
+    }
+    public void ReSynthesis(DateTime updatedDateTime)
+    {
+        this.Project.Session.AddAudioRenderQueue(this, this.Phrases.Where(p => p.LastUpdated >= updatedDateTime));
     }
 }

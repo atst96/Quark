@@ -5,10 +5,6 @@ using Quark.Utils;
 using SkiaSharp;
 using static Quark.Controls.ViewDrawingBoxInfo;
 using Quark.Extensions;
-using Quark.Models.Neutrino;
-using System;
-using System.Reflection;
-using System.Diagnostics;
 
 namespace Quark.ImageRender.Score;
 
@@ -68,21 +64,21 @@ internal class DynamicsRendererV2
         //}
 
         // Mgcデータの下限値
-        const float min = -6.0f;
-        const float max = 1.0f;
-        const float period = max - min;
+        const float lower = -6.0f;
+        const float upper = 1.0f;
+        const float period = upper - lower;
 
         const int Period = RenderConfig.FramePeriod;
 
         var dynamicsGroups = targetPhrases
-             .Where(p => p.Mgc is not null)
-             .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p.Mspec!, min, dimension, p.BeginTime / Period))
+             .Where(p => p.Mspec is not null)
+             .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.Mspec!, lower, dimension, p.BeginTime / Period))
              .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
              .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
 
         int offsetMs = (beginFrameIdx * Period) - beginTime;
 
-        var list = new List<SKPoint[]>(phrases.Length);
+        var list = new List<(SKPoint[] origValues, SKPoint[] editedValues, SKPoint[] min, SKPoint[] max)>(phrases.Length);
 
         using (var spectrumImage = new SKBitmap(frames, dimension, SKColorType.Rgb888x, SKAlphaType.Unknown))
         {
@@ -92,20 +88,26 @@ internal class DynamicsRendererV2
 
             foreach (var dynamicsGroup in dynamicsGroups)
             {
-                var points = new SKPoint[dynamicsGroup.Last().TotalEndIndex - dynamicsGroup.First().TotalBeginIndex + 1];
+                int count = dynamicsGroup.Last().TotalEndIndex - dynamicsGroup.First().TotalBeginIndex + 1;
+                var editedPoints = new SKPoint[count];
+                var origPoints = new SKPoint[count];
+                var minPoints = new SKPoint[count];
+                var maxPoints = new SKPoint[count];
                 int pointsIdx = 0;
 
                 foreach (var dynamics in dynamicsGroup)
                 {
+                    var phrase = dynamics.Phrase;
+                    float[] origMspec = phrase.Mspec!;
+                    float[] editedMspec = phrase.GetEditedMspec()!;
+
                     // 描画開始／終了インデックス
                     (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(
                         dynamics.PhraseBeginFrameIdx + dynamics.BeginIndex, dynamics.EndIndex - dynamics.BeginIndex + 1,
                         beginFrameIdx, endFrameIdx, 0);
 
                     if (beginIdx >= endIdx)
-                    {
                         continue;
-                    }
 
                     int f = beginIdx - dynamics.PhraseBeginFrameIdx;
 
@@ -113,50 +115,59 @@ internal class DynamicsRendererV2
                     {
                         int frameIdx = idx + f;
 
+                        (float min, float max, float dynamicsValue) = editedMspec.AsSpan(frameIdx * dimension, dimension).MinMaxAvg();
+
                         for (int dim = 0; dim < dimension; ++dim)
                         {
                             int x = frameIdx + dynamics.PhraseBeginFrameIdx - beginFrameIdx;
                             int y = (dimension - dim - 1) * frames;
 
-                            double value = dynamics.Values[(frameIdx * dimension) + dim];
+                            double value = editedMspec[(frameIdx * dimension) + dim];
 
                             // byte color = (byte)(baseColor - ((value - min) / (-min) * baseColor));
                             const byte baseColor = 255;
-                            byte color = (byte)((value - min) / (period) * baseColor);
+                            byte color = (byte)((value - lower) / (period) * baseColor);
 
                             pixels[y + x].SetColor(allColor: color);
                         }
 
                         {
-                            float value = 0.0f;
-
-                            foreach (float v in dynamics.Values.AsSpan((frameIdx * dimension), dimension))
-                                value += v;
-
-                            value /= dimension;
+                            double origValue = origMspec.AsSpan(frameIdx * dimension, dimension).Average();
 
                             float x = scaling.ToDisplayScaling((offsetMs + ((frameIdx + dynamics.PhraseBeginFrameIdx) * Period) - beginTime) * renderInfo.WidthStretch);
-                            float y = (float)((1 - ((value - min) / period)) * renderHeight);
-                            points[pointsIdx++] = new(x, y);
+
+                            editedPoints[pointsIdx] = new(x, (float)((1 - ((dynamicsValue - lower) / period)) * renderHeight));
+                            origPoints[pointsIdx] = new(x, (float)((1 - ((origValue - lower) / period)) * renderHeight));
+                            minPoints[pointsIdx] = new(x, (float)((1 - ((min - lower) / period)) * renderHeight));
+                            maxPoints[pointsIdx] = new(x, (float)((1 - ((max - lower) / period)) * renderHeight));
+
+                            ++pointsIdx;
                         }
                     }
                 }
 
                 if (pointsIdx > 0)
                 {
-                    list.Add(points[0..pointsIdx]);
+                    var range = 0..pointsIdx;
+                    list.Add((origPoints[range], editedPoints[range], minPoints[range], maxPoints[range]));
                 }
             }
 
             image = spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.None);
         }
 
-
         using (var g = new SKCanvas(image))
         {
-            foreach (var pt in list)
+            foreach (var (origPoints, editedPoints, minPoints, maxPoints) in list)
             {
-                g.DrawPoints(SKPointMode.Polygon, pt, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
+                // 最小値を描画
+                g.DrawPoints(SKPointMode.Polygon, minPoints, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
+                // 最大値の描画
+                g.DrawPoints(SKPointMode.Polygon, maxPoints, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
+                // 変更前の値を描画
+                g.DrawPoints(SKPointMode.Polygon, origPoints, new SKPaint { IsStroke = true, Color = SKColors.LightBlue, StrokeWidth = 1.5f });
+                // 変更後の値を描画
+                g.DrawPoints(SKPointMode.Polygon, editedPoints, new SKPaint { IsStroke = true, Color = SKColors.Blue, StrokeWidth = 1.5f });
             }
         }
 

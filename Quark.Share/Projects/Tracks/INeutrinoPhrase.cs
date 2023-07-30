@@ -15,4 +15,6 @@ public interface INeutrinoPhrase
     public PhraseStatus Status { get; }
 
     public void SetStatus(PhraseStatus status);
+
+    public DateTime LastUpdated { get; }
 }

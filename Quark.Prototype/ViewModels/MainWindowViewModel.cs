@@ -12,6 +12,7 @@ using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using Quark.Audio;
 using Quark.Behaviors;
+using Quark.Controls;
 using Quark.Data.Projects;
 using Quark.DependencyInjection;
 using Quark.Drawing;
@@ -63,6 +64,12 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         [LineType.Note16thDotted] = "1/16 付点",
         [LineType.Note32thDotted] = "1/32 付点",
         [LineType.Note64thDotted] = "1/64 付点",
+    };
+
+    public IReadOnlyDictionary<EditMode, string> EditModes { get; } = new Dictionary<EditMode, string>
+    {
+        [EditMode.ScoreAndTiming] = "スコア・音素タイミング編集",
+        [EditMode.AudioFeatures] = "音響パラメータ編集",
     };
 
     private ModelInfo? _selectedModelInfo;

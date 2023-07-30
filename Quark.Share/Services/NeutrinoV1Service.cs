@@ -474,8 +474,8 @@ internal class NeutrinoV1Service
 
         return this.SynthesisWorld(new WorldV1Option
         {
-            F0 = phrase.F0!,
-            Mgc = phrase.Mgc!,
+            F0 = phrase.GetEditedF0()!,
+            Mgc = phrase.GetEditedMgc()!,
             Bap = phrase.Bap!,
             NumberOfParallel = settings.CpuThreads,
             IsViewInformation = true,
@@ -640,8 +640,8 @@ internal class NeutrinoV1Service
         return this.SynthesisNSF(new NSFV1Option()
         {
             SamplingRate = 48,
-            F0 = phrase.F0!,
-            Mgc = phrase.Mgc!,
+            F0 = phrase.GetEditedF0()!,
+            Mgc = phrase.GetEditedMgc()!,
             Bap = phrase.Bap!,
             Model = modelInfo,
             IsUseGpu = settings.UseGpu,
@@ -723,11 +723,11 @@ internal class NeutrinoV1Service
 
             int frameIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
 
-            var srcF0 = phrase.F0;
+            var srcF0 = phrase.GetEditedF0();
             if (srcF0?.Length > 0)
                 srcF0.AsSpan(..length).CopyTo(f0.AsSpan(frameIdx));
 
-            var srcMgc = phrase.Bap;
+            var srcMgc = phrase.GetEditedMgc();
             if (srcMgc?.Length > 0)
                 srcMgc.AsSpan(..(length * mgcDimension)).CopyTo(mgc.AsSpan(frameIdx * mgcDimension));
 

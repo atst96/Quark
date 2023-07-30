@@ -695,8 +695,8 @@ internal class NeutrinoV2Service
 
         return this.SynthesisNSF(new NSFV2Option
         {
-            F0 = phrase.F0!,
-            Melspec = phrase.Mspec!,
+            F0 = phrase.GetEditedF0()!,
+            Melspec = phrase.GetEditedMspec()!,
             Model = track.Singer,
             ModelType = NSFV2Model.VA,
             SamplingRate = 48,
@@ -769,11 +769,11 @@ internal class NeutrinoV2Service
 
             int frameIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
 
-            var srcF0 = phrase.F0;
+            var srcF0 = phrase.GetEditedF0();
             if (srcF0?.Length > 0)
                 srcF0.AsSpan(..length).CopyTo(f0.AsSpan(frameIdx));
 
-            var srcMspec = phrase.Mspec;
+            var srcMspec = phrase.GetEditedMspec();
             if (srcMspec?.Length > 0)
                 srcMspec.AsSpan(..(length * mspecDimension)).CopyTo(mspec.AsSpan(frameIdx * mspecDimension));
         }

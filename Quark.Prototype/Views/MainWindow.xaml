@@ -153,6 +153,11 @@
                 <ToggleButton Content="Scroll" IsChecked="{Binding Path=IsAutoScroll, ElementName=PloatEditor1, Mode=TwoWay}" />
                 <Separator />
                 <Label Content="{Binding CurrentTime, Mode=OneWay}" />
+                <Separator />
+                <Label Content="編集モード：" />
+                <ComboBox Width="130"
+                          SelectedValue="{Binding ElementName=PloatEditor1, Path=EditMode, Mode=TwoWay}"
+                          ItemsSource="{Binding EditModes, Mode=OneTime}" SelectedValuePath="Key" DisplayMemberPath="Value" />
             </ToolBar>
         </ToolBarTray>
 

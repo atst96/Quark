@@ -36,6 +36,9 @@
                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Hidden"
                          TextChanged="OnLyricsTextBoxChanged" SelectionChanged="OnLyricsTextBoxSelectionChanged" />
 
+
+            <TextBlock x:Name="debugTextBlock1" IsHitTestVisible="False" Foreground="White" />
+
             <ScrollBar x:Name="vScrollBar1" Grid.Column="1" Grid.Row="0" Orientation="Vertical" Scroll="OnVScroll" />
             <ScrollBar x:Name="hScrollBar1" Grid.Column="0" Grid.Row="2" Orientation="Horizontal" Scroll="OnHScroll" />
         </Grid>

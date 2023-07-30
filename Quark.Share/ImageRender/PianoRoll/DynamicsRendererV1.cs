@@ -70,13 +70,13 @@ internal class DynamicsRendererV1
 
         var dynamicsGroups = targetPhrases
              .Where(p => p.Mgc is not null)
-             .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p.Mgc!, min, dimension, p.BeginTime / Period))
+             .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.Mgc!, min, dimension, p.BeginTime / Period))
              .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
              .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
 
         int offsetMs = (beginFrameIdx * Period) - beginTime;
 
-        var list = new List<SKPoint[]>(phrases.Length);
+        var list = new List<(SKPoint[] origPoints, SKPoint[] editedPoints)>(phrases.Length);
 
         using (var spectrumImage = new SKBitmap(frames, dimension, SKColorType.Rgb888x, SKAlphaType.Unknown))
         {
@@ -86,20 +86,24 @@ internal class DynamicsRendererV1
 
             foreach (var dynamicsGroup in dynamicsGroups)
             {
-                var points = new SKPoint[dynamicsGroup.Last().TotalEndIndex - dynamicsGroup.First().TotalBeginIndex + 1];
+                int count = dynamicsGroup.Last().TotalEndIndex - dynamicsGroup.First().TotalBeginIndex + 1;
+                var origPoints = new SKPoint[count];
+                var editedPoints = new SKPoint[count];
                 int pointsIdx = 0;
 
                 foreach (var dynamics in dynamicsGroup)
                 {
+                    var phrase = dynamics.Phrase;
+                    double[] mgc = phrase.Mgc!;
+                    double[] editedMgc = phrase.GetEditedMgc()!;
+
                     // 描画開始／終了インデックス
                     (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(
                         dynamics.PhraseBeginFrameIdx + dynamics.BeginIndex, dynamics.EndIndex - dynamics.BeginIndex + 1,
                         beginFrameIdx, endFrameIdx, 0);
 
                     if (beginIdx >= endIdx)
-                    {
                         continue;
-                    }
 
                     int f = beginIdx - dynamics.PhraseBeginFrameIdx;
 
@@ -113,7 +117,7 @@ internal class DynamicsRendererV1
                             int x = frameIdx + dynamics.PhraseBeginFrameIdx - beginFrameIdx;
                             int y = (dimension - dim - 1) * frames;
 
-                            double value = dynamics.Values[(frameIdx * dimension) + dim];
+                            double value = editedMgc[(frameIdx * dimension) + dim];
 
                             v += value;
 
@@ -123,19 +127,24 @@ internal class DynamicsRendererV1
 
                             pixels[y + x].SetColor(allColor: color);
                         }
+
                         {
-                            double value = dynamics.Values[frameIdx * dimension];
+                            double value = mgc[frameIdx * dimension];
+                            double value2 = editedMgc[frameIdx * dimension];
 
                             float x = scaling.ToDisplayScaling((offsetMs + ((frameIdx + dynamics.PhraseBeginFrameIdx) * Period) - beginTime) * renderInfo.WidthStretch);
-                            float y = (float)((1 - ((value + (-min)) / (-min))) * renderHeight);
-                            points[pointsIdx++] = new(x, y);
+
+                            origPoints[pointsIdx] = new(x, (float)((1 - ((value + (-min)) / (-min))) * renderHeight));
+                            editedPoints[pointsIdx] = new(x, (float)((1 - ((value2 + (-min)) / (-min))) * renderHeight));
+                            ++pointsIdx;
                         }
                     }
                 }
 
                 if (pointsIdx > 0)
                 {
-                    list.Add(points[0..pointsIdx]);
+                    var range = 0..pointsIdx;
+                    list.Add((origPoints[range], editedPoints[range]));
                 }
             }
 
@@ -145,9 +154,10 @@ internal class DynamicsRendererV1
 
         using (var g = new SKCanvas(image))
         {
-            foreach (var pt in list)
+            foreach (var (origPoints, editedPoints) in list)
             {
-                g.DrawPoints(SKPointMode.Polygon, pt, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
+                g.DrawPoints(SKPointMode.Polygon, origPoints, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
+                g.DrawPoints(SKPointMode.Polygon, editedPoints, new SKPaint { IsStroke = true, Color = SKColors.Blue, StrokeWidth = 1.5f });
             }
         }
 

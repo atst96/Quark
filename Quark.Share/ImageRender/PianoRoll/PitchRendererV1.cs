@@ -57,7 +57,7 @@ internal class PitchRendererV1
 
         var pitches = targetPhrases
             .Where(p => p.F0 is not null)
-            .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p.F0!, 0, 1, p.BeginTime / Period))
+            .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.F0!, 0, 1, p.BeginTime / Period))
             .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
             .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
 
@@ -67,11 +67,17 @@ internal class PitchRendererV1
 
         foreach (var pitchGroup in pitches)
         {
-            var points = new SKPoint[pitchGroup.Last().TotalEndIndex - pitchGroup.First().TotalBeginIndex + 1];
+            int count = pitchGroup.Last().TotalEndIndex - pitchGroup.First().TotalBeginIndex + 1;
+            var origPoints = new SKPoint[count];
+            var editedPoints = new SKPoint[count];
             int pointsIdx = 0;
 
             foreach (var pitch in pitchGroup)
             {
+                var phrase = pitch.Phrase;
+                double[] f0 = phrase.F0!;
+                double[] editedF0 = phrase.GetEditedF0()!;
+
                 // 描画開始／終了インデックス
                 (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(
                     pitch.PhraseBeginFrameIdx + pitch.BeginIndex, pitch.EndIndex - pitch.BeginIndex + 1,
@@ -88,15 +94,23 @@ internal class PitchRendererV1
                 for (int idx = 0, length = endIdx - beginIdx; idx < length; ++idx)
                 {
                     int frameIdx = idx + f;
-                    points[pointsIdx++] = new SKPoint(
-                        scaling.ToDisplayScaling((offsetMs + (frameIdx + pitch.PhraseBeginFrameIdx) * Period - beginTime) * renderInfo.WidthStretch),
-                        scaling.ToDisplayScaling(height - pitchOffset - (float)AudioDataConverter.FrequencyToScale(pitch.Values[frameIdx]) * keyHeight));
+                    int x = scaling.ToDisplayScaling((offsetMs + (frameIdx + pitch.PhraseBeginFrameIdx) * Period - beginTime) * renderInfo.WidthStretch);
+
+                    origPoints[pointsIdx] = new SKPoint(x,
+                        scaling.ToDisplayScaling(height - pitchOffset - (float)AudioDataConverter.FrequencyToScale(f0[frameIdx]) * keyHeight));
+
+                    editedPoints[pointsIdx] = new SKPoint(x,
+                        scaling.ToDisplayScaling(height - pitchOffset - (float)AudioDataConverter.FrequencyToScale(editedF0[frameIdx]) * keyHeight));
+
+                    ++pointsIdx;
                 }
             }
 
             if (pointsIdx > 0)
             {
-                g.DrawPoints(SKPointMode.Polygon, points[0..pointsIdx], new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
+                var range = 0..pointsIdx;
+                g.DrawPoints(SKPointMode.Polygon, origPoints[range], new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
+                g.DrawPoints(SKPointMode.Polygon, editedPoints[range], new SKPaint { Color = SKColors.OrangeRed, StrokeWidth = 1.5f, IsAntialias = true });
             }
         }
     }
