@@ -1,4 +1,6 @@
-﻿namespace Quark.Utils;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace Quark.Utils;
 
 /// <summary>
 /// 配列操作に関するUtilクラス
@@ -21,5 +23,31 @@ public static class ArrayUtil
             values[idx] = initValue;
 
         return values;
+    }
+
+
+    /// <summary>
+    /// 配列がnullまたは空かどうかを判定する。
+    /// </summary>
+    /// <typeparam name="T">型</typeparam>
+    /// <param name="array">検証対象の配列</param>
+    /// <returns>指定した配列がnullまたは空かどうかのフラグ</returns>
+    public static bool IsNullOrEmpty<T>([NotNullWhen(false)] this T[]? array)
+        => array == null || array.Length == 0;
+
+    /// <summary>
+    /// 配列をコピーする。
+    /// </summary>
+    /// <typeparam name="T">配列の型</typeparam>
+    /// <param name="array">配列</param>
+    /// <returns></returns>
+    [return: NotNullIfNotNull(nameof(array))]
+    public static T[]? Clone<T>(this T[]? array)
+        where T : struct
+    {
+        if (array == null)
+            return null;
+
+        return array.AsSpan().ToArray();
     }
 }
