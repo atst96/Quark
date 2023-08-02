@@ -13,13 +13,8 @@ public static class StreamExtensions
     /// <returns></returns>
     public static IEnumerable<string> EnumerateLines(this StreamReader reader, bool excludeEmptyLine = false)
     {
-        string? line;
-        while ((line = reader.ReadLine()) != null)
-        {
+        while (reader.ReadLine() is { } line)
             if (!excludeEmptyLine || !string.IsNullOrEmpty(line))
-            {
                 yield return line;
-            }
-        }
     }
 }

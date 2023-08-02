@@ -1,8 +1,4 @@
 ﻿using Quark.Models.Neutrino;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text;
 using Quark.Extensions;
 using System.Text.RegularExpressions;
@@ -68,5 +64,14 @@ public static class NeutrinoModelUtil
     /// <param name="path">ディレクトリのパス</param>
     /// <returns></returns>
     private static string[] GetModelDirectories(string path)
-        => Directory.GetDirectories(path);
+    {
+        try
+        {
+            return Directory.GetDirectories(path);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return Array.Empty<string>();
+        }
+    }
 }

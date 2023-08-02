@@ -129,7 +129,7 @@ internal class NeutrinoV2Service
             }
 
             // 出力情報を取得
-            (byte[] fullLabel, byte[] monoLabel) = await TaskUtil.WhenAll(fullLabFileTask, monoLabFileTask);
+            (byte[] fullLabel, byte[] monoLabel) = await TaskUtil.WhenAll(fullLabFileTask, monoLabFileTask).ConfigureAwait(false);
             return new(fullLabel, monoLabel);
         }
     }
@@ -552,23 +552,23 @@ internal class NeutrinoV2Service
         // 各フレーズの音響情報を配列にコピーする
         foreach (var phrase in phrases)
         {
-            int length = NeutrinoUtil.MsToFrameIndex(phrase.EndTime - phrase.BeginTime);
-            if (length <= 0)
+            int count = NeutrinoUtil.MsToFrameIndex(phrase.EndTime - phrase.BeginTime);
+            if (count <= 0)
                 continue;
 
             int frameIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
 
             var srcF0 = phrase.F0;
             if (srcF0?.Length > 0)
-                srcF0.AsSpan(..length).CopyTo(f0.AsSpan(frameIdx));
+                ArrayUtil.CopyTo(srcF0, 0, f0, frameIdx, count, 1);
 
             var srcMgc = phrase.Mgc;
             if (srcMgc?.Length > 0)
-                srcMgc.AsSpan(..(length * mgcDimension)).CopyTo(mgc.AsSpan(frameIdx * mgcDimension));
+                ArrayUtil.CopyTo(srcMgc, 0, mgc, frameIdx, count, mgcDimension);
 
             var srcBap = phrase.Bap;
             if (srcBap?.Length > 0)
-                srcBap.AsSpan(..(length * bapDimension)).CopyTo(bap.AsSpan(frameIdx * bapDimension));
+                ArrayUtil.CopyTo(srcBap, 0, bap, frameIdx, count, bapDimension);
         }
 
         return (f0, mgc, bap);
@@ -771,11 +771,11 @@ internal class NeutrinoV2Service
 
             var srcF0 = phrase.GetEditedF0();
             if (srcF0?.Length > 0)
-                srcF0.AsSpan(..length).CopyTo(f0.AsSpan(frameIdx));
+                ArrayUtil.CopyTo(srcF0, 0, f0, frameIdx, length, 1);
 
             var srcMspec = phrase.GetEditedMspec();
             if (srcMspec?.Length > 0)
-                srcMspec.AsSpan(..(length * mspecDimension)).CopyTo(mspec.AsSpan(frameIdx * mspecDimension));
+                ArrayUtil.CopyTo(srcMspec, 0, mspec, frameIdx, length, mspecDimension);
         }
 
         return (f0, mspec);

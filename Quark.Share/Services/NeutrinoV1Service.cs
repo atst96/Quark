@@ -137,7 +137,8 @@ internal class NeutrinoV1Service
             }
 
             // 出力情報を取得
-            (byte[] fullLabel, byte[] monoLabel) = await TaskUtil.WhenAll(fullLabFileTask, monoLabFileTask);
+            (byte[] fullLabel, byte[] monoLabel) = await TaskUtil.WhenAll(fullLabFileTask, monoLabFileTask)
+                .ConfigureAwait(false);
             return new(fullLabel, monoLabel);
         }
     }
@@ -725,15 +726,15 @@ internal class NeutrinoV1Service
 
             var srcF0 = phrase.GetEditedF0();
             if (srcF0?.Length > 0)
-                srcF0.AsSpan(..length).CopyTo(f0.AsSpan(frameIdx));
+                ArrayUtil.CopyTo(srcF0, 0, f0, frameIdx, length, 1);
 
             var srcMgc = phrase.GetEditedMgc();
             if (srcMgc?.Length > 0)
-                srcMgc.AsSpan(..(length * mgcDimension)).CopyTo(mgc.AsSpan(frameIdx * mgcDimension));
+                ArrayUtil.CopyTo(srcMgc, 0, mgc, frameIdx, length, mgcDimension);
 
             var srcBap = phrase.Bap;
             if (srcBap?.Length > 0)
-                srcBap.AsSpan(..(length * bapDimension)).CopyTo(bap.AsSpan(frameIdx * bapDimension));
+                ArrayUtil.CopyTo(srcBap, 0, bap, frameIdx, length, bapDimension);
         }
 
         return (f0, mgc, bap);

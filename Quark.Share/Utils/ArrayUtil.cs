@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Quark.Utils;
 
@@ -50,4 +51,18 @@ public static class ArrayUtil
 
         return array.AsSpan().ToArray();
     }
+
+    /// <summary>
+    /// フラット化された配列をコピーする。
+    /// </summary>
+    /// <typeparam name="T">型情報</typeparam>
+    /// <param name="src">コピー元</param>
+    /// <param name="srcOffset">コピー元の要素番号</param>
+    /// <param name="dest">コピー先</param>
+    /// <param name="destOffset">コピー先の要素番号</param>
+    /// <param name="elementCount">要素数</param>
+    /// <param name="dimensions">次元数</param>
+    public static void CopyTo<T>(this T[] src, int srcOffset, T[] dest, int destOffset, int elementCount, int dimensions)
+            where T : struct
+        => src.AsSpan(srcOffset * dimensions, elementCount * dimensions).CopyTo(dest.AsSpan(destOffset * dimensions));
 }
