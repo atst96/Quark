@@ -7,11 +7,12 @@ namespace Quark.Models.MusicXML;
 
 [XmlRoot("score-partwise")]
 public record MusicXmlObject(
+    [property: XmlAttribute("version")] string Version,
     [property: XmlElement("identification")] Identification? Identification,
     [property: XmlElement("part-list")] PartList PartList,
     [property: XmlElement("part")] List<Part> Parts)
 {
-    public MusicXmlObject() : this(default, default, default) { }
+    public MusicXmlObject() : this(default, default, default, default) { }
 }
 
 public record Identification(
@@ -20,9 +21,13 @@ public record Identification(
     public Identification() : this(default(ScoreEncoding)) { }
 
     public record ScoreEncoding(
-        [property: XmlElement("software")] string Software)
+        [property: XmlElement("software")] string Software,
+        [property: XmlElement("encoding-date", DataType = "date")] DateTime? EncodingDate)
     {
-        public ScoreEncoding() : this(default(string)) { }
+        public ScoreEncoding() : this(default, default) { }
+
+        [XmlIgnore]
+        public bool EncodingDateSpecified => this.EncodingDate.HasValue;
     }
 }
 
@@ -40,9 +45,10 @@ public record PartList(
 }
 
 public record Part(
+    [property: XmlAttribute("id")] string Id,
     [property: XmlElement("measure")] List<Measure> Measures)
 {
-    public Part() : this(default(List<Measure>)) { }
+    public Part() : this(default, default) { }
 }
 
 public record Measure(
@@ -63,6 +69,9 @@ public record MeasureAttributes(
     [property: XmlElement("clef")] MeasureAttributes.AttributeClef Clef)
 {
     public MeasureAttributes() : this(default, default, default, default) { }
+
+    [XmlIgnore]
+    public bool DivisionsSpecified => this.Divisions.HasValue;
 
     public record AttributeKey(
         [property: XmlElement("fifths")] int Fifths)
@@ -138,6 +147,9 @@ public static class MeasureItemTypes
         [property: XmlElement("octave")] int Octave)
     {
         public Pitch() : this(default, null, default) { }
+
+        [XmlIgnore]
+        public bool AlterSpecified => this.Alter.HasValue;
     }
 
     public record Tie(

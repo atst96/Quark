@@ -21,6 +21,7 @@ using Quark.Mvvm;
 using Quark.Projects;
 using Quark.Projects.Tracks;
 using Quark.Services;
+using Quark.Utils;
 
 namespace Quark.ViewModels;
 
@@ -238,7 +239,15 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
 
         var path = msg.Response[0];
-        var track = this.CurrentProject!.Tracks.ImportFromMusicXmlV2(path, Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
+
+
+        using var fs = File.OpenRead(path);
+        // {
+        var parts = MusicXmlUtil.EnumerateParts(fs);
+        var part = parts.First();
+        //}
+
+        var track = this.CurrentProject!.Tracks.ImportFromMusicXmlV2(part.Part, part.Info?.PartName ?? Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
         this.CurrentTrack = track;
         this.InitAudio(track);
     }

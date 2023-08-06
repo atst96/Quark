@@ -13,7 +13,7 @@ public interface INeutrinoTrack
 
     public ModelInfo? Singer { get; }
 
-    public string MusicXml { get; }
+    public string? MusicXml { get; }
 
     public byte[]? FullTiming { get; }
 

@@ -101,7 +101,7 @@
                         <i:EventTrigger EventName="Click">
                             <l:OpenFileDialogInteractionMessageAction>
                                 <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnImportMusicXMLFileSelected">
-                                    <l:OpeningFileSelectionMessage Filter="MusicXML|*.musicxml" />
+                                    <l:OpeningFileSelectionMessage Filter="MusicXML|*.musicxml;*.xml;*.mxl" />
                                 </l:DirectInteractionMessage>
                             </l:OpenFileDialogInteractionMessageAction>
                         </i:EventTrigger>
