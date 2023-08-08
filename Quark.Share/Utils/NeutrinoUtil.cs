@@ -252,26 +252,42 @@ public static partial class NeutrinoUtil
         bool isInitializing = true;
 
         // 出力情報を保持しておく
-        StringBuilder output = new StringBuilder();
+        StringBuilder output = new();
 
         try
         {
-            await foreach (var line in ProcessX.StartAsync(command, args, workdir).WithCancellation(cancellationToken).ConfigureAwait(false))
+            var (_, stdout, stderr) = ProcessX.GetDualAsyncEnumerable(command, args, workdir);
+
+            var stdoutTask = Task.Run(async () =>
             {
-                Trace.WriteLine($"{guid}: {line}");
-                output.AppendLine(line);
-
-                double? progressValue = null;
-
-                var m = ProgressRegex.Match(line);
-                if (m.Success)
+                await foreach (var line in stdout.WithCancellation(cancellationToken).ConfigureAwait(false))
                 {
-                    isInitializing = false;
-                    progressValue = double.Parse(m.Groups["progress"].Value);
-                }
+                    Trace.WriteLine($"{guid}: {line}");
+                    output.AppendLine(line);
 
-                progress?.Report(new(isInitializing ? ProgressReportType.Idertimate : ProgressReportType.InProgress, line, progressValue));
-            }
+                    double? progressValue = null;
+
+                    var m = ProgressRegex.Match(line);
+                    if (m.Success)
+                    {
+                        isInitializing = false;
+                        progressValue = double.Parse(m.Groups["progress"].Value);
+                    }
+
+                    progress?.Report(new(isInitializing ? ProgressReportType.Idertimate : ProgressReportType.InProgress, line, progressValue));
+                }
+            });
+
+            var stderrTask = Task.Run(async () =>
+            {
+                await foreach (var line in stderr.WithCancellation(cancellationToken).ConfigureAwait(false))
+                {
+                    Trace.TraceError($"{guid}: {line}");
+                    output.AppendLine(line);
+                }
+            });
+
+            await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false);
         }
         catch (ProcessErrorException pee)
         {
