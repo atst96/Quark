@@ -64,5 +64,8 @@ public static class ArrayUtil
     /// <param name="dimensions">次元数</param>
     public static void CopyTo<T>(this T[] src, int srcOffset, T[] dest, int destOffset, int elementCount, int dimensions)
             where T : struct
-        => src.AsSpan(srcOffset * dimensions, elementCount * dimensions).CopyTo(dest.AsSpan(destOffset * dimensions));
+    {
+        int offset = srcOffset * dimensions;
+        src.AsSpan(offset, Math.Max(0, Math.Min(src.Length - offset, elementCount * dimensions))).CopyTo(dest.AsSpan(destOffset * dimensions));
+    }
 }
