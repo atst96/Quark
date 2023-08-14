@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Quark.Utils;
@@ -8,6 +9,25 @@ namespace Quark.Utils;
 /// </summary>
 public class DataConvertUtil
 {
+    /// <summary>
+    /// 数値配列の型を返還する
+    /// </summary>
+    /// <typeparam name="TSrc">変換前の型</typeparam>
+    /// <typeparam name="TDest">変換後の型</typeparam>
+    /// <param name="src">変換対象の配列</param>
+    /// <returns>変換後の配列</returns>
+    public static TDest[] ConvertArray<TSrc, TDest>(TSrc[] src)
+        where TSrc : INumber<TSrc>
+        where TDest : INumber<TDest>
+    {
+        TDest[] dest = new TDest[src.Length];
+
+        for (int idx = 0; idx < src.Length; ++idx)
+            dest[idx] = TDest.CreateChecked(src[idx]);
+
+        return dest;
+    }
+
     /// <summary>
     /// バイト配列を構造体に変換する
     /// </summary>

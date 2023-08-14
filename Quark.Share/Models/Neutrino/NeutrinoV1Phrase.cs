@@ -27,9 +27,9 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
 
     public double[]? Bap { get; private set; }
 
-    public double?[]? EditedF0 { get; private set; }
+    public double[]? EditedF0 { get; private set; }
 
-    public double?[]? EditedDynamics { get; private set; }
+    public double[]? EditedDynamics { get; private set; }
 
     public DateTime LastUpdated { get; private set; }
 
@@ -48,11 +48,11 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     public void SetAudioFeatures(double[] f0, double[] mgc, double[] bap)
     {
         (this.F0, this.Mgc, this.Bap) = (f0, mgc, bap);
-        this.EditedF0 ??= new double?[f0.Length];
-        this.EditedDynamics ??= new double?[mgc.Length];
+        this.EditedF0 ??= ArrayUtil.Create(f0.Length, double.NaN);
+        this.EditedDynamics ??= ArrayUtil.Create(mgc.Length / NeutrinoConfig.MgcDimension, double.NaN);
     }
 
-    public void SetEdited(double?[]? f0, double?[]? dynamics)
+    public void SetEdited(double[]? f0, double[]? dynamics)
     {
         this.EditedF0 = f0;
         this.EditedDynamics = dynamics;
@@ -107,7 +107,7 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     public double[]? GetEditedF0()
     {
         double[]? srcF0 = this.F0;
-        double?[]? edited = this.EditedF0;
+        double[]? edited = this.EditedF0;
 
         // 編集対象が未設定(null)であればnullを返す
         // 未編集であれば、編集前の値を返す
@@ -120,8 +120,12 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
         double[] destF0 = ArrayUtil.Clone(srcF0);
         int frameLength = Math.Min(edited.Length, srcF0.Length);
         for (int frameIdx = 0; frameIdx < frameLength; ++frameIdx)
-            if (edited[frameIdx] is { } value)
+        {
+            double value = edited[frameIdx];
+
+            if (!double.IsNaN(value))
                 destF0[frameIdx] = value;
+        }
 
         return destF0;
     }
@@ -134,7 +138,7 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     public double[]? GetEditedMgc()
     {
         double[]? srcMgc = this.Mgc;
-        double?[]? editedDynamics = this.EditedDynamics;
+        double[]? editedDynamics = this.EditedDynamics;
 
         // 編集対象が未設定(null)であればnullを返す
         // 未編集であれば、編集前の値を返す
@@ -147,8 +151,12 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
         double[] destMgc = ArrayUtil.Clone(srcMgc);
         int frameLength = Math.Min(editedDynamics.Length, srcMgc.Length / MgcDimension);
         for (int frameIdx = 0; frameIdx < frameLength; ++frameIdx)
-            if (editedDynamics[frameIdx] is { } value)
+        {
+            double value = editedDynamics[frameIdx];
+
+            if (!double.IsNaN(value))
                 destMgc[frameIdx * MgcDimension] = value;
+        }
 
         return destMgc;
     }
@@ -204,7 +212,7 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
         if (dynamics.Length < index)
             return;
 
-        dynamics[index] = null;
+        dynamics[index] = double.NaN;
 
         this.LastUpdated = DateTime.Now;
     }

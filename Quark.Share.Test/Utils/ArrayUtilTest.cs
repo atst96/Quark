@@ -8,6 +8,51 @@ namespace Quark.Share.Test.Utils;
 public class ArrayUtilTest
 {
     /// <summary>
+    /// Test method for <see cref="ArrayUtil.Create{T}(int, T)"/>."/>
+    /// </summary>
+    [Theory]
+    [InlineData(-100, 0)]
+    [InlineData(1, 1)]
+    [InlineData(100, 100)]
+    public void TestCreate(int initialValue, int length)
+    {
+        int[] expected = new int[length];
+        for (int i = 0; i < expected.Length; i++)
+            expected[i] = initialValue;
+
+        int[] actual = ArrayUtil.Create<int>(length, initialValue);
+
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// Test method for <see cref="ArrayUtil.UnNullable{T}(T?[], T)"/>.
+    /// </summary>
+    /// <param name="input"></param>
+    /// <param name="length"></param>
+    /// <param name="expected"></param>
+    [Theory, MemberData(nameof(GetTestUnNullableData))]
+    public void TestUnNullable(int?[]? input, int length, int[]? expected)
+    {
+        var actual = ArrayUtil.UnNullable(input, length);
+
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// Create test data for <see cref="TestUnNullable"/> method.
+    /// </summary>
+    /// <returns></returns>
+    public static IEnumerable<object?[]> GetTestUnNullableData()
+        => TestUtils.TupleToTestDataArray<(int?[]?, int, int[]?)>(new[] {
+            (null, 100, null),
+            (new int?[0], 100, new int[0]),
+            (new int?[1] { 2 }, 100, new int[1] { 2 }),
+            (new int?[1] { null }, 100, new int[1] { 100 }),
+            (new int?[3] { 10, null, 30 }, 100, new int[3] { 10, 100, 30 }),
+        });
+
+    /// <summary>
     /// Test method for <see cref="ArrayUtil.CreateAndInitSegmentFirst{T}(int, int, T)"/>.
     /// </summary>
     [Theory]

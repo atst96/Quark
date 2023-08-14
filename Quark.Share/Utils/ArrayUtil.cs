@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 
 namespace Quark.Utils;
 
@@ -8,6 +7,41 @@ namespace Quark.Utils;
 /// </summary>
 public static class ArrayUtil
 {
+    /// <summary>
+    /// 初期値を設定した配列を生成する。
+    /// </summary>
+    /// <typeparam name="T">配列の型</typeparam>
+    /// <param name="length">要素数</param>
+    /// <param name="initialValue">初期値</param>
+    /// <returns></returns>
+    public static T[] Create<T>(int length, T initialValue)
+    {
+        var data = new T[length];
+        data.AsSpan().Fill(initialValue);
+        return data;
+    }
+
+    /// <summary>
+    /// <see cref="Nullable{T}"/>な配列を非Nullableな配列に変換する。
+    /// </summary>
+    /// <typeparam name="T">型(構造体)</typeparam>
+    /// <param name="values">配列</param>
+    /// <param name="ifNullValue">nullの場合に設定する値</param>
+    /// <returns></returns>
+    public static T[]? UnNullable<T>(T?[]? values, T ifNullValue)
+        where T : struct
+    {
+        if (values == null)
+            return null;
+
+        T[] dest = new T[values.Length];
+
+        for (int idx = 0; idx < dest.Length; ++idx)
+            dest[idx] = values[idx].GetValueOrDefault(ifNullValue);
+
+        return dest;
+    }
+
     /// <summary>
     /// 要素数が<paramref name="segmentCount"/>*<paramref name="dimension"/>となる配列を生成し、各セグメントの最初の要素を<paramref name="initValue"/>で初期化する。
     /// </summary>

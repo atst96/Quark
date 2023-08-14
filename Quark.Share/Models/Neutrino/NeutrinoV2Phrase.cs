@@ -29,9 +29,9 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
     public float[]? Bap { get; private set; }
 
-    public float?[]? EditedF0 { get; private set; }
+    public float[]? EditedF0 { get; private set; }
 
-    public float?[]? EditedDynamics { get; private set; }
+    public float[]? EditedDynamics { get; private set; }
 
     public DateTime LastUpdated { get; private set; }
 
@@ -51,18 +51,18 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     {
         (this.F0, this.Mspec, this.Mgc, this.Bap) = (f0, mspec, mgc, bap);
 
-        this.EditedF0 ??= new float?[f0.Length];
-        this.EditedDynamics ??= new float?[mspec.Length];
+        this.EditedF0 ??= new float[f0.Length];
+        this.EditedDynamics ??= new float[mspec.Length / NeutrinoConfig.MspecDimension];
     }
 
-    public void SetEdited(float?[]? editedF0, float?[]? editedDynamics)
+    public void SetEdited(float[]? editedF0, float[]? editedDynamics)
     {
         this.EditedF0 = editedF0 == null && this.F0 is { } f0
-            ? new float?[f0.Length]
+            ? new float[f0.Length]
             : editedF0;
 
         this.EditedDynamics = editedDynamics == null && this.EditedDynamics is { } dynamics
-            ? new float?[dynamics.Length]
+            ? new float[dynamics.Length]
             : editedDynamics;
     }
 
@@ -116,7 +116,7 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     public float[]? GetEditedF0()
     {
         float[]? srcF0 = this.F0;
-        float?[]? edited = this.EditedF0;
+        float[]? edited = this.EditedF0;
 
         // 編集対象が未設定(null)であればnullを返す
         // 未編集であれば、編集前の値を返す
@@ -129,8 +129,11 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
         float[] destF0 = ArrayUtil.Clone(srcF0);
         int frameLength = Math.Min(edited.Length, srcF0.Length);
         for (int frameIdx = 0; frameIdx < frameLength; ++frameIdx)
-            if (edited[frameIdx] is { } value)
+        {
+            float value = edited[frameIdx];
+            if (!float.IsNaN(value))
                 destF0[frameIdx] = value;
+        }
 
         return destF0;
     }
@@ -143,7 +146,7 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     public float[]? GetEditedMspec()
     {
         float[]? srcMspec = this.Mspec;
-        float?[]? edited = this.EditedDynamics;
+        float[]? edited = this.EditedDynamics;
 
         // 編集対象が未設定(null)であればnullを返す
         // 未編集であれば、編集前の値を返す
@@ -157,7 +160,8 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
         int frameLength = Math.Min(edited.Length, srcMspec.Length / MspecDimension);
         for (int frameIdx = 0; frameIdx < frameLength; ++frameIdx)
         {
-            if (edited[frameIdx] is { } value)
+            float value = edited[frameIdx];
+            if (!float.IsNaN(value))
             {
                 var frameValues = destMspec.AsSpan(frameIdx * MspecDimension, MspecDimension);
                 frameValues.Add(value - frameValues.Average());
@@ -218,7 +222,7 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
         if (dynamics.Length < index)
             return;
 
-        dynamics[index] = null;
+        dynamics[index] = float.NaN;
 
         this.LastUpdated = DateTime.Now;
     }

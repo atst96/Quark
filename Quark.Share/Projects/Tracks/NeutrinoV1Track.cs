@@ -89,8 +89,18 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
         return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, config);
     }
 
-    private PhraseInfoV1 ToConfig(NeutrinoV1Phrase i) => new(
-        i.No, i.BeginTime, i.EndTime, i.Phonemes, i.F0, i.Mgc, i.Bap, i.EditedF0, i.EditedDynamics);
+    private PhraseInfoV1 ToConfig(NeutrinoV1Phrase i) => new()
+    {
+        No = i.No,
+        BeginTime = i.BeginTime,
+        EndTime = i.EndTime,
+        Phonemes = i.Phonemes,
+        F0 = i.F0,
+        Mgc = i.Mgc,
+        Bap = i.Bap,
+        EditedF0 = i.EditedF0,
+        EditedDynamics = i.EditedDynamics,
+    };
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
