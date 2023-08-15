@@ -184,7 +184,63 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
         f0[index] = frequency;
 
-        this.LastUpdated = DateTime.Now;
+        this.OnUpdated();
+    }
+
+    public void EditF0(int editBeginTime, Span<float> frequencies)
+    {
+        Span<float> f0 = this.EditedF0;
+        if (frequencies.Length < 1 || f0.Length < 1)
+            return;
+
+        int editBeginFrameIdx = NeutrinoUtil.MsToFrameIndex(editBeginTime);
+        int editEndFrameIdx = editBeginFrameIdx + frequencies.Length;
+
+        int phraseBeginIdx = NeutrinoUtil.MsToFrameIndex(this.BeginTime);
+
+        // 編集データ全体の開始時間(beginFrameIdx)とフレーズの開始時間(phraseBeginIdx)の差異
+        int relativeFrequencyIdx = editBeginFrameIdx - phraseBeginIdx;
+
+        // フレーズにおけるデータの編集範囲
+        int startIdx = Math.Max(0, relativeFrequencyIdx);
+        int endIdx = Math.Min(f0.Length, editEndFrameIdx - phraseBeginIdx);
+
+        int framesCount = endIdx - startIdx;
+        if (framesCount < 1)
+            return; // 編集対象がなければ処理を抜ける
+
+        // 編集内容を反映する
+        frequencies.Slice(startIdx - relativeFrequencyIdx, framesCount).CopyTo(f0[startIdx..]);
+
+        this.OnUpdated();
+    }
+
+    public void EditDynamics(int editBeginTime, Span<float> dynamicsValues)
+    {
+        Span<float> dynamics = this.EditedDynamics;
+        if (dynamicsValues.Length < 1 || dynamics.Length < 1)
+            return;
+
+        int editBeginFrameIdx = NeutrinoUtil.MsToFrameIndex(editBeginTime);
+        int editEndFrameIdx = editBeginFrameIdx + dynamicsValues.Length;
+
+        int phraseBeginIdx = NeutrinoUtil.MsToFrameIndex(this.BeginTime);
+
+        // 編集データ全体の開始時間(beginFrameIdx)とフレーズの開始時間(phraseBeginIdx)の差異
+        int relativeFrequencyIdx = editBeginFrameIdx - phraseBeginIdx;
+
+        // フレーズにおけるデータの編集範囲
+        int startIdx = Math.Max(0, relativeFrequencyIdx);
+        int endIdx = Math.Min(dynamics.Length, editEndFrameIdx - phraseBeginIdx);
+
+        int framesCount = endIdx - startIdx;
+        if (framesCount < 1)
+            return; // 編集対象がなければ処理を抜ける
+
+        // 編集内容を反映する
+        dynamicsValues.Slice(startIdx - relativeFrequencyIdx, framesCount).CopyTo(dynamics[startIdx..]);
+
+        this.OnUpdated();
     }
 
     /// <summary>
@@ -224,6 +280,11 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
         dynamics[index] = float.NaN;
 
+        this.OnUpdated();
+    }
+
+    private void OnUpdated()
+    {
         this.LastUpdated = DateTime.Now;
     }
 }

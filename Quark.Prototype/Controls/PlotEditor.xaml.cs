@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -76,8 +77,6 @@ public partial class PlotEditor : UserControl
     /// <summary>横伸長率の初期値</summary>
     private const double DefaultScaleX = 0.125;
 
-    private string DebugText(object value) => this.debugTextBlock1.Text = value?.ToString() ?? "";
-
     /// <summary>横伸長率のリスト</summary>
     public static readonly double[] HorizontalZoomLevels =
     {
@@ -101,6 +100,8 @@ public partial class PlotEditor : UserControl
     private const double AutoScrollOuterWidth = 400;
 
     private SKPaint lyricsTypography = new(new SKFont(SKTypeface.FromFamilyName("MS UI Gothic"), 12));
+
+    private (int x, int y)? _tempMousePos = null;
 
     private double _displayDpi;
 
@@ -1125,6 +1126,7 @@ public partial class PlotEditor : UserControl
 
                 int beginTime = this.GetRenderBeginTimeMs();
                 (int x, int y) = scaling.ToRenderImageScaling(mousePosition.X, mousePosition.Y);
+                this._tempMousePos = (x, y);
 
                 int adjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition);
 
@@ -1134,6 +1136,9 @@ public partial class PlotEditor : UserControl
             }
         }
     }
+
+    private const int DirectionLeft = -1;
+    private const int DirectionRight = 1;
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
@@ -1192,6 +1197,7 @@ public partial class PlotEditor : UserControl
             int beginTime = this.GetRenderBeginTimeMs();
             var scaling = this._renderCommon.PartRenderInfo.Scaling;
             (int x, int y) = scaling.ToRenderImageScaling(mousePosition.X, mousePosition.Y);
+            var prevPos = this._tempMousePos;
 
             int adjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition);
 
@@ -1202,32 +1208,50 @@ public partial class PlotEditor : UserControl
 
             if (e.LeftButton == MouseButtonState.Pressed)
             {
+                int prevAdjustedTime = -1;
+
+                if (prevPos != null)
+                {
+                    var mousePosition2 = new Point(prevPos.Value.x, prevPos.Value.y);
+                    prevAdjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition2);
+                }
+
                 if (isPianoRoll)
                 {
-                    // int y2 = y - renderInfo.DynamicsPosY;
-
                     int scrollPosition = this.GetVScrollPosition();
-                    double a = ((double)(renderInfo.UnscaledScoreHeight - (scrollPosition + (mousePosition.Y - renderInfo.UnscaledRulerHeight)) - (renderInfo.KeyHeight / 2)) / renderInfo.KeyHeight);
 
-                    double frequency = AudioDataConverter.ScaleToFrequency(a);
+                    double currentPitch = (double)(renderInfo.UnscaledScoreHeight - (scrollPosition + (y - renderInfo.UnscaledRulerHeight)) - (renderInfo.KeyHeight / 2)) / renderInfo.KeyHeight;
+                    double currentFrequency = AudioDataConverter.ScaleToFrequency(currentPitch);
+
+                    int currentTime = adjustedTime;
+                    int previousTime = prevPos == null ? currentTime : prevAdjustedTime;
+
+                    double[] frequencies;
+                    int beginFrameTime;
+
+                    int length = Math.Abs(NeutrinoUtil.MsToFrameIndex(currentTime - previousTime));
+                    if (length <= 1)
+                    {
+                        (beginFrameTime, frequencies) = (currentTime, new double[] { currentFrequency });
+                    }
+                    else
+                    {
+                        double previousPitch = (double)(renderInfo.UnscaledScoreHeight - (scrollPosition + (prevPos.Value.y - renderInfo.UnscaledRulerHeight)) - (renderInfo.KeyHeight / 2)) / renderInfo.KeyHeight;
+                        double previousFrequency = AudioDataConverter.ScaleToFrequency(previousPitch);
+
+                        (beginFrameTime, frequencies) = previousTime < currentTime
+                            // 右方向の変更
+                            ? (previousTime, CreateArithmeticSequenceArray(previousFrequency, currentFrequency, length))
+                            // 左方向への変更
+                            : (currentTime, CreateArithmeticSequenceArray(currentFrequency, previousFrequency, length));
+                    }
 
                     var track = this.Track!;
-                    var foundPhrase = track.Phrases.FirstOrDefault(i => i.BeginTime <= adjustedTime && adjustedTime <= i.EndTime);
-                    if (foundPhrase == null)
-                        return;
 
                     if (track is NeutrinoV1Track v1Track)
-                    {
-                        var phrase = (NeutrinoV1Phrase)foundPhrase;
-                        phrase.EditF0(adjustedTime, frequency);
-                    }
+                        v1Track.EditF0(beginFrameTime, frequencies);
                     else if (track is NeutrinoV2Track v2Track)
-                    {
-                        var phrase = (NeutrinoV2Phrase)foundPhrase;
-                        phrase.EditF0(adjustedTime, (float)frequency);
-                    }
-
-                    this.UpdateRenderContent();
+                        v2Track.EditF0(beginFrameTime, DataConvertUtil.ConvertArray<double, float>(frequencies));
                 }
                 else
                 {
@@ -1266,9 +1290,10 @@ public partial class PlotEditor : UserControl
 
                         phrase.EditDynamics(adjustedTime, value);
                     }
-
-                    this.UpdateRenderContent();
                 }
+
+                this._tempMousePos = (x, y);
+                this.UpdateRenderContent();
             }
         }
         else
@@ -1562,6 +1587,8 @@ public partial class PlotEditor : UserControl
                         this._changeDynamicsDateTime = null;
                     }
                 }
+
+                this._tempMousePos = null;
             }
         }
     }
@@ -1735,5 +1762,26 @@ public partial class PlotEditor : UserControl
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsBracketEnd(ref char @char)
-    => @char == ')' || @char == '）';
+        => @char == ')' || @char == '）';
+
+    /// <summary>
+    /// 指定の要素数(<paramref name="length"/>)で<paramref name="begin"/>から<paramref name="end"/>までの等差数列を生成する。
+    /// </summary>
+    /// <typeparam name="T">数値型</typeparam>
+    /// <param name="begin">開始値</param>
+    /// <param name="end">終了値</param>
+    /// <param name="length">要素数</param>
+    /// <returns></returns>
+    private static T[] CreateArithmeticSequenceArray<T>(T begin, T end, int length)
+        where T : INumber<T>
+    {
+        T[] values = new T[length];
+        T delta = end - begin;
+        T coe = T.CreateChecked(length - 1);
+
+        for (int idx = 0; idx < values.Length; ++idx)
+            values[idx] = (delta * T.CreateChecked(idx) / coe) + begin;
+
+        return values;
+    }
 }

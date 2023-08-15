@@ -371,127 +371,14 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
         this.Project.Session.AddAudioRenderQueue(this, this.Phrases.Where(p => p.LastUpdated >= updatedDateTime));
     }
 
-    public IList<NeutrinoV2Phrase> EditF0(int beginTime, float beginFrequency, int endTime, float endFrequency)
+    private IEnumerable<NeutrinoV2Phrase> GetPhrases(int beginTime, int endTime)
+        => this.Phrases.Where(p => p.BeginTime <= beginTime && endTime <= p.EndTime);
+
+    public void EditF0(int beginTime, Span<float> frequencies)
     {
-        float diff = endFrequency - beginFrequency;
+        int endTime = beginTime + NeutrinoUtil.FrameIndexToMs(frequencies.Length);
 
-        int beginFrameIdx = NeutrinoUtil.MsToFrameIndex(beginTime);
-        int endFrameIdx = NeutrinoUtil.MsToFrameIndex(endTime) + 1;
-        int length = endFrameIdx - beginFrameIdx + 1;
-
-        var phrases = this.Phrases
-            .Where(p => p.BeginTime <= beginTime && endTime <= p.EndTime);
-
-        var results = new List<NeutrinoV2Phrase>();
-
-        foreach (var phrase in phrases)
-        {
-            var f0 = phrase.EditedF0;
-            if (f0 == null || f0.Length <= 1)
-                continue;
-
-            int phraseBeginIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
-            int phraseEndIdx = NeutrinoUtil.MsToFrameIndex(phrase.EndTime);
-
-            int startIdx = Math.Max(0, beginFrameIdx - phraseBeginIdx);
-            int endIdx = Math.Min(f0.Length, endFrameIdx - phraseBeginIdx);
-
-            if ((endIdx - startIdx) < 1)
-                continue;
-
-            for (int idx = startIdx; idx < endIdx; idx++)
-            {
-                float coe = (phraseBeginIdx + idx - beginFrameIdx) / (endFrameIdx - beginFrameIdx);
-                f0[idx] = beginFrequency + (coe * diff);
-            }
-
-            phrase.OnUpdated();
-
-            results.Add(phrase);
-        }
-
-        return results;
-    }
-
-    private NeutrinoV2Phrase[] GetPhrases(int beginFrameIdx, int endFrameIdx)
-    {
-        int beginTime = NeutrinoUtil.FrameIndexToMs(beginFrameIdx);
-        int endTime = NeutrinoUtil.FrameIndexToMs(endFrameIdx);
-
-        return this.Phrases
-            .Where(p => p.BeginTime <= beginTime && endTime <= p.EndTime)
-            .ToArray();
-    }
-
-    public IList<NeutrinoV2Phrase> EditF0(int beginFrameIdx, Span<float> frequencies)
-    {
-        int endFrameIdx = beginFrameIdx + frequencies.Length;
-
-        var phrases = this.GetPhrases(beginFrameIdx, endFrameIdx);
-        var results = new List<NeutrinoV2Phrase>(phrases.Length);
-
-        foreach (var phrase in phrases)
-        {
-            var f0 = phrase.EditedF0;
-            if (f0 == null || f0.Length <= 1)
-                continue;
-
-            int phraseBeginIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
-
-            int startIdx = Math.Max(0, beginFrameIdx - phraseBeginIdx);
-            int endIdx = Math.Min(f0.Length, endFrameIdx - phraseBeginIdx);
-
-            int len = endIdx - startIdx;
-            if (len < 1)
-                continue;
-
-            // TODO: Spanを使ったコピー処理に修正する
-            // frequencies.Slice(startIdx - (beginFrameIdx - phraseBeginIdx), len).CopyTo(f0.AsSpan(startIdx));
-            int arrayIdxOffset = beginFrameIdx - phraseBeginIdx;
-            for (int idx = startIdx; idx < endIdx; ++idx)
-                f0[idx] = frequencies[idx - arrayIdxOffset];
-
-            phrase.OnUpdated();
-
-            results.Add(phrase);
-        }
-
-        return results;
-    }
-
-    public IList<NeutrinoV2Phrase> EditDynamics(int beginFrameIdx, Span<float> frequencies)
-    {
-        int endFrameIdx = beginFrameIdx + frequencies.Length;
-
-        var phrases = this.GetPhrases(beginFrameIdx, endFrameIdx);
-        var results = new List<NeutrinoV2Phrase>(phrases.Length);
-
-        foreach (var phrase in phrases)
-        {
-            var f0 = phrase.EditedF0;
-            if (f0 == null || f0.Length <= 1)
-                continue;
-
-            int phraseBeginIdx = NeutrinoUtil.MsToFrameIndex(phrase.BeginTime);
-
-            int startIdx = Math.Max(0, beginFrameIdx - phraseBeginIdx);
-            int endIdx = Math.Min(f0.Length, endFrameIdx - phraseBeginIdx);
-
-            int len = endIdx - startIdx;
-            if (len < 1)
-                continue;
-
-            // TODO: Spanを使ったコピー処理に修正する
-            // frequencies.Slice(startIdx - (beginFrameIdx - phraseBeginIdx), len).CopyTo(f0.AsSpan(startIdx));
-            int arrayIdxOffset = beginFrameIdx - phraseBeginIdx;
-            for (int idx = startIdx; idx < endIdx; ++idx)
-                f0[idx] = frequencies[idx - arrayIdxOffset];
-
-            phrase.OnUpdated();
-
-            results.Add(phrase);
-        }
-
-        return results;
+        foreach (var phrase in this.GetPhrases(beginTime, endTime))
+            phrase.EditF0(beginTime, frequencies);
     }
 }

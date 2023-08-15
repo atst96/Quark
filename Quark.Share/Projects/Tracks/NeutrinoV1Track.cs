@@ -364,4 +364,15 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     {
         this.Project.Session.AddAudioRenderQueue(this, this.Phrases.Where(p => p.LastUpdated >= updatedDateTime));
     }
+
+    private IEnumerable<NeutrinoV1Phrase> GetPhrases(int beginTime, int endTime)
+        => this.Phrases.Where(p => p.BeginTime <= beginTime && endTime <= p.EndTime);
+
+    public void EditF0(int beginTime, double[] frequencies)
+    {
+        int endTime = beginTime + NeutrinoUtil.FrameIndexToMs(frequencies.Length);
+
+        foreach (var phrase in this.GetPhrases(beginTime, endTime))
+            phrase.EditF0(beginTime, frequencies);
+    }
 }
