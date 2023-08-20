@@ -51,18 +51,18 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     {
         (this.F0, this.Mspec, this.Mgc, this.Bap) = (f0, mspec, mgc, bap);
 
-        this.EditedF0 ??= new float[f0.Length];
-        this.EditedDynamics ??= new float[mspec.Length / NeutrinoConfig.MspecDimension];
+        this.EditedF0 ??= ArrayUtil.Create(f0.Length, float.NaN);
+        this.EditedDynamics ??= ArrayUtil.Create(mspec.Length / NeutrinoConfig.MspecDimension, float.NaN);
     }
 
     public void SetEdited(float[]? editedF0, float[]? editedDynamics)
     {
         this.EditedF0 = editedF0 == null && this.F0 is { } f0
-            ? new float[f0.Length]
+            ? ArrayUtil.Create(f0.Length, float.NaN)
             : editedF0;
 
         this.EditedDynamics = editedDynamics == null && this.EditedDynamics is { } dynamics
-            ? new float[dynamics.Length]
+            ? ArrayUtil.Create(dynamics.Length, float.NaN)
             : editedDynamics;
     }
 
