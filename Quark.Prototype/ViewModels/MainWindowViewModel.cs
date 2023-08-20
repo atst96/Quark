@@ -262,11 +262,11 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             var singer = selectedPart.Singer!;
             var modelType = singer.ModelType;
 
-            if (modelType == ModelType.NeutrinoV1)
+            if (modelType == ModelType.NeutorinoV1)
             {
                 project.Tracks.ImportFromMusicXmlV1(part.Part, selectedPart.TrackName, singer);
             }
-            else if (modelType == ModelType.NeutrinoV2)
+            else if (modelType == ModelType.NeutorinoV2)
             {
                 project.Tracks.ImportFromMusicXmlV2(part.Part, selectedPart.TrackName, singer);
             }

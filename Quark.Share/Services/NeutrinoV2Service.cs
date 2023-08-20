@@ -67,7 +67,7 @@ internal class NeutrinoV2Service
 
         return string.IsNullOrEmpty(modelDir)
             ? new List<ModelInfo>()
-            : NeutrinoModelUtil.GetModelsV2(modelDir, ModelType.NeutrinoV2);
+            : NeutrinoModelUtil.GetModelsV2(modelDir, ModelType.NeutorinoV2);
     }
 
     /// <summary>NEUTRINOの作業ディレクトリを取得する</summary>

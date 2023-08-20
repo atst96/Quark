@@ -54,7 +54,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Text="{Binding No, Mode=OneTime, StringFormat='{}スコア{0}: '}" />
+                            <TextBlock Text="{Binding No, Mode=OneTime, StringFormat='{}パート{0}: '}" />
                             <TextBlock Grid.Column="1" Text="{Binding PartName}" />
                         </Grid>
                     </DataTemplate>
