@@ -17,6 +17,9 @@ public class EstimateQueueInfo
     /// <summary>優先度</summary>
     public EstimatePriority Priority { get; }
 
+    /// <summary>実行中のタスク</summary>
+    internal Task? RunningTask { get; private set; }
+
     /// <summary>キャンセル用トークン</summary>
     private readonly CancellationTokenSource _tokenSource = new();
 
@@ -34,4 +37,15 @@ public class EstimateQueueInfo
     /// <summary>現在のタスクをキャンセルする</summary>
     public void Cancel()
         => this._tokenSource.Cancel();
+
+    /// <summary>
+    /// 実行中のタスクを設定する。
+    /// </summary>
+    /// <param name="task">実行中のタスク</param>
+    internal void SetRunningTask(Task task) => this.RunningTask = task;
+
+    /// <summary>
+    /// 実行中のタスクをクリアする。
+    /// </summary>
+    internal void ClearRunningTask() => this.RunningTask = null;
 }
