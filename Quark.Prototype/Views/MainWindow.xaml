@@ -31,13 +31,13 @@
             </l:TransitionInteractionMessageAction>
         </l:InteractionMessageTrigger>
 
-        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenNewProjectWindow">
+        <!--<l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenNewProjectWindow">
             <l:TransitionInteractionMessageAction WindowType="{x:Type v:NewProjectWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False">
                 <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnNewProjectSelected">
                     <l:TransitionMessage TransitionViewModel="{Binding NewProjectViewModel, Mode=OneTime}" />
                 </l:DirectInteractionMessage>
             </l:TransitionInteractionMessageAction>
-        </l:InteractionMessageTrigger>
+        </l:InteractionMessageTrigger>-->
 
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="SaveProjectDialog">
             <l:SaveFileDialogInteractionMessageAction InvokeActionOnlyWhenWindowIsActive="False">
@@ -45,6 +45,21 @@
                     <l:SavingFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
                 </l:DirectInteractionMessage>
             </l:SaveFileDialogInteractionMessageAction>
+        </l:InteractionMessageTrigger>
+
+        <l:InteractionMessageTrigger MessageKey="SelectNewProjectMusicXml" Messenger="{Binding Messenger, Mode=OneTime}">
+            <l:OpenFileDialogInteractionMessageAction>
+                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnNewProjectMusicXmlFileSelected">
+                    <l:OpeningFileSelectionMessage Filter="MusicXML|*.musicxml;*.xml;*.mxl" />
+                </l:DirectInteractionMessage>
+            </l:OpenFileDialogInteractionMessageAction>
+        </l:InteractionMessageTrigger>
+
+        <!--Message: SelectImportMusicXmlPart-->
+        <l:InteractionMessageTrigger MessageKey="SelectImportMusicXmlPart" Messenger="{Binding Messenger, Mode=OneTime}">
+            <l:TransitionInteractionMessageAction  
+                WindowType="{x:Type v:MusicXMLImportWindow}"
+                Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False" />
         </l:InteractionMessageTrigger>
 
         <i:KeyTrigger Key="Esc" FiredOn="KeyDown">
@@ -66,7 +81,10 @@
 
         <Menu Grid.Column="0" FontFamily="{StaticResource UIFont}">
             <MenuItem Header="ファイル(_F)">
-                <MenuItem Header="新しいプロジェクト(_N)" Command="{Binding NewProjectCommand, Mode=OneTime}" />
+                <MenuItem Header="新しいプロジェクト">
+                    <!--<MenuItem Header="新規作成(_N)" Command="{Binding NewProjectCommand, Mode=OneTime}" />-->
+                    <MenuItem Header="MusicXMLからインポート(_M)" Command="{Binding NewProjectFromMusicXmlCommand, Mode=OneTime}" />
+                </MenuItem>
                 <MenuItem Header="開く(_O)">
                     <i:Interaction.Triggers>
                         <i:EventTrigger EventName="Click">
@@ -96,7 +114,7 @@
             </MenuItem>
 
             <MenuItem Header="プロジェクト(_P)" IsEnabled="{Binding IsProjectCreated, Mode=OneWay}">
-                <MenuItem Header="MusicXMLをインポート(_I)">
+                <!--<MenuItem Header="MusicXMLをインポート(_I)">
                     <i:Interaction.Triggers>
                         <i:EventTrigger EventName="Click">
                             <l:OpenFileDialogInteractionMessageAction>
@@ -108,7 +126,7 @@
                     </i:Interaction.Triggers>
                 </MenuItem>
 
-                <Separator />
+                <Separator />-->
 
                 <MenuItem Header="トラックの音声を出力">
                     <i:Interaction.Triggers>
@@ -131,11 +149,10 @@
         <ToolBarTray Grid.Row="1">
             <ToolBar Band="1" BandIndex="1">
                 <!--  歌声 -->
-                <Label Content="Singer" />
-                <ComboBox Width="120"
-                    ItemsSource="{Binding Models, Mode=OneWay}"
-                    DisplayMemberPath="Name"
-                    SelectedItem="{Binding SelectedModelInfo, Mode=TwoWay}"/>
+                <Label Content="歌声:" />
+                <TextBlock VerticalAlignment="Center" Width="140"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                           Text="{Binding CurrentTrack.Singer.DetailName, Mode=OneWay}" />
 
                 <Separator />
 

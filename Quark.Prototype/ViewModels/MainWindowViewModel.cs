@@ -6,6 +6,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
+using Livet.Behaviors.Messaging.IO;
+using Livet.Behaviors.Messaging;
 using Livet.Messaging;
 using Livet.Messaging.IO;
 using NAudio.CoreAudioApi;
@@ -22,6 +24,8 @@ using Quark.Projects;
 using Quark.Projects.Tracks;
 using Quark.Services;
 using Quark.Utils;
+using Quark.Models.MusicXML;
+using Quark.Data;
 
 namespace Quark.ViewModels;
 
@@ -98,14 +102,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
                 this.RaisePropertyChanged(nameof(this.IsProjectCreated));
 
                 this.SetTitle(value!.Name);
-                if (value.Tracks.FirstOrDefault() is NeutrinoV1Track track)
-                {
-                    var foundModel = this.Models.FirstOrDefault(i => i.ModelId == track.Singer!.ModelId);
-                    if (foundModel is not null)
-                    {
-                        this.SelectedModelInfo = foundModel;
-                    }
-                }
+
                 this._saveCommand?.RaiseCanExecute();
             }
         }
@@ -121,16 +118,6 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
     private string SetTitle(string title)
         => this.Title = $"{title} - {App.AppName}";
-
-    private IList<ModelInfo> _models = new List<ModelInfo>();
-    /// <summary>
-    /// 選択可能なモデル情報
-    /// </summary>
-    public IList<ModelInfo> Models
-    {
-        get => this._models;
-        set => this.RaisePropertyChangedIfSet(ref this._models, value);
-    }
 
     private NewProjectWindowViewModel? _newProjectViewModel;
     public NewProjectWindowViewModel NewProjectViewModel
@@ -151,8 +138,6 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         {
             IsEnabled = false,
         };
-
-        this.UpdateModels();
     }
 
     private ICommand? _openSettingWindowCommand;
@@ -161,24 +146,23 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         get => this._openSettingWindowCommand ??= new DelegateCommand(() =>
         {
             this.Messenger.Raise(new TransitionMessage("OpenSettingWindow"));
-            this.UpdateModels();
         });
     }
 
-    public ICommand? _newProjectCommand;
-    public ICommand NewProjectCommand
-    {
-        get => this._newProjectCommand ??= this.AddCommand(() =>
-            this.Messenger.Raise(new InteractionMessage("OpenNewProjectWindow")));
-    }
+    //public ICommand? _newProjectCommand;
+    //public ICommand NewProjectCommand
+    //{
+    //    get => this._newProjectCommand ??= this.AddCommand(() =>
+    //        this.Messenger.Raise(new InteractionMessage("OpenNewProjectWindow")));
+    //}
 
     public void OnNewProjectSelected(TransitionMessage msg)
     {
         var viewModel = (NewProjectWindowViewModel)msg.TransitionViewModel;
         if (viewModel is { IsInvalid: true })
         {
-            this.CurrentProject = this._projects.Create(viewModel.ProjectName);
-            this._projectSession = this.CurrentProject.Session;
+            var project = this._projects.Create(viewModel.ProjectName);
+            this.SetProject(project);
         }
     }
 
@@ -207,14 +191,31 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         if (msg is { Response.Length: > 0 })
         {
-            this.CurrentProject = this._projects.Open(msg.Response[0]);
-            this._projectSession = this.CurrentProject.Session;
+            var project = this._projects.Open(msg.Response[0]);
+            this.SetProject(project);
+        }
+    }
 
-            if (this.CurrentProject.Tracks.LastOrDefault() is INeutrinoTrack t)
-            {
-                this.CurrentTrack = t;
-                this.InitAudio(t);
-            }
+    private void SetProject(Project project)
+    {
+        this.CurrentProject = project;
+        this._projectSession = project.Session;
+
+        var track = this.CurrentProject.Tracks.OfType<INeutrinoTrack>().LastOrDefault();
+        this.SetTrack(track);
+    }
+
+    private void SetTrack(INeutrinoTrack? track)
+    {
+        this.CurrentTrack = track!;
+
+        if (track == null)
+        {
+            this.CloseAudio();
+        }
+        else
+        {
+            this.InitAudio(track);
         }
     }
 
@@ -230,6 +231,57 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         this.CurrentProject!.SaveToFile(path);
     }
+
+    public void OnNewProjectMusicXmlFileSelected(OpeningFileSelectionMessage msg)
+    {
+        var paths = msg.Response;
+        if (paths is not { Length: > 0 })
+            // キャンセルされたら何も入っていないので処理を終わる
+            return;
+
+        var path = paths.First();
+
+        (PartList.ScorePartElement Info, Part Part)[] parts;
+        using (var fs = File.OpenRead(path))
+        {
+            parts = MusicXmlUtil.EnumerateParts(fs).ToArray();
+        }
+
+        var viewModel = new MusicXMLImportWindowViewModel(path, parts.Select(p => p.Info));
+        this.Messenger.Raise(new TransitionMessage(viewModel, "SelectImportMusicXmlPart"));
+
+        var selectParts = viewModel.Response;
+        if (selectParts is not { Length: > 0 })
+            // 未選択の場合は特に何もしない
+            return;
+
+        var project = this._projects.Create(viewModel.ProjectName);
+        foreach (var selectedPart in selectParts)
+        {
+            var part = parts[selectedPart.Index];
+            var singer = selectedPart.Singer!;
+            var modelType = singer.ModelType;
+
+            if (modelType == ModelType.NeutrinoV1)
+            {
+                project.Tracks.ImportFromMusicXmlV1(part.Part, selectedPart.TrackName, singer);
+            }
+            else if (modelType == ModelType.NeutrinoV2)
+            {
+                project.Tracks.ImportFromMusicXmlV2(part.Part, selectedPart.TrackName, singer);
+            }
+        }
+
+        this.SetProject(project);
+    }
+
+    private Command? _newProjectFromMusicXmlCommand;
+    public Command NewProjectFromMusicXmlCommand => this._newProjectFromMusicXmlCommand ??= this.AddCommand(() =>
+    {
+        // TODO: 未保存の場合は確認ダイアログを表示する
+
+        this.Messenger.Raise(new("SelectNewProjectMusicXml"));
+    });
 
     public void OnImportMusicXMLFileSelected(OpeningFileSelectionMessage msg)
     {
@@ -247,9 +299,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         var part = parts.First();
         //}
 
-        var track = this.CurrentProject!.Tracks.ImportFromMusicXmlV2(part.Part, part.Info?.PartName ?? Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
-        this.CurrentTrack = track;
-        this.InitAudio(track);
+        var track = this.CurrentProject?.Tracks.ImportFromMusicXmlV2(part.Part, part.Info?.PartName ?? Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
+        this.SetTrack(track);
     }
 
     public async void OnWaveExportFileSelected(SavingFileSelectionMessage msg)
@@ -316,9 +367,15 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private IWavePlayer _player;
     private WaveDataStream _waveStream;
 
+    private void CloseAudio()
+    {
+        this._player?.Dispose();
+        this._waveStream?.Dispose();
+    }
+
     private void InitAudio(INeutrinoTrack track)
     {
-        this._waveStream?.Dispose();
+        this.CloseAudio();
 
         var device = new WasapiOut(AudioClientShareMode.Shared, Latency);
         var waveStream = new WaveDataStream(track.WaveData);
@@ -327,33 +384,6 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
         this._player = device;
         this._waveStream = waveStream;
-    }
-
-    /// <summary>初期選択のモデルID</summary>
-    private const string TempDefaultModelId = "KIRITAN";
-
-    private void UpdateModels()
-    {
-        // 前回選択のモデルID
-        var model = this.SelectedModelInfo;
-
-        // モデル一覧を取得
-        this.Models = this._neutrinoV1.GetModels();
-
-
-        if (model is not null)
-        {
-            // 前回選択済みなら同じモデルを選択する
-            this.SelectedModelInfo = this.Models.FirstOrDefault(m => m.ModelId == model.ModelId);
-        }
-
-        if (this.SelectedModelInfo is null)
-        {
-            // 前回未選択または前回のモデルが見つからない場合は既定のモデルを選択
-            // それも見つからなければ最初のモデルを選択する
-            this.SelectedModelInfo = this.Models.FirstOrDefault(m => m.ModelId == TempDefaultModelId)
-                ?? this.Models.FirstOrDefault();
-        }
     }
 
     private INeutrinoTrack _currentTrack;
@@ -376,7 +406,6 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         get => this._currentTime;
         set => this.RaisePropertyChangedIfSet(ref this._currentTime, value);
     }
-
 
     private TimeSpan _maximumTime = TimeSpan.Zero;
     public TimeSpan MaximumTime

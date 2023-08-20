@@ -260,6 +260,7 @@ public partial class PlotEditor : UserControl
         this._isFeatureEditable = this._isF0Editable = editMode == EditMode.AudioFeatures;
 
         this.UpdateRenderContent();
+        this.UpdateScrollLayout();
     }
 
     private void OnTrackFeatureChanged(object? sender, EventArgs e) => this.Dispatcher.InvokeAsync(() =>

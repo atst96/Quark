@@ -25,9 +25,10 @@ internal class TrackCollection : ObservableCollection<TrackBase>
     /// </summary>
     /// <param name="path">パス</param>
     /// <param name="trackName">トラック名</param>
-    public NeutrinoV1Track ImportFromMusicXmlV1(string path, string trackName, ModelInfo model)
+    public NeutrinoV1Track ImportFromMusicXmlV1(Part part, string trackName, ModelInfo model)
     {
-        var newTrack = new NeutrinoV1Track(this._project, trackName, File.ReadAllText(path, Encoding.UTF8), model);
+        var xml = MusicXmlUtil.ToXmlString(part, trackName);
+        var newTrack = new NeutrinoV1Track(this._project, trackName, xml, model);
 
         this.Add(newTrack);
 

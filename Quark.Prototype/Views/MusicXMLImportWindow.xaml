@@ -1,0 +1,122 @@
+﻿<Window x:Class="Quark.Views.MusicXMLImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Quark.Views"
+        xmlns:vm="clr-namespace:Quark.ViewModels"
+        xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:lv="http://schemas.livet-mvvm.net/2011/wpf"
+        mc:Ignorable="d"
+        Title="MusicXMLをインポート" Height="360" Width="450"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        FontFamily="Meiryo"
+        FocusManager.FocusedElement="{Binding ElementName=PART_ProjectNameTextBox, Mode=OneTime}"
+        d:DataContext="{d:DesignInstance IsDesignTimeCreatable=True, Type={x:Type vm:MusicXMLImportWindowViewModel}}">
+    <b:Interaction.Triggers>
+        <lv:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}">
+            <lv:WindowInteractionMessageAction />
+        </lv:InteractionMessageTrigger>
+    </b:Interaction.Triggers>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+
+        <Border Background="{DynamicResource ToolBar.Background}"
+                BorderThickness="0,1,0,0" BorderBrush="{DynamicResource ToolBar.BorderBrush}">
+            <StackPanel Margin="6,4">
+                <TextBlock
+                    Margin="2"
+                    Text="{Binding FileName, StringFormat={}ファイル名: {0}, Mode=OneTime}"
+                    ToolTip="{Binding FilePath, Mode=OneTime}"
+                    TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="12,12,12,0">
+            <TextBlock Margin="4" Text="プロジェクト名:" FontWeight="Bold" Foreground="#888" />
+            <TextBox x:Name="PART_ProjectNameTextBox" Margin="4" Text="{Binding ProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Margin="12,0,12,12">
+            <TextBlock Margin="4" Text="インポートするパート:" FontWeight="Bold" Foreground="#888" />
+            <ComboBox Margin="4" ItemsSource="{Binding Parts, Mode=OneTime}" SelectedItem="{Binding SelectedPart, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="{Binding No, Mode=OneTime, StringFormat='{}スコア{0}: '}" />
+                            <TextBlock Grid.Column="1" Text="{Binding PartName}" />
+                        </Grid>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </StackPanel>
+
+        <Border Grid.Row="3" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource ToolBar.BorderBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="8,12" Visibility="{Binding EditPartPanelVisibility, Mode=OneWay}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="トラック名: " VerticalAlignment="Center" HorizontalAlignment="Right" />
+                    <TextBox Grid.Column="1" Margin="4" Text="{Binding SelectedPart.TrackName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                        <b:Interaction.Triggers>
+                            <b:EventTrigger EventName="TextChanged">
+                                <b:CallMethodAction TargetObject="{Binding Mode=OneTime}" MethodName="OnInputParameterUpdated" />
+                            </b:EventTrigger>
+                        </b:Interaction.Triggers>
+                    </TextBox>
+
+                    <TextBlock Grid.Row="1" Text="歌声: " VerticalAlignment="Center" HorizontalAlignment="Right" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" Margin="4"
+                              ItemsSource="{Binding Models, Mode=OneWay}" SelectedItem="{Binding SelectedPart.Singer, Mode=TwoWay}"
+                              DisplayMemberPath="DetailName">
+                        <ComboBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#eee">
+                                            <TextBlock Margin="6,4" Text="{Binding Name, Mode=OneWay}" FontWeight="Bold" />
+                                        </Border>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ComboBox.GroupStyle>
+                        <b:Interaction.Triggers>
+                            <b:EventTrigger EventName="SelectionChanged">
+                                <b:CallMethodAction TargetObject="{Binding Mode=OneTime}" MethodName="OnInputParameterUpdated" />
+                            </b:EventTrigger>
+                        </b:Interaction.Triggers>
+                    </ComboBox>
+                </Grid>
+
+                <StackPanel Margin="4" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Margin="4" Width="120" Content="インポート" Style="{DynamicResource Button.Primary}" Command="{Binding CompleteCommand, Mode=OneTime}" IsDefault="True" />
+                    <Button Margin="4" Width="80" Content="閉じる" IsCancel="True" />
+                </StackPanel>
+            </Grid>
+
+        </Border>
+    </Grid>
+</Window>

@@ -1,4 +1,6 @@
-﻿namespace Quark.Models.Neutrino;
+﻿using Quark.Data;
+
+namespace Quark.Models.Neutrino;
 
 /// <summary>
 /// Neutrinoのモデル情報
@@ -9,4 +11,8 @@
 public record ModelInfo(
     string ModelId,
     string Name,
-    string Path);
+    string Path,
+    ModelType ModelType)
+{
+    public string DetailName { get; } = $"{Name} ({ModelId})";
+}

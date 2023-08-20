@@ -2,6 +2,7 @@
 using System.Text;
 using Quark.Components;
 using Quark.Constants;
+using Quark.Data;
 using Quark.Data.Projects;
 using Quark.Data.Settings;
 using Quark.DependencyInjection;
@@ -58,8 +59,10 @@ internal class NeutrinoV1Service
     /// <summary>レガシー版を使用するかどうかを取得する</summary>
     public static bool IsLegacy() => !Avx2.IsSupported;
 
+    private string GetModelDir() => Path.Combine(this.GetNeutrinoWorkingDirectory(), "model");
+
     private string GetModelPath(string modelId)
-        => Path.Combine(this.GetNeutrinoWorkingDirectory(), "model", modelId) + Path.DirectorySeparatorChar.ToString();
+        => Path.Combine(this.GetModelDir(), modelId) + Path.DirectorySeparatorChar.ToString();
 
     /// <summary>
     /// モデル情報を取得する
@@ -67,16 +70,11 @@ internal class NeutrinoV1Service
     /// <returns></returns>
     public IList<ModelInfo> GetModels()
     {
-        if (this._setting.NeutrinoV1.Directory is null)
-        {
-            return new List<ModelInfo>();
-        }
-        else
-        {
-            var path = Path.Combine(this._setting.NeutrinoV1.Directory!, ModelDirName);
+        var modelDir = this.GetModelDir();
 
-            return NeutrinoModelUtil.GetModels(path);
-        }
+        return string.IsNullOrEmpty(modelDir)
+            ? new List<ModelInfo>()
+            : NeutrinoModelUtil.GetModelsV1(modelDir, ModelType.NeutrinoV1);
     }
 
     /// <summary>NEUTRINOの作業ディレクトリを取得する</summary>
