@@ -10,7 +10,7 @@ public class RenderInfoCommon
 
     public required RenderRangeInfo RenderRange { get; init; }
 
-    public required ViewDrawingBoxInfo PartRenderInfo { get; init; }
+    public required EditorRenderLayout ScreenLayout { get; init; }
 
     public required ColorInfo ColorInfo { get; init; }
 

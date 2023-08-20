@@ -4,7 +4,7 @@ using Quark.Extensions;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
-using static Quark.Controls.ViewDrawingBoxInfo;
+using static Quark.Controls.EditorRenderLayout;
 
 namespace Quark.ImageRender.Score;
 
@@ -29,26 +29,21 @@ internal class PitchRendererV1
             return;
 
         var rangeInfo = ri.RenderRange;
-
-        var renderInfo = ri.PartRenderInfo;
-
-        var scaling = renderInfo.Scaling;
-
-        const int Period = RenderConfig.FramePeriod;
+        var renderLayout = ri.ScreenLayout;
 
         if (this._renderInfo.Track is not NeutrinoV1Track track)
             return;
 
         // 描画領域
-        (int width, int height) = (renderInfo.UnscaledWidth, renderInfo.UnscaledScoreHeight);
-        int keyHeight = renderInfo.KeyHeight;
+        (int width, int height) = renderLayout.ScoreImage.Size;
+        int keyHeight = renderLayout.PhysicalKeyHeight;
 
         // 描画開始・終了位置
         int beginTime = rangeInfo.BeginTime;
         int endTime = rangeInfo.EndTime;
 
         // フレームの描画範囲
-        int beginFrameIdx = beginTime / RenderConfig.FramePeriod;
+        int beginFrameIdx = NeutrinoUtil.MsToFrameIndex(beginTime);
         int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
 
         // 描画対象のフレーズ情報
@@ -57,13 +52,13 @@ internal class PitchRendererV1
 
         var pitches = targetPhrases
             .Where(p => p.F0 is not null)
-            .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.F0!, 0, 1, p.BeginTime / Period))
+            .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.F0!, 0, 1, NeutrinoUtil.MsToFrameIndex(p.BeginTime)))
             .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
             .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
 
         float pitchOffset = (float)keyHeight / 2;
 
-        int offsetMs = beginFrameIdx * Period - beginTime;
+        int offsetMs = NeutrinoUtil.FrameIndexToMs(beginFrameIdx) - beginTime;
 
         foreach (var pitchGroup in pitches)
         {
@@ -94,13 +89,13 @@ internal class PitchRendererV1
                 for (int idx = 0, length = endIdx - beginIdx; idx < length; ++idx)
                 {
                     int frameIdx = idx + f;
-                    int x = scaling.ToDisplayScaling((offsetMs + (frameIdx + pitch.PhraseBeginFrameIdx) * Period - beginTime) * renderInfo.WidthStretch);
+                    int x = renderLayout.GetRenderPosXFromTime(offsetMs + NeutrinoUtil.MsToFrameIndex(frameIdx + pitch.PhraseBeginFrameIdx) - beginTime);
 
                     origPoints[pointsIdx] = new SKPoint(x,
-                        scaling.ToDisplayScaling(height - pitchOffset - (float)AudioDataConverter.FrequencyToScale(f0[frameIdx]) * keyHeight));
+                        height - pitchOffset - ((float)AudioDataConverter.FrequencyToScale(f0[frameIdx]) * keyHeight));
 
                     editedPoints[pointsIdx] = new SKPoint(x,
-                        scaling.ToDisplayScaling(height - pitchOffset - (float)AudioDataConverter.FrequencyToScale(editedF0[frameIdx]) * keyHeight));
+                        height - pitchOffset - ((float)AudioDataConverter.FrequencyToScale(editedF0[frameIdx]) * keyHeight));
 
                     ++pointsIdx;
                 }

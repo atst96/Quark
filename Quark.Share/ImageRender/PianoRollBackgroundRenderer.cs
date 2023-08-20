@@ -2,7 +2,7 @@
 using Quark.Models.Neutrino;
 using SkiaSharp;
 using System.Runtime.CompilerServices;
-using static Quark.Controls.ViewDrawingBoxInfo;
+using static Quark.Controls.EditorRenderLayout;
 
 namespace Quark.ImageRender;
 
@@ -22,29 +22,29 @@ internal class PianoRollBackgroundRenderer
     /// <param name="keyHeight">1音あたりの高さ</param>
     /// <param name="scaling">スケーリング情報</param>
     /// <returns></returns>
-    private (SKBitmap bmp, int width, int height) CreatePianoOctaveBmp()
+    private SKBitmap CreatePianoOctaveBmp()
     {
-        const int keys = 12;
-        const int width = 100;
+        const int KeyCount = 12;
+        const int DefaultWidth = 100;
 
-        var renderInfo = this._renderInfo;
-        int keyHeight = renderInfo.PartRenderInfo.KeyHeight;
-        var scaling = renderInfo.PartRenderInfo.Scaling;
+        var ri = this._renderInfo;
 
-        int height = keyHeight * keys;
-        int renderHeight = scaling.ToDisplayScaling(height);
-        int renderWidth = scaling.ToDisplayScaling(width);
-        int renderKeyHeight = scaling.ToDisplayScaling(keyHeight);
+        var renderLayout = ri.ScreenLayout;
+        var scaling = ri.ScreenLayout.Scaling;
+
+        int renderKeyHeight = renderLayout.PhysicalKeyHeight;
+        int width = scaling.ToDisplayScaling(DefaultWidth);
+        int height = renderKeyHeight * KeyCount;
 
         var colorInfo = this._renderInfo.ColorInfo;
         var whiteKeyBrush = colorInfo.WhiteKeyPaint;
         var whiteGridPen = colorInfo.WhiteKeyGridPaint;
         var blackKeyBrush = colorInfo.BlackKeyPaint;
 
-        var image = new SKBitmap(renderWidth, renderHeight, isOpaque: true);
+        var image = new SKBitmap(width, height, isOpaque: true);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int GetYPos(int key) => renderHeight - ((key + 1) * renderKeyHeight);
+        int GetYPos(int key) => height - ((key + 1) * renderKeyHeight);
 
         using (var g = new SKCanvas(image))
         {
@@ -52,7 +52,7 @@ internal class PianoRollBackgroundRenderer
             void DrawRect(int key, SKPaint brush)
             {
                 int y = GetYPos(key);
-                g.DrawRect(new(0, y, renderWidth, renderKeyHeight + y), brush);
+                g.DrawRect(new(0, y, width, renderKeyHeight + y), brush);
             }
 
             // ストライプの描画
@@ -70,46 +70,46 @@ internal class PianoRollBackgroundRenderer
             DrawRect(11, whiteKeyBrush); // B
 
             // 白鍵の境界を描画
-            g.DrawLine(0, GetYPos(4), renderWidth, GetYPos(4), whiteGridPen);
-            g.DrawLine(0, GetYPos(11), renderWidth, GetYPos(11), whiteGridPen);
+            g.DrawLine(0, GetYPos(4), width, GetYPos(4), whiteGridPen);
+            g.DrawLine(0, GetYPos(11), width, GetYPos(11), whiteGridPen);
         }
 
-        return (image, width, height);
+        return image;
     }
 
     public void Render(SKCanvas g)
     {
-        var _renderInfo = this._renderInfo.PartRenderInfo;
+        var _renderInfo = this._renderInfo.ScreenLayout;
         var rangeInfo = this._renderInfo.RenderRange;
         var scaling = _renderInfo.Scaling;
 
         // 描画領域
-        (int renderWidth, int renderHeight) = (_renderInfo.RenderWidth, _renderInfo.RenderScoreHeight);
-        (int width, int height) = (_renderInfo.UnscaledWidth, _renderInfo.UnscaledScoreHeight);
+        (int renderWidth, int renderHeight) = _renderInfo.ScoreImage.Size;
+        (int width, int height) = _renderInfo.ScoreImage.Size;
 
-        (var partImage, int octWidth, int octHeight) = this.CreatePianoOctaveBmp();
+        var partImage = this.CreatePianoOctaveBmp();
+        int partImageWidth = partImage.Width;
+        int partImageHeight = partImage.Height;
 
-        int imageWidth = octWidth;
-        int imageHeight = octHeight;
-        int offset = imageHeight - (height % imageHeight);
+        int offset = partImageHeight - (height % partImageHeight);
 
         int scoreWidth = width;
-        int scoreHeight = _renderInfo.UnscaledScoreHeight;
+        int scoreHeight = height;
 
-        int vCount = (int)Math.Ceiling((double)scoreHeight / imageHeight);
-        int hCount = (int)Math.Ceiling((double)scoreWidth / imageWidth);
+        int vCount = (int)Math.Ceiling((double)scoreHeight / partImageHeight);
+        int hCount = (int)Math.Ceiling((double)scoreWidth / partImageWidth);
 
         int[] xList = Enumerable.Range(0, hCount)
-            .Select(x => x * imageWidth)
+            .Select(x => x * partImageWidth)
             .ToArray();
 
         for (int yCount = 0; yCount < vCount; ++yCount)
         {
-            int y = (yCount * imageHeight) - offset;
+            int y = (yCount * partImageHeight) - offset;
 
             foreach (int x in xList)
             {
-                g.DrawBitmap(partImage, scaling.ToDisplayScaling(x), scaling.ToDisplayScaling(y));
+                g.DrawBitmap(partImage, x, y);
             }
         }
 
@@ -148,7 +148,8 @@ internal class PianoRollBackgroundRenderer
                     continue;
 
                 int ofx = 0;
-                int x = scaling.ToDisplayScaling((phrase.BeginTime - beginTime) * _renderInfo.WidthStretch);
+                int x = _renderInfo.GetRenderPosXFromTime(phrase.BeginTime - beginTime);
+                // scaling.ToDisplayScaling((phrase.BeginTime - beginTime) * _renderInfo.WidthStretch);
                 if (x < 0)
                 {
                     ofx = x;
@@ -156,9 +157,9 @@ internal class PianoRollBackgroundRenderer
                 }
 
                 int y = 0;
-                int w = scaling.ToDisplayScaling((phrase.EndTime - phrase.BeginTime) * _renderInfo.WidthStretch) + ofx;
-                if ((x + w) > _renderInfo.RenderDisplayWidth)
-                    w = _renderInfo.RenderDisplayWidth - x;
+                int w = _renderInfo.GetRenderPosXFromTime(phrase.EndTime - phrase.BeginTime) + ofx;
+                if ((x + w) > _renderInfo.ScoreArea.Width)
+                    w = _renderInfo.ScoreArea.Width - x;
                 int h = renderHeight;
 
                 g.DrawRect(x, y, w, h, new SKPaint { Color = color.Value });
@@ -167,7 +168,7 @@ internal class PianoRollBackgroundRenderer
             // 罫線の描画
             foreach (var noteLine in rangeScoreInfo.NoteLines)
             {
-                float scaledX = scaling.ToDisplayScaling(((int)noteLine.Time - beginTime) * _renderInfo.WidthStretch);
+                float scaledX = _renderInfo.GetRenderPosXFromTime((int)noteLine.Time - beginTime);
 
                 var lineColor = noteLine.LineType switch
                 {
@@ -180,7 +181,7 @@ internal class PianoRollBackgroundRenderer
 
                 g.DrawLine(
                     scaledX, 0,
-                    scaledX, scaling.ToDisplayScaling(_renderInfo.UnscaledScoreHeight),
+                    scaledX, _renderInfo.ScoreImage.Height,
                     new SKPaint { Color = lineColor, StrokeWidth = 1 });
             }
         }

@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using Quark.Utils;
 
 namespace Quark.ImageRender;
 
@@ -37,4 +38,28 @@ public class RenderScaleInfo
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ToRenderImageScaling(int value)
         => (int)Math.Round(value / this._scale);
+
+    /// <summary>
+    /// スケール化する。(100px/120% -> 83px)
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    public double ToScaled(double value)
+        => value / this._scale;
+
+    /// <summary>
+    /// スケール化を解除する。(100px/120% -> 120px)
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    public int ToUnscaled(int value)
+        => (int)(value * this._scale);
+
+    /// <summary>
+    /// スケール化解除する。(100.0px/120% -> 120.0px)
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    public double ToUnscaled(double value)
+        => value * this._scale;
 }

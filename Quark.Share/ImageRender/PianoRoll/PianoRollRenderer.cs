@@ -25,9 +25,10 @@ internal class PianoRollRenderer
     public SKBitmap CreateImage()
     {
         var ri = this._renderInfo;
-        var renderInfo = this._renderInfo.PartRenderInfo;
+        var renderLayout = this._renderInfo.ScreenLayout;
 
-        var image = new SKBitmap(renderInfo.RenderWidth, renderInfo.RenderScoreHeight, isOpaque: true);
+        var imageSize = renderLayout.ScoreImage;
+        var image = new SKBitmap(imageSize.Width, imageSize.Height, isOpaque: true);
 
         using (var g = new SKCanvas(image))
         {

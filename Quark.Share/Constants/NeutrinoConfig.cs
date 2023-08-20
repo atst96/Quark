@@ -6,7 +6,7 @@
 public static class NeutrinoConfig
 {
     /// <summary>1フレームあたりの間隔(ミリ秒)</summary>
-    public const int FramePeriod = 5;
+    public const int FramePeriod = 5; /* 1000ms / 200frames */
 
     /// <summary>スペクトル包絡の下限値</summary>
     public const double MgcLower = -60.0d;

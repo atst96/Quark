@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Quark.Controls;
+﻿using Quark.Controls;
 using Quark.Drawing;
 using SkiaSharp;
 
@@ -21,33 +16,27 @@ internal class RulerRenderer
     {
         var ri = this._renderInfo;
 
-        var renderInfo = ri.PartRenderInfo;
-
-        int renderWidth = renderInfo.RenderWidth;
-        int renderHeight = renderInfo.RenderRulerHeight;
-
-        var image = new SKBitmap(renderWidth, renderHeight, isOpaque: true);
+        var renderLayout = ri.ScreenLayout;
+        var renderArea = renderLayout.RulerArea;
+        var image = new SKBitmap(renderArea.Width, renderArea.Height, isOpaque: true);
 
         using (var g = new SKCanvas(image))
         {
-            this.Draw(g);
+            this.Draw(g, renderArea);
         }
 
         return image;
     }
 
-    public void Draw(SKCanvas g)
+    public void Draw(SKCanvas g, LayoutRect renderArea)
     {
         var ri = this._renderInfo;
 
         var rangeScoreInfo = ri.RangeScoreRenderInfo;
-        var renderInfo = ri.PartRenderInfo;
+        var renderLayout = ri.ScreenLayout;
         var renderRange = ri.RenderRange;
 
-        var scaling = renderInfo.Scaling;
-
-        int renderWidth = renderInfo.RenderWidth;
-        int renderHeight = renderInfo.RenderRulerHeight;
+        (int renderWidth, int renderHeight) = renderArea.Size;
 
         g.DrawRect(0, 0, renderWidth, renderHeight, new SKPaint() { Color = SKColors.Black });
 
@@ -63,7 +52,7 @@ internal class RulerRenderer
 
             foreach (var rulerLine in rangeScoreInfo.RulerLines)
             {
-                float scaledX = scaling.ToDisplayScaling(((int)rulerLine.Time - beginTime) * renderInfo.WidthStretch);
+                float scaledX = renderLayout.GetRenderPosXFromTime((int)rulerLine.Time - beginTime);
 
                 var linePosY = rulerLine.LineType switch
                 {

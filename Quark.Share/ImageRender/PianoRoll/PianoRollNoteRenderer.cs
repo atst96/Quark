@@ -24,18 +24,15 @@ internal class PianoRollNoteRenderer
             return;
 
         var rangeInfo = ri.RenderRange;
-
-        var renderInfo = ri.PartRenderInfo;
-
-        var scaling = renderInfo.Scaling;
+        var renderLayout = ri.ScreenLayout;
 
         // 描画開始・終了位置
         int beginTime = rangeInfo.BeginTime;
         int endTime = rangeInfo.EndTime;
 
         // 描画領域
-        int height = renderInfo.UnscaledScoreHeight;
-        int keyHeight = renderInfo.KeyHeight;
+        int height = renderLayout.ScoreImage.Height;
+        int keyHeight = renderLayout.PhysicalKeyHeight;
 
         // スコアの描画
         foreach (var score in rangeScoreInfo.Score.Phrases)
@@ -43,10 +40,10 @@ internal class PianoRollNoteRenderer
             float y = height - (float)(score.Pitch * keyHeight);
 
             var rect = SKRect.Create(
-                scaling.ToDisplayScaling((score.BeginTime - beginTime) * renderInfo.WidthStretch),
-                scaling.ToDisplayScaling(height - score.Pitch * keyHeight),
-                scaling.ToDisplayScaling((score.EndTime - score.BeginTime) * renderInfo.WidthStretch),
-                scaling.ToDisplayScaling(keyHeight));
+                renderLayout.GetRenderPosXFromTime(score.BeginTime - beginTime),
+                height - (score.Pitch * keyHeight),
+                renderLayout.GetRenderPosXFromTime(score.EndTime - score.BeginTime),
+                keyHeight);
 
             g.DrawRect(rect, new SKPaint
             {

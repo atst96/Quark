@@ -69,14 +69,14 @@ public class TimingRenderer
         if (rangeScoreInfo == null)
             return;
 
-        var renderInfo = ri.PartRenderInfo;
+        var renderLayout = ri.ScreenLayout;
         var handles = rangeScoreInfo.Timings;
 
         if (handles == null)
             return;
 
-        int y = renderInfo.DisplayScorePosY;
-        int lineEndY = y + renderInfo.RenderDisplayScoreHeight;
+        int y = renderLayout.ScoreArea.Y;
+        int lineEndY = y + renderLayout.ScoreArea.Height;
 
         foreach (var handle in handles)
         {

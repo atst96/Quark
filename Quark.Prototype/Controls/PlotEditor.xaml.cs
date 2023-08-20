@@ -25,7 +25,7 @@ using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
-using static Quark.Controls.ViewDrawingBoxInfo;
+using static Quark.Controls.EditorRenderLayout;
 
 namespace Quark.Controls;
 
@@ -39,8 +39,6 @@ namespace Quark.Controls;
 /// </summary>
 public partial class PlotEditor : UserControl
 {
-    private const int FrameUnit = 1000 / 200;
-
     private double MaxHScrollHeight = 1000;
 
     private DispatcherTimer _mouseTimer;
@@ -55,7 +53,7 @@ public partial class PlotEditor : UserControl
     private long _framesCount = 0;
     private IList<TimingHandle> _timings = Array.Empty<TimingHandle>();
     private TrackScoreInfo _trackScoreInfo;
-    private ViewDrawingBoxInfo _viewBoxInfo;
+    private EditorRenderLayout _renderLayout;
     private RenderInfoCommon _renderCommon;
     private PianoRollRenderer _pianoRollRenderer;
     private RulerRenderer _rulerRenderer;
@@ -98,8 +96,6 @@ public partial class PlotEditor : UserControl
 
     /// <summary>自動スクロール用の外側領域の幅</summary>
     private const double AutoScrollOuterWidth = 400;
-
-    private SKPaint lyricsTypography = new(new SKFont(SKTypeface.FromFamilyName("MS UI Gothic"), 12));
 
     private (int x, int y)? _tempMousePos = null;
 
@@ -422,38 +418,44 @@ public partial class PlotEditor : UserControl
         this.RelocateSeekBar();
     }
 
-    /// <summary>スクロールバーの状態を更新する</summary>
+    /// <summary>
+    /// スクロールバーの状態を更新する
+    /// </summary>
     private void UpdateScrollLayout()
     {
         if (!this._isLoaded)
-        {
             return;
-        }
 
         long dataLength = this._framesCount;
-
-        var renderInfo = this._viewBoxInfo;
-
-        double height = renderInfo.RenderDisplayHeight;
+        var renderLayout = this._renderLayout;
 
         // ########## 縦スクロールの設定
-        var vScrollBar = this.vScrollBar1;
-        int renderHeight = renderInfo.GetDrawScoreHeight(height);
-        double scaledKeyHeight = renderInfo.Scaling.ToDisplayScaling(renderInfo.KeyHeight);
-        vScrollBar.Minimum = 0;
-        vScrollBar.Maximum = renderInfo.UnscaledScoreHeight - renderHeight;
-        vScrollBar.SmallChange = scaledKeyHeight;
-        vScrollBar.LargeChange = scaledKeyHeight;
-        vScrollBar.ViewportSize = renderHeight;
+        int viewHeight = renderLayout.ScoreArea.Height;
+        double keyHeight = renderLayout.PhysicalKeyHeight;
+        SetupScrollBar(this.vScrollBar1, 0, renderLayout.ScoreImage.Height - viewHeight, keyHeight, keyHeight, viewHeight);
 
         // ########## 横スクロールの設定
-        long duration = (dataLength + 1) * FrameUnit;
-        this.MaxHScrollHeight = duration;
-        var hScrollBar = this.hScrollBar1;
-        hScrollBar.Minimum = 0;
-        hScrollBar.Maximum = this.MaxHScrollHeight;
-        hScrollBar.LargeChange = 5 / this.ScaleX * 20;
-        hScrollBar.ViewportSize = this.MaxHScrollHeight / 10;
+        double vChange = 5 / this.ScaleX * 20;
+        this.MaxHScrollHeight = NeutrinoUtil.FrameIndexToMs((int)dataLength + 1);
+        SetupScrollBar(this.hScrollBar1, 0, this.MaxHScrollHeight, vChange, vChange, this.MaxHScrollHeight / 10);
+    }
+
+    /// <summary>
+    /// スクロールバーのパラメータを設定する
+    /// </summary>
+    /// <param name="element">対象</param>
+    /// <param name="min">最小値</param>
+    /// <param name="max">最大値</param>
+    /// <param name="smallChange">最小変更幅</param>
+    /// <param name="largeChange">最大変更幅</param>
+    /// <param name="viewportSize">ビューポートのサイズ(Thumbのサイズ計算に使用)</param>
+    private static void SetupScrollBar(ScrollBar element, double min, double max, double smallChange, double largeChange, double viewportSize)
+    {
+        element.Minimum = min;
+        element.Maximum = max;
+        element.SmallChange = smallChange;
+        element.LargeChange = largeChange;
+        element.ViewportSize = viewportSize;
     }
 
     /// <summary>
@@ -461,13 +463,13 @@ public partial class PlotEditor : UserControl
     /// </summary>
     public void OnLayoutChanged()
     {
-        this._viewBoxInfo = this.CreateRenderInfo();
+        var renderLayout = this._renderLayout = this.CreateRenderLayout();
         this.UpdateRenderInfo(new RenderInfoCommon
         {
             Track = this.Track,
             RenderRange = this._renderCommon.RenderRange,
             ColorInfo = this.ColorInfo,
-            PartRenderInfo = this._viewBoxInfo,
+            ScreenLayout = renderLayout,
         });
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
@@ -490,22 +492,19 @@ public partial class PlotEditor : UserControl
     {
         long totalFrameCount = this._framesCount;
 
-        var viewBox = this._viewBoxInfo;
-        var scaling = viewBox.Scaling;
-
-        // 描画領域
-        int renderWidth = viewBox.RenderWidth;
+        var renderLayout = this._renderLayout;
+        var scaling = renderLayout.Scaling;
 
         // 開始フレーム位置
         int beginTime = this.GetRenderBeginTimeMs();
-        int endTime = beginTime + (int)(scaling.ToRenderImageScaling(renderWidth) / this.ScaleX);
+        int endTime = beginTime + renderLayout.GetRenderTimes();
         int currentTime = (int)time.TotalMilliseconds;
 
         var lineElement = this.PART_SelectionTime;
         var renderElement = this.SKElement;
         if (beginTime <= currentTime && currentTime < endTime)
         {
-            double x = scaling.ToDisplayScaling((currentTime - beginTime) * this.ScaleX);
+            double x = renderLayout.GetRenderPosXFromTime(currentTime - beginTime) + renderLayout.ScoreArea.X;
 
             lineElement.X1 = x;
             lineElement.X2 = x;
@@ -527,12 +526,12 @@ public partial class PlotEditor : UserControl
                 else if (prevTime.HasValue && prevTime < time)
                 {
                     // 前方向への移動
-                    value = Math.Ceiling((time.TotalMilliseconds / (totalFrameCount * 5)) * MaxHScrollHeight);
+                    value = Math.Ceiling(time.TotalMilliseconds / (totalFrameCount * 5) * MaxHScrollHeight);
                 }
                 else
                 {
                     // 後方向への移動
-                    value = Math.Ceiling(((time.TotalMilliseconds - (endTime - beginTime)) / (totalFrameCount * 5)) * MaxHScrollHeight);
+                    value = Math.Ceiling((time.TotalMilliseconds - (endTime - beginTime)) / (totalFrameCount * 5) * MaxHScrollHeight);
                 }
 
                 if (!isRecursive)
@@ -556,13 +555,16 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="timeMs">時間(ミリ秒)</param>
     /// <returns></returns>
-    private int GetScoreLocationX(int timeMs)
-    {
-        var renderInfo = this._viewBoxInfo;
-        var scaling = renderInfo.Scaling;
+    private int GetScoreLocationX(EditorRenderLayout renderLayout, int timeMs)
+        => renderLayout.GetRenderPosXFromTime(timeMs - this.GetRenderBeginTimeMs()) + renderLayout.ScoreArea.X;
 
-        return scaling.ToDisplayScaling((timeMs - this.GetRenderBeginTimeMs()) * renderInfo.WidthStretch);
-    }
+    /// <summary>
+    /// ピアノロール上の描画位置(X)を取得する
+    /// </summary>
+    /// <param name="timeMs">時間(ミリ秒)</param>
+    /// <returns></returns>
+    private int GetScoreLocationX(int timeMs)
+        => this.GetScoreLocationX(this._renderLayout, timeMs);
 
     /// <summary>
     /// 描画領域のサイズを取得する
@@ -576,11 +578,12 @@ public partial class PlotEditor : UserControl
         return ((int)size.Width, (int)size.Height);
     }
 
-    private ViewDrawingBoxInfo CreateRenderInfo()
+    private EditorRenderLayout CreateRenderLayout()
     {
+        var scaling = new RenderScaleInfo(this._displayDpi);
         (int width, int height) = this.GetCanvasSize();
 
-        return new(new RenderScaleInfo(this._displayDpi), width, height, this.KeyHeight, width, this.ScaleX, 1.0f);
+        return new(scaling, width, height, this.KeyHeight, width, this.EditMode, this.ScaleX, 1.0f);
     }
 
     /// <summary>
@@ -591,11 +594,11 @@ public partial class PlotEditor : UserControl
         if (this.ActualWidth <= 0 || this.ActualHeight <= 0)
             return;
 
-        var renderInfo = this._viewBoxInfo = this.CreateRenderInfo();
+        var renderLayout = this._renderLayout = this.CreateRenderLayout();
 
         // 描画するフレーム数
         int offsetFrames = 1;
-        int viewFrames = renderInfo.GetRenderFrames();
+        int viewFrames = renderLayout.GetRenderFrames();
         int framesCount = viewFrames; // + (offsetFrames * 2);
 
         // 描画開始・終了位置
@@ -609,7 +612,7 @@ public partial class PlotEditor : UserControl
             Track = this.Track,
             RenderRange = rangeInfo,
             ColorInfo = this.ColorInfo,
-            PartRenderInfo = this._viewBoxInfo,
+            ScreenLayout = renderLayout,
         });
 
         var trackScore = this._trackScoreInfo;
@@ -727,20 +730,6 @@ public partial class PlotEditor : UserControl
         => this.SetVerticalPosition((int)(this.vScrollBar1.Value + time));
 
     /// <summary>
-    /// フレーム位置を時間(ミリ秒)に変換する
-    /// </summary>
-    /// <param name="frameIdx">フレームのインデックス</param>
-    /// <returns>時間(ミリ秒)</returns>
-    private static int FrameIndexToMs(decimal frameIdx) => (int)(frameIdx * FrameUnit);
-
-    /// <summary>
-    /// 時間(ミリ秒)をフレーム数に変換する
-    /// </summary>
-    /// <param name="time">時間(ミリ秒)</param>
-    /// <returns>フレーム位置</returns>
-    private static int MsToFrameIndex(decimal time) => (int)(time / FrameUnit);
-
-    /// <summary>
     /// 再描画要求時
     /// </summary>
     /// <param name="sender">イベント発火時</param>
@@ -756,34 +745,29 @@ public partial class PlotEditor : UserControl
             return;
         }
 
-        var renderInfo = this._viewBoxInfo;
-        if (renderInfo is null)
-        {
+        var renderLayout = this._renderLayout;
+        if (renderLayout is null)
             return;
-        }
 
-        (int scaledWidth, int scaledHeight) = (renderInfo.RenderWidth, renderInfo.RenderScoreHeight);
-
-        int h = renderInfo.RenderDisplayHeight;
+        var rulerRect = renderLayout.RulerArea.ToSKRect();
+        var scoreArea = renderLayout.ScoreArea;
+        int h = renderLayout.ScreenHeight;
 
         // 描画領域の更新
-        int scaledRulerHeight = renderInfo.RenderRulerHeight;
-        int scaledScoreHeight = renderInfo.RenderDisplayScoreHeight;
 
         // スクロール位置から描画位置(y)を計算
-        int scaledScoreY = renderInfo.Scaling.ToDisplayScaling(this.GetVScrollPosition());
-        g.DrawBitmap(this._rulerImage,
-            SKRect.Create(0, 0, scaledWidth, scaledRulerHeight),
-            SKRect.Create(0, 0, scaledWidth, scaledRulerHeight));
+        int scaledScoreY = this.GetVScrollPosition();
+        g.DrawBitmap(this._rulerImage, SKRect.Create(rulerRect.Size), rulerRect);
         g.DrawBitmap(this._renderImage,
-            SKRect.Create(0, scaledScoreY, scaledWidth, scaledScoreHeight),
-            SKRect.Create(0, renderInfo.DisplayScorePosY, scaledWidth, scaledScoreHeight));
+            SKRect.Create(0, scaledScoreY, scoreArea.Width, scoreArea.Height),
+            scoreArea.ToSKRect());
 
         this._timingRenderer.Render(g);
 
-        if (renderInfo.DynamicRenderHeight > 0)
+        if (renderLayout.HasDynamicsArea)
         {
-            g.DrawBitmap(this._dynamicImage, 0, renderInfo.DynamicsDisplayPosY);
+            var area = renderLayout.DynamicsArea;
+            g.DrawBitmap(this._dynamicImage, area.X, area.Y);
         }
 
         //double renderedY = scaledRulerHeight + scaledScoreHeight;
@@ -822,34 +806,12 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>
-    /// 暫定で平均値をしておく
-    /// </summary>
-    /// <param name="mgc"></param>
-    /// <param name="f0"></param>
-    /// <returns></returns>
-    private IReadOnlyCollection<double> GetDynamicsFromMgc(double[] mgc, double[] f0)
-    {
-        int dimentions = mgc.Length / f0.Length;
-
-        int length = mgc.Length / dimentions;
-        var values = new double[length];
-
-        for (int idx = 0; idx < length; ++idx)
-        {
-            values[idx] = mgc[idx * dimentions];
-        }
-
-        return values;
-    }
-
-    /// <summary>
     /// マウスホイールイベント発火時
     /// </summary>
     /// <param name="sender">イベント発火元</param>
     /// <param name="e">イベント情報</param>
     private void OnScoreMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        var renderInfo = this._viewBoxInfo;
         var modifiers = Keyboard.Modifiers;
 
         if (modifiers == ModifierKeys.Control)
@@ -863,31 +825,31 @@ public partial class PlotEditor : UserControl
             {
                 // 横伸長率リストから次に大きい拡大率(拡大方向)を取得して適用する
                 this.ChangeHorizontalScale(
-                    HorizontalZoomLevels.GetNextUpper(zoomLevel));
+                    HorizontalZoomLevels.GetNextUpper(zoomLevel), e);
             }
             else if (e.Delta < 0)
             {
                 // 横伸長率リストから次に小さい拡大率(縮小方向)を取得して適用する
                 this.ChangeHorizontalScale(
-                    HorizontalZoomLevels.GetNextLower(zoomLevel));
+                    HorizontalZoomLevels.GetNextLower(zoomLevel), e);
             }
         }
         else if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
         {
             // Ctrl+Shift+スクロール時
             // 縦倍率を変更
-            int currentHeight = renderInfo.KeyHeight;
+            int currentHeight = this.KeyHeight;
             if (e.Delta > 0)
             {
                 // 横伸長率リストから次に大きい拡大率(拡大方向)を取得して適用する
                 this.ChangeKeyHeightSize(
-                    KeySizes.GetNextUpper(currentHeight));
+                    KeySizes.GetNextUpper(currentHeight), e);
             }
             else if (e.Delta < 0)
             {
                 // 横伸長率リストから次に小さい拡大率(縮小方向)を取得して適用する
                 this.ChangeKeyHeightSize(
-                    KeySizes.GetNextLower(currentHeight));
+                    KeySizes.GetNextLower(currentHeight), e);
             }
         }
         else
@@ -934,7 +896,7 @@ public partial class PlotEditor : UserControl
     /// 横の拡大率を変更する
     /// </summary>
     /// <param name="newZoomLevel"></param>
-    private void ChangeHorizontalScale(double newZoomLevel)
+    private void ChangeHorizontalScale(double newZoomLevel, MouseEventArgs e)
     {
         double oldZoomLevel = this.ScaleX;
         if (oldZoomLevel == newZoomLevel)
@@ -943,26 +905,25 @@ public partial class PlotEditor : UserControl
             return;
         }
 
-        var element = this.SKElement;
+        var renderLayout = this._renderLayout;
+        var scoreArea = renderLayout.ScoreArea;
 
-        var mousePosition = Mouse.GetPosition(element);
+        var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-        var renderInfo = this._viewBoxInfo;
-
-        double width = renderInfo.RenderWidth;
+        double width = scoreArea.Width;
 
         // マウス位置(%)
-        double percentage = mousePosition.X / element.ActualWidth;
+        double percentage = scoreArea.RelativeX(mousePosition.X) / width;
 
         // 現在の伸長率の尺を取得する
         double oldDuration = width * percentage / oldZoomLevel;
         // 変更後の伸長率の尺を計算する
         double newDuration = width * percentage / newZoomLevel;
 
-        int diff = (int)Math.Round(oldDuration - newDuration);
+        int delta = (int)Math.Round(oldDuration - newDuration);
 
         this.ScaleX = newZoomLevel;
-        this.SetRenderBeginMsOffset(diff);
+        this.SetRenderBeginMsOffset(delta);
         this.OnLayoutChanged();
     }
 
@@ -970,10 +931,9 @@ public partial class PlotEditor : UserControl
     /// 横の拡大率を変更する
     /// </summary>
     /// <param name="newHeight"></param>
-    private void ChangeKeyHeightSize(int newHeight)
+    private void ChangeKeyHeightSize(int newHeight, MouseEventArgs e)
     {
-        var renderInfo = this._viewBoxInfo;
-        var scaling = renderInfo.Scaling;
+        var renderLayout = this._renderLayout;
 
         int oldHeight = this.KeyHeight;
         if (oldHeight == newHeight)
@@ -982,15 +942,14 @@ public partial class PlotEditor : UserControl
             return;
         }
 
-        var element = this.SKElement;
-        var mousePosition = Mouse.GetPosition(element);
+        var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-        double height = renderInfo.RenderDisplayHeight;
+        double height = renderLayout.ScoreArea.Height;
 
         // マウス位置(%)
         double posY = mousePosition.Y;
-        int rulerHeight = this._viewBoxInfo.UnscaledRulerHeight;
-        double percentage = CalcRatioWithLowerOffset(posY, rulerHeight, height);
+        int areaPosY = renderLayout.ScoreArea.Y;
+        double percentage = CalcRatioWithLowerOffset(posY, areaPosY, height);
 
         double zoom = (double)newHeight / oldHeight;
 
@@ -999,10 +958,10 @@ public partial class PlotEditor : UserControl
         // 変更後の伸長率の尺を計算する
         double newDuration = oldDuration * zoom;
 
-        int diff = (int)Math.Round(newDuration - oldDuration);
+        int delta = (int)Math.Round(newDuration - oldDuration);
 
         this.KeyHeight = newHeight;
-        this.SetVScrollPosition((int)((this.GetVScrollPosition() * zoom) + diff));
+        this.SetVScrollPosition((int)((this.GetVScrollPosition() * zoom) + delta));
         this.OnLayoutChanged();
     }
 
@@ -1065,8 +1024,8 @@ public partial class PlotEditor : UserControl
     {
         Debug.WriteLine("Mouse down.");
 
-        var renderInfo = this._viewBoxInfo;
-        var scaling = renderInfo.Scaling;
+        var renderLayout = this._renderLayout;
+        var scaling = renderLayout.Scaling;
         var element = (UIElement)sender;
 
         if (e.LeftButton == MouseButtonState.Pressed)
@@ -1074,15 +1033,15 @@ public partial class PlotEditor : UserControl
             Debug.WriteLine("Mouse captured.");
             Mouse.Capture(this.SKElement);
 
-            var mousePos = e.GetPosition(element);
+            var mousePos = this.GetPhysicalMousePosition(renderLayout, e);
             if (this.EditMode == EditMode.ScoreAndTiming)
             {
-                if (IsWithinRuler(renderInfo, ref mousePos))
+                if (IsWithinRuler(renderLayout, mousePos))
                 {
                     this._mouseMode = MouseControlMode.Seek;
                     this.RelocateSeekBarForSeeking(e);
                 }
-                else if (IsWithinPianoRoll(renderInfo, ref mousePos))
+                else if (IsWithinPianoRoll(renderLayout, mousePos))
                 {
                     if (this._isTimingEditable)
                     {
@@ -1110,25 +1069,25 @@ public partial class PlotEditor : UserControl
                     }
 
                     this._mouseMode = MouseControlMode.PutNote;
-                    var mousePosition = e.GetPosition(this);
-                    this._putNoteBeginTime = this.FindJustBeforeQuantizeSnapping(renderInfo, this.GetRenderBeginTimeMs(), ref mousePosition);
+                    var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
+                    this._putNoteBeginTime = this.FindJustBeforeQuantizeSnapping(renderLayout, this.GetRenderBeginTimeMs(), mousePosition);
 
                     // キーのインデックスを計算する
                     // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
-                    this._putNoteKeyIndex = this.GetKeyIndex(renderInfo, ref mousePosition);
+                    this._putNoteKeyIndex = this.GetKeyIndex(renderLayout, mousePosition);
 
                     this.RelocateNoteRectangle(e);
                 }
             }
             else if (this.EditMode == EditMode.AudioFeatures)
             {
-                var mousePosition = e.GetPosition(this);
+                // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
+                var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
                 int beginTime = this.GetRenderBeginTimeMs();
-                (int x, int y) = scaling.ToRenderImageScaling(mousePosition.X, mousePosition.Y);
-                this._tempMousePos = (x, y);
+                this._tempMousePos = (mousePosition.X, mousePosition.Y);
 
-                int adjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition);
+                int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
                 this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
 
@@ -1136,9 +1095,6 @@ public partial class PlotEditor : UserControl
             }
         }
     }
-
-    private const int DirectionLeft = -1;
-    private const int DirectionRight = 1;
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
@@ -1160,8 +1116,8 @@ public partial class PlotEditor : UserControl
             this.RelocateNoteRectangle(e);
         else if (this._mouseMode == MouseControlMode.EditTiming)
         {
-            var renderInfo = this._viewBoxInfo;
-            var scaling = renderInfo.Scaling;
+            var renderLayout = this._renderLayout;
+            var scaling = renderLayout.Scaling;
 
             int beginTime = this.GetRenderBeginTimeMs();
 
@@ -1171,17 +1127,16 @@ public partial class PlotEditor : UserControl
                 var editing = this._editingTimingInfo!;
 
                 // マウスの位置を取得、オフセット分補正する
-                var mousePosition = e.GetPosition(this);
-                mousePosition.Offset(scaling.ToRenderImageScaling(-editing.OffsetX), 0);
+                var mousePosition = this.GetPhysicalMousePosition(renderLayout, e).GetOffset((int)scaling.ToScaled(-editing.OffsetX), 0);
 
                 // マウスで選択中の時間を計算し、範囲内に収める
-                int adjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition);
+                int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
                 adjustedTime = Math.Max(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.LowerTime100Ns));
                 if (editing.UpperTime100Ns != null)
                     adjustedTime = Math.Min(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.UpperTime100Ns.Value));
 
                 // レイアウト、編集中のタイミング情報を更新
-                int adjustedX = this.GetScoreLocationX(adjustedTime);
+                int adjustedX = this.GetScoreLocationX(renderLayout, adjustedTime);
                 editing.Target.MoveX(adjustedX);
                 editing.CurrentTimeMs = adjustedTime;
 
@@ -1191,17 +1146,18 @@ public partial class PlotEditor : UserControl
         }
         else if (this.EditMode == EditMode.AudioFeatures)
         {
-            var renderInfo = this._viewBoxInfo;
-            var mousePosition = e.GetPosition(this);
+            var renderLayout = this._renderLayout;
+            var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
             int beginTime = this.GetRenderBeginTimeMs();
-            var scaling = this._renderCommon.PartRenderInfo.Scaling;
-            (int x, int y) = scaling.ToRenderImageScaling(mousePosition.X, mousePosition.Y);
+            var scaling = this._renderCommon.ScreenLayout.Scaling;
             var prevPos = this._tempMousePos;
+            (int x, int y) = mousePosition;
+            (int x, int y)? _prevPos = prevPos != null ? (scaling.ToUnscaled(prevPos.Value.x), scaling.ToUnscaled(prevPos.Value.y)) : null;
 
-            int adjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition);
+            int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
-            bool isPianoRoll = !(renderInfo.DynamicsPosY <= mousePosition.Y);
+            bool isPianoRoll = !(renderLayout.HasDynamicsArea && renderLayout.DynamicsArea.Y <= y);
             // this.DebugText(isDynamics.ToString());
 
             this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
@@ -1212,15 +1168,15 @@ public partial class PlotEditor : UserControl
 
                 if (prevPos != null)
                 {
-                    var mousePosition2 = new Point(prevPos.Value.x, prevPos.Value.y);
-                    prevAdjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition2);
+                    var mousePosition2 = new LayoutPoint(prevPos.Value.x, prevPos.Value.y);
+                    prevAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition2);
                 }
 
                 if (isPianoRoll)
                 {
                     int scrollPosition = this.GetVScrollPosition();
 
-                    double currentPitch = (double)(renderInfo.UnscaledScoreHeight - (scrollPosition + (y - renderInfo.UnscaledRulerHeight)) - (renderInfo.KeyHeight / 2)) / renderInfo.KeyHeight;
+                    double currentPitch = (double)(renderLayout.ScoreImage.Height - (scrollPosition + renderLayout.ScoreArea.RelativeY(y)) - (renderLayout.PhysicalKeyHeight / 2)) / renderLayout.PhysicalKeyHeight;
                     double currentFrequency = AudioDataConverter.ScaleToFrequency(currentPitch);
 
                     int currentTime = adjustedTime;
@@ -1236,7 +1192,7 @@ public partial class PlotEditor : UserControl
                     }
                     else
                     {
-                        double previousPitch = (double)(renderInfo.UnscaledScoreHeight - (scrollPosition + (prevPos.Value.y - renderInfo.UnscaledRulerHeight)) - (renderInfo.KeyHeight / 2)) / renderInfo.KeyHeight;
+                        double previousPitch = (double)(renderLayout.ScoreImage.Height - (scrollPosition + (renderLayout.ScoreArea.RelativeY(_prevPos.Value.y))) - (renderLayout.PhysicalKeyHeight / 2)) / renderLayout.PhysicalKeyHeight;
                         double previousFrequency = AudioDataConverter.ScaleToFrequency(previousPitch);
 
                         (beginFrameTime, frequencies) = previousTime < currentTime
@@ -1255,8 +1211,8 @@ public partial class PlotEditor : UserControl
                 }
                 else
                 {
-                    int y2 = y - renderInfo.DynamicsPosY;
-                    double coe = 1d - ((double)y2) / renderInfo.DynamicRenderHeight;
+                    int y2 = y - renderLayout.DynamicsArea!.Y;
+                    double coe = 1d - ((double)y2) / renderLayout.DynamicsArea.Height;
 
                     var track = this.Track!;
                     if (track == null)
@@ -1300,12 +1256,11 @@ public partial class PlotEditor : UserControl
         {
             // this.RelocatePuttableNoteRectangle(e);
 
-            var scaling = this._renderCommon.PartRenderInfo.Scaling;
-            var point = e.GetPosition(this);
+            var scaling = this._renderCommon.ScreenLayout.Scaling;
+            var renderLayout = this._renderLayout;
+            var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-            (int x, int y) = scaling.ToRenderImageScaling(point.X, point.Y);
-
-            if (IsWithinPianoRoll(this._viewBoxInfo, ref point))
+            if (IsWithinPianoRoll(this._renderLayout, mousePosition))
             {
                 if (this._isTimingEditable)
                 {
@@ -1319,7 +1274,7 @@ public partial class PlotEditor : UserControl
                         {
                             // 選択中(マウスオーバー)判定
                             // 選択中判定となるのは最初に見つかった要素のみ。以降は未選択とする。
-                            bool isSelected = noSelected && target.IsCollisionDetection(x, y);
+                            bool isSelected = noSelected && target.IsCollisionDetection(mousePosition.X, mousePosition.Y);
                             if (isSelected)
                                 noSelected = false;
 
@@ -1353,24 +1308,26 @@ public partial class PlotEditor : UserControl
 
     private void RelocateSeekBarForSeeking(MouseEventArgs e)
     {
-        var renderInfo = this._viewBoxInfo;
+        var renderLayout = this._renderLayout;
         int beginTime = this.GetRenderBeginTimeMs();
 
-        double width = renderInfo.RenderWidth;
+        var scaling = renderLayout.Scaling;
+        double width = renderLayout.ScoreArea.Width;
 
-        var mousePosition = e.GetPosition(this);
-        double posX = mousePosition.X;
+        var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
+        double posX = renderLayout.ScoreArea.RelativeX(mousePosition.X);
 
-        if (posX < AutoScrollInnerWidth)
+        int marginWidth = (int)scaling.ToUnscaled(AutoScrollInnerWidth);
+        if (posX < marginWidth)
         {
             this._mouseTimer.Start();
         }
-        else if ((width - AutoScrollInnerWidth) < posX)
+        else if ((width - marginWidth) < posX)
         {
             this._mouseTimer.Start();
         }
 
-        int conditionTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
+        int conditionTime = GetConditionTime(renderLayout, beginTime, mousePosition);
 
         var noteLines = this._renderCommon?.RangeScoreRenderInfo?.NoteLines;
         if (this.IsQuantizeSnapping && noteLines != null)
@@ -1416,68 +1373,47 @@ public partial class PlotEditor : UserControl
 
     private void RelocateNoteRectangle(MouseEventArgs e)
     {
-        var renderInfo = this._viewBoxInfo;
+        var renderLayout = this._renderLayout;
         int beginTime = this.GetRenderBeginTimeMs();
 
         var trackScoreInfo = this._trackScoreInfo;
         if (trackScoreInfo != null)
         {
-            var mousePosition = e.GetPosition(this);
+            var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
             int conditionTime = this._putNoteBeginTime;
             int keyIndex = this._putNoteKeyIndex;
 
-            int currentCursorPosition = GetConditionTime(renderInfo, beginTime, ref mousePosition);
+            int currentCursorPosition = GetConditionTime(renderLayout, beginTime, mousePosition);
 
             decimal duration = ScoreDrawingUtil.GetNoteDuration(trackScoreInfo.Score, conditionTime, this.Quantize, currentCursorPosition);
 
             // 図形の位置を変更
-            this.MoveBorder(renderInfo, keyIndex, conditionTime - beginTime, (int)duration + 1);
+            this.MoveBorder(renderLayout, keyIndex, conditionTime - beginTime, (int)duration + 1);
         }
     }
 
-    private void RelocatePuttableNoteRectangle(MouseEventArgs e)
-    {
-        var renderInfo = this._viewBoxInfo;
-        int beginTime = this.GetRenderBeginTimeMs();
-
-        var trackScoreInfo = this._trackScoreInfo;
-        var mousePosition = e.GetPosition(this);
-        if (trackScoreInfo != null && IsWithinPianoRoll(renderInfo, ref mousePosition))
-        {
-            // キーのインデックスを計算する
-            // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
-            int keyIndex = this.GetKeyIndex(renderInfo, ref mousePosition);
-
-            int conditionTime = this.FindJustBeforeQuantizeSnapping(renderInfo, beginTime, ref mousePosition);
-
-            decimal duration = ScoreDrawingUtil.GetNoteDuration(trackScoreInfo.Score, conditionTime, this.Quantize);
-
-            this.MoveBorder(renderInfo, keyIndex, (conditionTime - beginTime), (int)duration + 1);
-        }
-    }
-
-    private int GetKeyIndex(ViewDrawingBoxInfo renderInfo, ref Point mousePosition)
+    private int GetKeyIndex(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
     {
         int scrollPosition = this.GetVScrollPosition();
-        return (int)((renderInfo.UnscaledScoreHeight - (scrollPosition + (mousePosition.Y - renderInfo.UnscaledRulerHeight))) / renderInfo.KeyHeight);
+
+        return (int)(renderLayout.ScoreArea.Height - ((scrollPosition + renderLayout.ScoreArea.RelativeY(mousePosition.Y)) / renderLayout.PhysicalKeyHeight));
     }
 
-    private void MoveBorder(ViewDrawingBoxInfo renderInfo, int keyIndex, int time, int duration)
+    private void MoveBorder(EditorRenderLayout renderLayout, int keyIndex, int time, int duration)
     {
-        var scaling = renderInfo.Scaling;
-
+        var scaling = renderLayout.Scaling;
 
         int keyIndexForTop = RenderConfig.KeyCount - keyIndex - 1;
-        double posY = (keyIndexForTop * renderInfo.KeyHeight) - this.GetVScrollPosition() + renderInfo.UnscaledRulerHeight;
+        double posY = scaling.ToScaled((keyIndexForTop * renderLayout.PhysicalKeyHeight) - this.GetVScrollPosition() + renderLayout.ScoreArea.Y);
 
-        double posX = scaling.ToDisplayScaling(time * renderInfo.WidthStretch);
-        double width = scaling.ToDisplayScaling(duration * renderInfo.WidthStretch);
+        double posX = renderLayout.GetRenderPosXFromTime(time);
+        double width = renderLayout.GetRenderPosXFromTime(duration);
 
         var element = this.PART_Rectangle;
         var beforeMargin = element.Margin;
         element.Margin = new(posX, posY, beforeMargin.Right, beforeMargin.Bottom);
         element.Width = width + 1;
-        element.Height = renderInfo.KeyHeight + 1;
+        element.Height = (int)scaling.ToScaled(renderLayout.PhysicalKeyHeight) + 1;
 
         element.Visibility = Visibility.Visible;
     }
@@ -1485,9 +1421,9 @@ public partial class PlotEditor : UserControl
     private void HideBorder()
         => this.PART_Rectangle.Visibility = Visibility.Collapsed;
 
-    private int FindJustBeforeQuantizeSnapping(ViewDrawingBoxInfo renderInfo, int beginTime, ref Point mousePosition)
+    private int FindJustBeforeQuantizeSnapping(EditorRenderLayout renderLayout, int beginTime, LayoutPoint mousePosition)
     {
-        int conditionTime = GetConditionTime(renderInfo, beginTime, ref mousePosition);
+        int conditionTime = GetConditionTime(renderLayout, beginTime, mousePosition);
 
         var noteLines = this._renderCommon?.RangeScoreRenderInfo?.NoteLines;
         if (noteLines != null)
@@ -1524,22 +1460,23 @@ public partial class PlotEditor : UserControl
         return conditionTime;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetConditionTime(ViewDrawingBoxInfo renderInfo, int timeMs, ref Point mousePosition)
+    private static int GetConditionTime(EditorRenderLayout renderLayout, int timeMs, LayoutPoint mousePosition)
     {
-        double width = renderInfo.UnscaledWidth;
-        double percentageX = mousePosition.X / width;
+        var scoreArea = renderLayout.ScoreArea;
 
-        return Math.Max(0, timeMs + (int)(width * percentageX / renderInfo.WidthStretch));
+        double width = scoreArea.Width;
+        double percentageX = scoreArea.RelativeX(mousePosition.X) / width;
+
+        return Math.Max(0, timeMs + (int)(width * percentageX / renderLayout.WidthStretch));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int GetConditionTimeRoundFrame(ViewDrawingBoxInfo renderInfo, int timeMs, ref Point mousePosition)
+    private static int GetConditionTimeRoundFrame(EditorRenderLayout renderLayout, int timeMs, LayoutPoint mousePosition)
     {
         // 最小単位
         const int unit = NeutrinoConfig.FramePeriod;
 
-        return (int)Math.Round(GetConditionTime(renderInfo, timeMs, ref mousePosition) / (double)unit) * unit;
+        return (int)Math.Round(GetConditionTime(renderLayout, timeMs, mousePosition) / (double)unit) * unit;
     }
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
@@ -1566,16 +1503,17 @@ public partial class PlotEditor : UserControl
             }
             else if (this.EditMode == EditMode.AudioFeatures)
             {
-                var mousePosition = e.GetPosition(this);
-                var renderInfo = this._viewBoxInfo;
-                var scaling = this._renderCommon.PartRenderInfo.Scaling;
+                var renderLayout = this._renderLayout;
+                var scaling = this._renderCommon.ScreenLayout.Scaling;
+                // var mousePosition = e.GetPosition(this);
+                var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
                 int beginTime = this.GetRenderBeginTimeMs();
-                (int x, int y) = scaling.ToRenderImageScaling(mousePosition.X, mousePosition.Y);
+                (int x, int y) = mousePosition;
 
-                int adjustedTime = GetConditionTimeRoundFrame(renderInfo, beginTime, ref mousePosition);
+                int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
-                if (IsWithinPianoRoll(renderInfo, ref mousePosition))
+                if (IsWithinPianoRoll(renderLayout, mousePosition))
                 {
                     // this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
 
@@ -1665,10 +1603,12 @@ public partial class PlotEditor : UserControl
         // TODO: スナッピング有効時にシークバー位置がずれるので何とかする
         // → シークバーの位置を再計算すれば何とかなりそう
 
-        var renderInfo = this._viewBoxInfo;
+        var renderLayout = this._renderLayout;
 
-        double width = renderInfo.RenderWidth;
-        double posX = Mouse.GetPosition(this).X;
+        var scoreArea = renderLayout.ScoreArea;
+
+        double width = scoreArea.Width;
+        double posX = scoreArea.RelativeX(this.GetPhysicalMousePosition(renderLayout).X);
 
         double scaleX = this.ScaleX;
         if (posX < AutoScrollInnerWidth)
@@ -1688,12 +1628,12 @@ public partial class PlotEditor : UserControl
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsWithinRuler(ViewDrawingBoxInfo renderInfo, ref Point mousePosition)
-        => mousePosition.Y <= renderInfo.RenderRulerHeight;
+    private static bool IsWithinRuler(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
+        => renderLayout.RulerArea.IsContainsY(mousePosition.Y);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsWithinPianoRoll(ViewDrawingBoxInfo renderInfo, ref Point mousePosition)
-        => mousePosition.Y > renderInfo.RenderRulerHeight;
+    private static bool IsWithinPianoRoll(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
+        => renderLayout.ScoreArea.IsContainsY(mousePosition.Y);
 
     private static string GetLyrics(PartScore score)
         => string.Concat(score.Phrases.Select(i => i.Lyrics.Length > 1 ? $"({i.Lyrics})" : i.Lyrics));
@@ -1783,5 +1723,23 @@ public partial class PlotEditor : UserControl
             values[idx] = (delta * T.CreateChecked(idx) / coe) + begin;
 
         return values;
+    }
+
+    private static LayoutPoint ToUnscaled(RenderScaleInfo scaling, Point point)
+        => new((int)scaling.ToUnscaled(point.X), (int)scaling.ToUnscaled(point.Y));
+
+    private static LayoutPoint ToUnscaled(RenderScaleInfo scaling, ref Point point)
+        => new((int)scaling.ToUnscaled(point.X), (int)scaling.ToUnscaled(point.Y));
+
+    private LayoutPoint GetPhysicalMousePosition(EditorRenderLayout renderLayout)
+    {
+        var position = Mouse.GetPosition(this.SKElement);
+        return ToUnscaled(renderLayout.Scaling, ref position);
+    }
+
+    private LayoutPoint GetPhysicalMousePosition(EditorRenderLayout renderLayout, MouseEventArgs e)
+    {
+        var position = e.GetPosition(this.SKElement);
+        return ToUnscaled(renderLayout.Scaling, ref position);
     }
 }

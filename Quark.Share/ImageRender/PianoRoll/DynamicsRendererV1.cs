@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
-using static Quark.Controls.ViewDrawingBoxInfo;
+using static Quark.Controls.EditorRenderLayout;
 using Quark.Extensions;
 
 namespace Quark.ImageRender.Score;
@@ -26,10 +26,8 @@ internal class DynamicsRendererV1
 
         var rangeScoreInfo = ri.RangeScoreRenderInfo;
         var rangeInfo = ri.RenderRange;
-
-        var renderInfo = ri.PartRenderInfo;
-
-        var scaling = renderInfo.Scaling;
+        var renderLayout = ri.ScreenLayout;
+        var scaling = renderLayout.Scaling;
 
         // 描画開始・終了位置
         int beginTime = rangeInfo.BeginTime;
@@ -39,7 +37,11 @@ internal class DynamicsRendererV1
         int beginFrameIdx = beginTime / RenderConfig.FramePeriod;
         int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
         int frames = endFrameIdx - beginFrameIdx;
-        (int renderWidth, int renderHeight) = (renderInfo.RenderDisplayWidth, renderInfo.DynamicRenderHeight);
+
+        if (!renderLayout.HasDynamicsArea)
+            return new SKBitmap(1, 1, SKColorType.Rgb888x, SKAlphaType.Unknown);
+
+        (int renderWidth, int renderHeight) = renderLayout.DynamicsArea.Size;
 
         if (ri.Track is not NeutrinoV1Track track || rangeScoreInfo == null)
             return new(renderWidth, renderHeight, SKColorType.Rgb888x, SKAlphaType.Unknown);
@@ -66,15 +68,13 @@ internal class DynamicsRendererV1
         // Mgcデータの下限値
         const double min = -30d;
 
-        const int Period = RenderConfig.FramePeriod;
-
         var dynamicsGroups = targetPhrases
              .Where(p => p.Mgc is not null)
-             .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.Mgc!, min, dimension, p.BeginTime / Period))
+             .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.Mgc!, min, dimension, NeutrinoUtil.MsToFrameIndex(p.BeginTime)))
              .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
              .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
 
-        int offsetMs = (beginFrameIdx * Period) - beginTime;
+        int offsetMs = NeutrinoUtil.FrameIndexToMs(beginFrameIdx) - beginTime;
 
         var list = new List<(SKPoint[] origPoints, SKPoint[] editedPoints)>(phrases.Length);
 
@@ -132,7 +132,7 @@ internal class DynamicsRendererV1
                             double value = mgc[frameIdx * dimension];
                             double value2 = editedMgc[frameIdx * dimension];
 
-                            float x = scaling.ToDisplayScaling((offsetMs + ((frameIdx + dynamics.PhraseBeginFrameIdx) * Period) - beginTime) * renderInfo.WidthStretch);
+                            float x = renderLayout.GetRenderPosXFromTime(offsetMs + NeutrinoUtil.MsToFrameIndex(frameIdx + dynamics.PhraseBeginFrameIdx) - beginTime);
 
                             origPoints[pointsIdx] = new(x, (float)((1 - ((value + (-min)) / (-min))) * renderHeight));
                             editedPoints[pointsIdx] = new(x, (float)((1 - ((value2 + (-min)) / (-min))) * renderHeight));

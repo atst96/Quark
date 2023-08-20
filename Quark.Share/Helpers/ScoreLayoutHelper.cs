@@ -58,8 +58,7 @@ public class ScoreLayoutHelper
         var ri = renderCommon;
 
         var rangeInfo = ri.RenderRange;
-        var renderInfo = ri.PartRenderInfo;
-        var scaling = renderInfo.Scaling;
+        var renderLayout = ri.ScreenLayout;
 
         int beginTime = rangeInfo.BeginTime;
         int endTime = rangeInfo.EndTime;
@@ -76,8 +75,9 @@ public class ScoreLayoutHelper
 
         var targets = new List<TimingHandle>(handles.Count);
 
-        int y = renderInfo.DisplayScorePosY;
-        int h = renderInfo.RenderDisplayScoreHeight;
+        int y = renderLayout.ScoreArea.Y;
+        int h = renderLayout.ScoreArea.Height;
+
 
         foreach (var handle in handles)
         {
@@ -93,7 +93,7 @@ public class ScoreLayoutHelper
                 continue;
 
             int time = NeutrinoUtil.TimingTimeToMs(t.EditedBeginTime100Ns);
-            int x = scaling.ToDisplayScaling((time - beginTime) * renderInfo.WidthStretch);
+            int x = renderLayout.GetRenderPosXFromTime(time - beginTime) + renderLayout.ScoreArea.X;
 
             // 行レベル
             int level = GetLevel(latestAreaXPerLevel, x);
