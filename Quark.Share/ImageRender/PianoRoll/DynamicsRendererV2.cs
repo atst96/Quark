@@ -3,9 +3,7 @@ using System.Runtime.InteropServices;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
-using static Quark.Controls.EditorRenderLayout;
 using Quark.Extensions;
-using System.Reflection.Metadata.Ecma335;
 
 namespace Quark.ImageRender.Score;
 
@@ -69,9 +67,13 @@ internal class DynamicsRendererV2
         //}
 
         // Mgcデータの下限値
-        const float lower = -6.0f;
-        const float upper = 1.0f;
-        const float period = upper - lower;
+
+        float lower = -6.0f;
+
+        float padding = -lower;
+        float linearLower = ToLinear(-6.0f + padding);
+        float linearUpper = ToLinear(1.0f + padding);
+        float linearDelta = linearUpper - linearLower;
 
         var dynamicsGroups = targetPhrases
              .Where(p => p.Mspec is not null)
@@ -102,7 +104,7 @@ internal class DynamicsRendererV2
                 {
                     var phrase = dynamics.Phrase;
                     float[] origMspec = phrase.Mspec!;
-                    float[] editedMspec = phrase.GetEditedMspec()!;
+                    float[] editedMspec = phrase.GetEditingMspec()!;
 
                     // 描画開始／終了インデックス
                     (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(
@@ -125,11 +127,11 @@ internal class DynamicsRendererV2
                             int x = frameIdx + dynamics.PhraseBeginFrameIdx - beginFrameIdx;
                             int y = (dimension - dim - 1) * frames;
 
-                            double value = editedMspec[(frameIdx * dimension) + dim];
+                            double value = ToLinear(editedMspec[(frameIdx * dimension) + dim] + padding);
 
                             // byte color = (byte)(baseColor - ((value - min) / (-min) * baseColor));
                             const byte baseColor = 255;
-                            byte color = (byte)((value - lower) / (period) * baseColor);
+                            byte color = (byte)((value - linearLower) / linearDelta * baseColor);
 
                             pixels[y + x].SetColor(allColor: color);
                         }
@@ -139,10 +141,15 @@ internal class DynamicsRendererV2
 
                             float x = renderLayout.GetRenderPosXFromTime(offsetMs + NeutrinoUtil.FrameIndexToMs(frameIdx + dynamics.PhraseBeginFrameIdx) - beginTime);
 
-                            editedPoints[pointsIdx] = new(x, (float)((1 - ((dynamicsValue - lower) / period)) * renderHeight));
-                            origPoints[pointsIdx] = new(x, (float)((1 - ((origValue - lower) / period)) * renderHeight));
-                            minPoints[pointsIdx] = new(x, (float)((1 - ((min - lower) / period)) * renderHeight));
-                            maxPoints[pointsIdx] = new(x, (float)((1 - ((max - lower) / period)) * renderHeight));
+                            dynamicsValue = ToLinear(dynamicsValue + padding);
+                            origValue = ToLinear(origValue + padding);
+                            min = ToLinear(min + padding);
+                            max = ToLinear(max + padding);
+
+                            editedPoints[pointsIdx] = new(x, (float)((1 - ((dynamicsValue - linearLower) / linearDelta)) * renderHeight));
+                            origPoints[pointsIdx] = new(x, (float)((1 - ((origValue - linearLower) / linearDelta)) * renderHeight));
+                            minPoints[pointsIdx] = new(x, (float)((1 - ((min - linearLower) / linearDelta)) * renderHeight));
+                            maxPoints[pointsIdx] = new(x, (float)((1 - ((max - linearLower) / linearDelta)) * renderHeight));
 
                             ++pointsIdx;
                         }
@@ -176,4 +183,8 @@ internal class DynamicsRendererV2
 
         return image;
     }
+
+    private static float ToLinear(float v) => v == 0f ? 0f : float.Log10(v);
+
+    private static double ToLinear(double v) => v == 0d ? 0d : double.Log10(v);
 }

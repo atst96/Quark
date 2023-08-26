@@ -71,7 +71,7 @@ internal class PitchRendererV1
             {
                 var phrase = pitch.Phrase;
                 double[] f0 = phrase.F0!;
-                double[] editedF0 = phrase.GetEditedF0()!;
+                double[] editedF0 = phrase.GetEditingF0()!;
 
                 // 描画開始／終了インデックス
                 (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(

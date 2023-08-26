@@ -34,5 +34,6 @@ public interface INeutrinoTrack
     public void ChangeTiming(int timingIndex, int timeMs);
 
     internal void RaiseFeatureChanged();
-    public void ReSynthesis(DateTime updatedDateTime);
+
+    public void ReSynthesis();
 }

@@ -1091,8 +1091,6 @@ public partial class PlotEditor : UserControl
                 int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
                 this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
-
-                this._changeDynamicsDateTime = DateTime.Now;
             }
         }
     }
@@ -1297,7 +1295,6 @@ public partial class PlotEditor : UserControl
     }
 
     private Cursor _cursor = Cursors.Arrow;
-    private DateTime? _changeDynamicsDateTime = null;
 
     private void SetCursor(Cursor cursor)
     {
@@ -1517,14 +1514,7 @@ public partial class PlotEditor : UserControl
                 if (IsWithinPianoRoll(renderLayout, mousePosition))
                 {
                     // this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
-
-                    var updatedDateTime = this._changeDynamicsDateTime;
-                    if (updatedDateTime != null)
-                    {
-                        this.Track?.ReSynthesis(updatedDateTime.Value);
-
-                        this._changeDynamicsDateTime = null;
-                    }
+                    this.Track?.ReSynthesis();
                 }
 
                 this._tempMousePos = null;

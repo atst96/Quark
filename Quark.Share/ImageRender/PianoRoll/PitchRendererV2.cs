@@ -4,7 +4,6 @@ using Quark.Extensions;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
-using static Quark.Controls.EditorRenderLayout;
 
 namespace Quark.ImageRender.Score;
 
@@ -71,7 +70,7 @@ internal class PitchRendererV2
             {
                 var phrase = pitch.Phrase;
                 float[] f0 = phrase.F0!;
-                float[] editedF0 = phrase.GetEditedF0()!;
+                float[] editedF0 = phrase.GetEditingF0()!;
 
                 // 描画開始／終了インデックス
                 (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(

@@ -29,8 +29,16 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
     public float[]? Bap { get; private set; }
 
+    /// <summary>編集中のF0値</summary>
+    public float[]? EditingF0 { get; private set; }
+
+    /// <summary>編集済みF0値</summary>
     public float[]? EditedF0 { get; private set; }
 
+    /// <summary>編集中のダイナミクス値</summary>
+    public float[]? EditingDynamics { get; private set; }
+
+    /// <summary>編集後のダイナミクス値</summary>
     public float[]? EditedDynamics { get; private set; }
 
     public DateTime LastUpdated { get; private set; }
@@ -104,20 +112,14 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
         this.Mspec = null;
         this.Mgc = null;
         this.Bap = null;
+        this.EditingF0 = null;
         this.EditedF0 = null;
+        this.EditingDynamics = null;
         this.EditedDynamics = null;
     }
 
-    /// <summary>
-    /// 編集内容を反映したF0を取得する。
-    /// </summary>
-    /// <returns></returns>
-    [return: NotNullIfNotNull(nameof(F0))]
-    public float[]? GetEditedF0()
+    private static float[]? MergeF0(float[]? srcF0, float[]? edited)
     {
-        float[]? srcF0 = this.F0;
-        float[]? edited = this.EditedF0;
-
         // 編集対象が未設定(null)であればnullを返す
         // 未編集であれば、編集前の値を返す
         if (srcF0 == null)
@@ -139,28 +141,42 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     }
 
     /// <summary>
-    /// 編集内容を反映したMspecを取得する。
+    /// 編集中の内容を反映したF0を取得する。
     /// </summary>
     /// <returns></returns>
-    [return: NotNullIfNotNull(nameof(this.Mspec))]
-    public float[]? GetEditedMspec()
-    {
-        float[]? srcMspec = this.Mspec;
-        float[]? edited = this.EditedDynamics;
+    [return: NotNullIfNotNull(nameof(F0))]
+    public float[]? GetEditingF0()
+        => MergeF0(this.F0, this.EditingF0 ?? this.EditedF0);
 
+    /// <summary>
+    /// 編集内容を反映したF0を取得する。
+    /// </summary>
+    /// <returns></returns>
+    [return: NotNullIfNotNull(nameof(F0))]
+    public float[]? GetEditedF0()
+        => MergeF0(this.F0, this.EditedF0);
+
+    /// <summary>
+    /// 編集内容を反映したMspecを取得する。
+    /// </summary>
+    /// <param name="origMspec"></param>
+    /// <param name="dynamics"></param>
+    /// <returns></returns>
+    public static float[]? MergeMspec(float[]? origMspec, float[]? dynamics)
+    {
         // 編集対象が未設定(null)であればnullを返す
         // 未編集であれば、編集前の値を返す
-        if (srcMspec == null)
+        if (origMspec == null)
             return null;
-        else if (ArrayUtil.IsNullOrEmpty(edited))
-            return srcMspec;
+        else if (ArrayUtil.IsNullOrEmpty(dynamics))
+            return origMspec;
 
         // Mspecをコピーし、各フレームごとの全要素に"編集後の値と編集前の平均値との差分"を加算する
-        float[] destMspec = ArrayUtil.Clone(srcMspec);
-        int frameLength = Math.Min(edited.Length, srcMspec.Length / MspecDimension);
+        float[] destMspec = ArrayUtil.Clone(origMspec);
+        int frameLength = Math.Min(dynamics.Length, origMspec.Length / MspecDimension);
         for (int frameIdx = 0; frameIdx < frameLength; ++frameIdx)
         {
-            float value = edited[frameIdx];
+            float value = dynamics[frameIdx];
             if (!float.IsNaN(value))
             {
                 var frameValues = destMspec.AsSpan(frameIdx * MspecDimension, MspecDimension);
@@ -171,25 +187,37 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
         return destMspec;
     }
 
-    internal void EditF0(int time, float frequency)
-    {
-        var f0 = this.EditedF0;
-        if (ArrayUtil.IsNullOrEmpty(f0) || !(this.BeginTime <= time && time < this.EndTime))
-            return;
+    /// <summary>
+    /// 編集中内容を反映したMspecを取得する。
+    /// </summary>
+    /// <returns></returns>
+    [return: NotNullIfNotNull(nameof(this.Mspec))]
+    public float[]? GetEditingMspec()
+        => MergeMspec(this.Mspec, this.EditingDynamics ?? this.EditedDynamics);
 
-        int index = (time - this.BeginTime) / FramePeriod;
+    /// <summary>
+    /// 編集内容を反映したMspecを取得する。
+    /// </summary>
+    /// <returns></returns>
+    [return: NotNullIfNotNull(nameof(this.Mspec))]
+    public float[]? GetEditedMspec()
+        => MergeMspec(this.Mspec, this.EditedDynamics);
 
-        if (f0.Length < index)
-            return;
+    /// <summary>
+    /// 編集中のF0値を取得する。編集情報がなければ編集後情報から生成する。
+    /// </summary>
+    /// <returns></returns>
+    private Span<float> GetF0ForEdit()
+        => this.EditingF0 ??= ArrayUtil.Clone(this.EditedF0);
 
-        f0[index] = frequency;
-
-        this.OnUpdated();
-    }
-
+    /// <summary>
+    /// F0値を編集情報に追加する。
+    /// </summary>
+    /// <param name="editBeginTime">編集開始時間</param>
+    /// <param name="frequencies">編集データ</param>
     public void EditF0(int editBeginTime, Span<float> frequencies)
     {
-        Span<float> f0 = this.EditedF0;
+        Span<float> f0 = this.GetF0ForEdit();
         if (frequencies.Length < 1 || f0.Length < 1)
             return;
 
@@ -215,9 +243,21 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
         this.OnUpdated();
     }
 
+    /// <summary>
+    /// 編集中のダイナミクス値を取得する。編集情報がなければ編集後情報から生成する。
+    /// </summary>
+    /// <returns></returns>
+    private Span<float> GetDynamicsForEdit()
+        => this.EditingDynamics ??= ArrayUtil.Clone(this.EditedDynamics);
+
+    /// <summary>
+    /// ダイナミクス値を編集情報に追加する。
+    /// </summary>
+    /// <param name="editBeginTime">編集開始時間</param>
+    /// <param name="dynamicsValues">編集データ</param>
     public void EditDynamics(int editBeginTime, Span<float> dynamicsValues)
     {
-        Span<float> dynamics = this.EditedDynamics;
+        Span<float> dynamics = this.GetDynamicsForEdit();
         if (dynamicsValues.Length < 1 || dynamics.Length < 1)
             return;
 
@@ -248,10 +288,11 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     /// </summary>
     /// <param name="time">編集時点</param>
     /// <param name="value">値</param>
+    [Obsolete]
     public void EditDynamics(int time, float value)
     {
-        var dynamics = this.EditedDynamics;
-        if (ArrayUtil.IsNullOrEmpty(dynamics) || !(this.BeginTime <= time && time < this.EndTime))
+        var dynamics = this.GetDynamicsForEdit();
+        if (dynamics.Length < 1 || !(this.BeginTime <= time && time < this.EndTime))
             return;
 
         int index = (time - this.BeginTime) / FramePeriod;
@@ -261,7 +302,7 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
         dynamics[index] = value;
 
-        this.LastUpdated = DateTime.Now;
+        this.OnUpdated();
     }
 
     /// <summary>
@@ -282,6 +323,38 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
         this.OnUpdated();
     }
+
+    /// <summary>
+    /// F0値が編集中かどうかを取得する。
+    /// </summary>
+    public bool IsF0Editing()
+        => this.EditedF0 != null;
+
+    /// <summary>
+    /// 編集中のF0値を編集済み値に反映する。
+    /// </summary>
+    public void DetermineEditingF0()
+        => (this.EditedF0, this.EditingF0) = (this.EditingF0, null);
+
+    /// <summary>
+    /// ダイナミクス値が編集中かどうかを取得する。
+    /// </summary>
+    /// <returns></returns>
+    public bool IsDynamicsEditing()
+        => this.EditedDynamics != null;
+
+    /// <summary>
+    /// 編集中のF0値を編集済み値に反映する。
+    /// </summary>
+    public void DetermineEditingDynamics()
+        => (this.EditedDynamics, this.EditingDynamics) = (this.EditingDynamics, null);
+
+    /// <summary>
+    /// 音響情報が編集中かどうかを取得する。
+    /// </summary>
+    /// <returns></returns>
+    public bool IsAudioFeatureEditing()
+        => this.IsF0Editing() || this.IsDynamicsEditing();
 
     private void OnUpdated()
     {

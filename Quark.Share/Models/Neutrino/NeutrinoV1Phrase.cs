@@ -27,8 +27,16 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
 
     public double[]? Bap { get; private set; }
 
+    /// <summary>編集中のF0値</summary>
+    public double[]? EditingF0 { get; private set; }
+
+    /// <summary>編集済みF0値</summary>
     public double[]? EditedF0 { get; private set; }
 
+    /// <summary>編集中のダイナミクス値</summary>
+    public double[]? EditingDynamics { get; private set; }
+
+    /// <summary>編集後のダイナミクス値</summary>
     public double[]? EditedDynamics { get; private set; }
 
     public DateTime LastUpdated { get; private set; }
@@ -95,9 +103,47 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
         this.F0 = null;
         this.Mgc = null;
         this.Bap = null;
+        this.EditingF0 = null;
         this.EditedF0 = null;
+        this.EditingDynamics = null;
         this.EditedDynamics = null;
     }
+
+    /// <summary>
+    /// F0値に編集内容を反映する。
+    /// </summary>
+    /// <param name="origF0">未編集のF0値</param>
+    /// <param name="newF0">編集後のF0値</param>
+    /// <returns></returns>
+    private static double[]? MergeF0(double[]? origF0, double[]? newF0)
+    {
+        // 編集対象が未設定(null)であればnullを返す
+        // 未編集であれば、編集前の値を返す
+        if (origF0 == null)
+            return null;
+        else if (ArrayUtil.IsNullOrEmpty(newF0))
+            return origF0;
+
+        // F0をコピーし、各フレームのF0値を編集後の値に書き換える
+        double[] destF0 = ArrayUtil.Clone(origF0);
+        int frameLength = Math.Min(newF0.Length, origF0.Length);
+        for (int frameIdx = 0; frameIdx < frameLength; ++frameIdx)
+        {
+            double value = newF0[frameIdx];
+            if (!double.IsNaN(value))
+                destF0[frameIdx] = value;
+        }
+
+        return destF0;
+    }
+
+    /// <summary>
+    /// 編集中の内容を反映したF0を取得する。
+    /// </summary>
+    /// <returns></returns>
+    [return: NotNullIfNotNull(nameof(F0))]
+    public double[]? GetEditingF0()
+        => MergeF0(this.F0, (this.EditingF0 ?? this.EditedF0));
 
     /// <summary>
     /// 編集内容を反映したF0を取得する。
@@ -105,30 +151,7 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     /// <returns></returns>
     [return: NotNullIfNotNull(nameof(F0))]
     public double[]? GetEditedF0()
-    {
-        double[]? srcF0 = this.F0;
-        double[]? edited = this.EditedF0;
-
-        // 編集対象が未設定(null)であればnullを返す
-        // 未編集であれば、編集前の値を返す
-        if (srcF0 == null)
-            return null;
-        else if (ArrayUtil.IsNullOrEmpty(edited))
-            return srcF0;
-
-        // F0をコピーし、各フレームのF0値を編集後の値に書き換える
-        double[] destF0 = ArrayUtil.Clone(srcF0);
-        int frameLength = Math.Min(edited.Length, srcF0.Length);
-        for (int frameIdx = 0; frameIdx < frameLength; ++frameIdx)
-        {
-            double value = edited[frameIdx];
-
-            if (!double.IsNaN(value))
-                destF0[frameIdx] = value;
-        }
-
-        return destF0;
-    }
+        => MergeF0(this.F0, this.EditedF0);
 
     /// <summary>
     /// 編集内容を反映したMGCを取得する。
@@ -161,25 +184,21 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
         return destMgc;
     }
 
-    public void EditF0(int time, double frequency)
-    {
-        var f0 = this.EditedF0;
-        if (ArrayUtil.IsNullOrEmpty(f0) || !(this.BeginTime <= time && time < this.EndTime))
-            return;
+    /// <summary>
+    /// 編集中のF0値を取得する。編集情報がなければ編集後情報から生成する。
+    /// </summary>
+    /// <returns></returns>
+    private Span<double> GetF0ForEdit()
+        => this.EditingF0 ??= ArrayUtil.Clone(this.EditedF0);
 
-        int index = (time - this.BeginTime) / FramePeriod;
-
-        if (f0.Length < index)
-            return;
-
-        f0[index] = frequency;
-
-        this.OnUpdated();
-    }
-
+    /// <summary>
+    /// F0値を編集情報に追加する。
+    /// </summary>
+    /// <param name="editBeginTime">編集開始時間</param>
+    /// <param name="frequencies">編集データ</param>
     public void EditF0(int editBeginTime, Span<double> frequencies)
     {
-        Span<double> f0 = this.EditedF0;
+        Span<double> f0 = this.GetEditedF0();
         if (frequencies.Length < 1 || f0.Length < 1)
             return;
 
@@ -205,9 +224,21 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
         this.OnUpdated();
     }
 
+    /// <summary>
+    /// 編集中のダイナミクス値を取得する。編集情報がなければ編集後情報から生成する。
+    /// </summary>
+    /// <returns></returns>
+    private Span<double> GetDynamicsForEdit()
+        => this.EditingDynamics ??= ArrayUtil.Clone(this.EditedDynamics);
+
+    /// <summary>
+    /// ダイナミクス値を編集情報に追加する。
+    /// </summary>
+    /// <param name="editBeginTime">編集開始時間</param>
+    /// <param name="dynamicsValues">編集データ</param>
     public void EditDynamics(int editBeginTime, Span<double> dynamicsValues)
     {
-        Span<double> dynamics = this.EditedDynamics;
+        Span<double> dynamics = this.GetDynamicsForEdit();
         if (dynamicsValues.Length < 1 || dynamics.Length < 1)
             return;
 
@@ -238,9 +269,10 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     /// </summary>
     /// <param name="time">編集時点</param>
     /// <param name="value">値</param>
+    [Obsolete]
     public void EditDynamics(int time, double value)
     {
-        var dynamics = this.EditedDynamics;
+        var dynamics = this.GetEditedMgc();
         if (ArrayUtil.IsNullOrEmpty(dynamics) || !(this.BeginTime <= time && time < this.EndTime))
             return;
 
@@ -272,6 +304,38 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
 
         this.OnUpdated();
     }
+
+    /// <summary>
+    /// F0値が編集中かどうかを取得する。
+    /// </summary>
+    public bool IsF0Editing()
+        => this.EditedF0 != null;
+
+    /// <summary>
+    /// 編集中のF0値を編集済み値に反映する。
+    /// </summary>
+    public void DetermineEditingF0()
+        => (this.EditedF0, this.EditingF0) = (this.EditingF0, null);
+
+    /// <summary>
+    /// ダイナミクス値が編集中かどうかを取得する。
+    /// </summary>
+    /// <returns></returns>
+    public bool IsDynamicsEditing()
+        => this.EditedDynamics != null;
+
+    /// <summary>
+    /// 編集中のF0値を編集済み値に反映する。
+    /// </summary>
+    public void DetermineEditingDynamics()
+        => (this.EditedDynamics, this.EditingDynamics) = (this.EditingDynamics, null);
+
+    /// <summary>
+    /// 音響情報が編集中かどうかを取得する。
+    /// </summary>
+    /// <returns></returns>
+    public bool IsAudioFeatureEditing()
+        => this.IsF0Editing() || this.IsDynamicsEditing();
 
     private void OnUpdated()
     {

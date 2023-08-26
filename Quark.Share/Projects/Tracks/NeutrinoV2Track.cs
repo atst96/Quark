@@ -366,9 +366,16 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
         this.WaveData.SilenceAtTimeRange(phrase.BeginTime, phrase.EndTime);
     }
 
-    public void ReSynthesis(DateTime updatedDateTime)
+    public void ReSynthesis()
     {
-        this.Project.Session.AddAudioRenderQueue(this, this.Phrases.Where(p => p.LastUpdated >= updatedDateTime));
+        var phrases = this.Phrases.Where(p => p.IsAudioFeatureEditing());
+        if (!phrases.Any())
+            return;
+
+        foreach (var p in phrases)
+            ((INeutrinoPhrase)p).DetermineEditingAudioFeatures();
+
+        this.Project.Session.AddAudioRenderQueue(this, phrases);
     }
 
     private IEnumerable<NeutrinoV2Phrase> GetPhrases(int beginTime, int endTime)
