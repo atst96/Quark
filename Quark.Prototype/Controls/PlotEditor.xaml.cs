@@ -1051,7 +1051,7 @@ public partial class PlotEditor : UserControl
                 {
                     this.ChangeMouseMode(MouseControlMode.Seek);
                 }
-                }
+            }
             else if (IsWithinEditArea(renderLayout, mousePos))
             {
                 if (this.EditMode == EditMode.ScoreAndTiming)
@@ -1091,38 +1091,38 @@ public partial class PlotEditor : UserControl
 
                     this.RelocateNoteRectangle(e);
                 }
-            else if (this.EditMode == EditMode.AudioFeatures)
-            {
-                // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
-                var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
-
-                var scoreArea = renderLayout.ScoreArea;
-                var dynamicsArea = renderLayout.DynamicsArea;
-
-                int beginTime = this.GetRenderBeginTimeMs();
-                int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
-                this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
-
-                if (scoreArea.IsContains(mousePosition))
+                else if (this.EditMode == EditMode.AudioFeatures)
                 {
-                    double pitch = this.GetPitchFromMousePosition(renderLayout, mousePosition);
+                    // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
+                    var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-                    this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
+                    var scoreArea = renderLayout.ScoreArea;
+                    var dynamicsArea = renderLayout.DynamicsArea;
 
-                    this.EditF0(adjustedTime, EnumerableUtil.ToEnumerable(pitch));
-                }
-                else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
-                {
-                    double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
-                    double frequency = DynamicsCoeToFrequency(this.Track!, coe);
+                    int beginTime = this.GetRenderBeginTimeMs();
+                    int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
+                    this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
 
-                    this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
+                    if (scoreArea.IsContains(mousePosition))
+                    {
+                        double pitch = this.GetPitchFromMousePosition(renderLayout, mousePosition);
 
-                    this.EditDynamics(adjustedTime, EnumerableUtil.ToEnumerable(frequency));
+                        this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
+
+                        this.EditF0(adjustedTime, EnumerableUtil.ToEnumerable(pitch));
+                    }
+                    else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
+                    {
+                        double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
+                        double frequency = DynamicsCoeToFrequency(this.Track!, coe);
+
+                        this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
+
+                        this.EditDynamics(adjustedTime, EnumerableUtil.ToEnumerable(frequency));
+                    }
                 }
             }
         }
-    }
     }
 
     private void OnMouseMove(object sender, MouseEventArgs e)
@@ -1181,13 +1181,15 @@ public partial class PlotEditor : UserControl
             var renderLayout = this._renderLayout;
             var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
+            if (IsWithinEditArea(renderLayout, mousePosition))
+                cursor = Cursors.Pen;
 
             if (e.LeftButton == MouseButtonState.Pressed)
             {
-            int beginTime = this.GetRenderBeginTimeMs();
-            int frameAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
+                int beginTime = this.GetRenderBeginTimeMs();
+                int frameAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
-            this.RelocateSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
+                this.RelocateSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
 
                 var editingInfo = this._editingInfo;
                 if (editingInfo is PitchEditingInfo pitchEditing)
