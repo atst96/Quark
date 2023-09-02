@@ -1097,7 +1097,7 @@ public partial class PlotEditor : UserControl
 
                     this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
 
-                    this.EditF0(adjustedTime, pitch);
+                    this.EditF0(adjustedTime, EnumerableUtil.ToEnumerable(pitch));
                 }
                 else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
                 {
@@ -1106,7 +1106,7 @@ public partial class PlotEditor : UserControl
 
                     this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
 
-                    this.EditDynamics(adjustedTime, frequency);
+                    this.EditDynamics(adjustedTime, EnumerableUtil.ToEnumerable(frequency));
                 }
             }
         }
@@ -1187,20 +1187,20 @@ public partial class PlotEditor : UserControl
                     double previousPitch = pitchEditing.PreviousPitch;
 
                     int beginFrameTime;
-                    double[] frequencies;
+                    IEnumerable<double> frequencies;
 
                     int length = Math.Abs(NeutrinoUtil.MsToFrameIndex(currentTime - previousTime)) + 1;
                     if (length <= 1)
                     {
-                        (beginFrameTime, frequencies) = (currentTime, new double[] { currentPitch });
+                        (beginFrameTime, frequencies) = (currentTime, EnumerableUtil.ToEnumerable(currentPitch));
                     }
                     else
                     {
                         (beginFrameTime, frequencies) = previousTime < currentTime
                             // 右方向の変更
-                            ? (previousTime, CreateArithmeticSequenceArray(previousPitch, currentPitch, length))
+                            ? (previousTime, EnumearteArithmeticSequence(previousPitch, currentPitch, length))
                             // 左方向への変更
-                            : (currentTime, CreateArithmeticSequenceArray(currentPitch, previousPitch, length));
+                            : (currentTime, EnumearteArithmeticSequence(currentPitch, previousPitch, length));
                     }
 
                     this.EditF0(beginFrameTime, frequencies);
@@ -1219,20 +1219,20 @@ public partial class PlotEditor : UserControl
                     double previousDynamics = dynamicsEditingInfo.PreviousDynamics;
 
                     int beginFrameTime;
-                    double[] frequencies;
+                    IEnumerable<double> frequencies;
 
                     int length = Math.Abs(NeutrinoUtil.MsToFrameIndex(currentTime - previousTime)) + 1;
                     if (length <= 1)
                     {
-                        (beginFrameTime, frequencies) = (currentTime, new double[] { currentFrequency });
+                        (beginFrameTime, frequencies) = (currentTime, EnumerableUtil.ToEnumerable(currentFrequency));
                     }
                     else
                     {
                         (beginFrameTime, frequencies) = previousTime < currentTime
                             // 右方向の変更
-                            ? (previousTime, CreateArithmeticSequenceArray(previousDynamics, currentFrequency, length))
+                            ? (previousTime, EnumearteArithmeticSequence(previousDynamics, currentFrequency, length))
                             // 左方向への変更
-                            : (currentTime, CreateArithmeticSequenceArray(currentFrequency, previousDynamics, length));
+                            : (currentTime, EnumearteArithmeticSequence(currentFrequency, previousDynamics, length));
                     }
 
                     this.EditDynamics(beginFrameTime, frequencies);
@@ -1286,14 +1286,6 @@ public partial class PlotEditor : UserControl
 
         this.SetCursor(cursor);
     }
-
-    private static float ToLower(float v) => v == 0f ? 0f : float.Log10(v);
-
-    private static double ToLower(double v) => v == 0d ? 0d : double.Log10(v);
-
-    private static float ToLinear(float v) => v == 0f ? 0f : float.Pow(10, v);
-
-    private static double ToLinear(double v) => v == 0d ? 0d : double.Pow(10, v);
 
     private Cursor _cursor = Cursors.Arrow;
 
@@ -1590,12 +1582,12 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="time">開始時間</param>
     /// <param name="pitches">F0値</param>
-    private void EditF0(int time, params double[] pitches)
+    private void EditF0(int time, IEnumerable<double> pitches)
     {
         var track = this.Track;
 
         if (track is NeutrinoV1Track v1Track)
-            v1Track.EditF0(time, pitches);
+            v1Track.EditF0(time, pitches.ToArray());
         else if (track is NeutrinoV2Track v2Track)
             v2Track.EditF0(time, pitches.Select(i => (float)i).ToArray());
 
@@ -1639,12 +1631,12 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="time">開始時間</param>
     /// <param name="dynamics">ダイナミクス値</param>
-    private void EditDynamics(int time, params double[] dynamics)
+    private void EditDynamics(int time, IEnumerable<double> dynamics)
     {
         var track = this.Track;
 
         if (track is NeutrinoV1Track v1Track)
-            v1Track.EditDynamics(time, dynamics);
+            v1Track.EditDynamics(time, dynamics.ToArray());
         else if (track is NeutrinoV2Track v2Track)
             v2Track.EditDynamics(time, dynamics.Select(i => (float)i).ToArray());
 
@@ -1834,17 +1826,14 @@ public partial class PlotEditor : UserControl
     /// <param name="end">終了値</param>
     /// <param name="length">要素数</param>
     /// <returns></returns>
-    private static T[] CreateArithmeticSequenceArray<T>(T begin, T end, int length)
+    private static IEnumerable<T> EnumearteArithmeticSequence<T>(T begin, T end, int length)
         where T : INumber<T>
     {
-        T[] values = new T[length];
         T delta = end - begin;
         T coe = T.CreateChecked(length - 1);
 
-        for (int idx = 0; idx < values.Length; ++idx)
-            values[idx] = (delta * T.CreateChecked(idx) / coe) + begin;
-
-        return values;
+        for (int idx = 0; idx < length; ++idx)
+            yield return (delta * T.CreateChecked(idx) / coe) + begin;
     }
 
     private static LayoutPoint ToUnscaled(RenderScaleInfo scaling, Point point)
@@ -1866,25 +1855,10 @@ public partial class PlotEditor : UserControl
     }
 
     public static double DynamicsCoeToFrequency(INeutrinoTrack track, double coe)
-    {
-        if (track is NeutrinoV1Track)
+        => track switch
         {
-            const double min = -30d;
-            const double max = 0d;
-            const double period = max - min;
-
-            return (coe * period) + min;
-        }
-        else if (track is NeutrinoV2Track)
-        {
-            float padding = 6.0f;
-            float min = ToLower(-6.0f + padding);
-            float max = ToLower(1.0f + padding);
-            float period = max - min;
-
-            return ToLinear(((float)coe * period) + min) - padding;
-        }
-
-        return double.NaN;
-    }
+            NeutrinoV1Track => NeutrinoUtil.LinearMgcCoeToLogValue(coe),
+            NeutrinoV2Track => NeutrinoUtil.LinearMspecCoeToLogValue((float)coe),
+            _ => throw new NotSupportedException(),
+        };
 }

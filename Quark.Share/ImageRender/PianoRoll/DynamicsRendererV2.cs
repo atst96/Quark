@@ -4,6 +4,7 @@ using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
 using Quark.Extensions;
+using System.Runtime.CompilerServices;
 
 namespace Quark.ImageRender.Score;
 
@@ -18,6 +19,9 @@ internal class DynamicsRendererV2
     {
         this._renderInfo = renderInfo;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float ToLinear(float value) => NeutrinoUtil.MspecToLinear(value);
 
     public SKBitmap CreateImage()
     {
@@ -127,7 +131,7 @@ internal class DynamicsRendererV2
                             int x = frameIdx + dynamics.PhraseBeginFrameIdx - beginFrameIdx;
                             int y = (dimension - dim - 1) * frames;
 
-                            double value = ToLinear(editedMspec[(frameIdx * dimension) + dim] + padding);
+                            float value = ToLinear(editedMspec[(frameIdx * dimension) + dim] + padding);
 
                             // byte color = (byte)(baseColor - ((value - min) / (-min) * baseColor));
                             const byte baseColor = 255;
@@ -142,7 +146,7 @@ internal class DynamicsRendererV2
                             float x = renderLayout.GetRenderPosXFromTime(offsetMs + NeutrinoUtil.FrameIndexToMs(frameIdx + dynamics.PhraseBeginFrameIdx) - beginTime);
 
                             dynamicsValue = ToLinear(dynamicsValue + padding);
-                            origValue = ToLinear(origValue + padding);
+                            origValue = ToLinear((float)(origValue + padding));
                             min = ToLinear(min + padding);
                             max = ToLinear(max + padding);
 
@@ -183,8 +187,4 @@ internal class DynamicsRendererV2
 
         return image;
     }
-
-    private static float ToLinear(float v) => v == 0f ? 0f : float.Log10(v);
-
-    private static double ToLinear(double v) => v == 0d ? 0d : double.Log10(v);
 }

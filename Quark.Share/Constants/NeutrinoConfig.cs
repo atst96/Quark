@@ -9,10 +9,22 @@ public static class NeutrinoConfig
     public const int FramePeriod = 5; /* 1000ms / 200frames */
 
     /// <summary>スペクトル包絡の下限値</summary>
+    public const double MgcUpper = 0.0d;
+
+    /// <summary>スペクトル包絡の下限値</summary>
+    public const float MgcUpperF = 0.0f;
+
+    /// <summary>スペクトル包絡の下限値</summary>
     public const double MgcLower = -60.0d;
 
     /// <summary>スペクトル包絡の下限値</summary>
     public const float MgcLowerF = -60.0f;
+
+    /// <summary>メルスペクトログラムの上限値</summary>
+    public const float MspecUpper = 1.0f;
+
+    /// <summary>メルスペクトログラムの下限界値</summary>
+    public const float MspecLower = -6.0f;
 
     /// <summary>スペクトル包絡の1フレームあたりの次元数</summary>
     public const int MgcDimension = 60;

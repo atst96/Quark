@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -9,6 +10,8 @@ using Quark.Data.Projects;
 using Quark.Extensions;
 using Quark.Models.Neutrino;
 using Quark.Projects.Tracks;
+using DoubleRange = (double Upper, double Lower, double Range);
+using FloatRange = (float Upper, float Lower, float Range);
 
 namespace Quark.Utils;
 
@@ -335,4 +338,67 @@ public static partial class NeutrinoUtil
     /// <returns>時間(ミリ秒)</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int FrameIndexToMs(int frameIndex) => frameIndex * NeutrinoConfig.FramePeriod;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static (T Lower, T Upper, T Range) ToRangeInfo<T>(T upper, T lower)
+        where T : struct, INumber<T>
+        => new(upper, lower, upper - lower);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static (T, T, T) ToLinearScale<T>(ref (T Upper, T Lower, T) range)
+        where T : struct, IBinaryFloatingPointIeee754<T>
+        => ToRangeInfo(SignalUtil.ToLinearScale(range.Upper - range.Lower), T.Zero);
+
+    /// <summary>MGC(対数スケール)の範囲</summary>
+    public static readonly DoubleRange MgcValue = ToRangeInfo(NeutrinoConfig.MgcUpper, NeutrinoConfig.MgcLower);
+
+    /// <summary>MGC(リニアスケール)の範囲</summary>
+    public static readonly DoubleRange MgcLinearValue = ToLinearScale(ref MgcValue);
+
+    /// <summary>MGC(対数スケール)の範囲</summary>
+    public static readonly FloatRange MgcValueF = ToRangeInfo(NeutrinoConfig.MgcUpperF, NeutrinoConfig.MgcLowerF);
+
+    /// <summary>MGC(理にあるケース)の範囲</summary>
+    public static readonly FloatRange MgcLinearValueF = ToLinearScale(ref MgcValueF);
+
+    /// <summary>メルスペクトログラム(対数スケール)の範囲</summary>
+    public static readonly FloatRange MspecValueF = ToRangeInfo(NeutrinoConfig.MspecUpper, NeutrinoConfig.MspecLower);
+
+    /// <summary>メルスペクトログラム(リニアスケール)の範囲</summary>
+    public static readonly FloatRange MspecLinearValueF = ToLinearScale(ref MspecValueF);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static T LinearCoeToLogValue<T>((T Upper, T Lower, T Range) range, T coe, T lower)
+        where T : IBinaryFloatingPointIeee754<T>
+        => SignalUtil.ToLogScale((coe * range.Range) + range.Lower) + lower;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float LinearMgcCoeToLogValue(float coe)
+        => LinearCoeToLogValue(MgcLinearValueF, coe, MgcValueF.Lower);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static double LinearMgcCoeToLogValue(double coe)
+        => LinearCoeToLogValue(MgcLinearValue, coe, MgcValue.Lower);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float LinearMspecCoeToLogValue(float coe)
+        => LinearCoeToLogValue(MspecLinearValueF, coe, MgcValueF.Lower);
+
+    /// <summary>
+    /// MGC(対数スケール)の値をリニアスケールに変換する。
+    /// </summary>
+    /// <param name="value">MGC</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static T MgcToLinear<T>(T value) where T : IFloatingPointIeee754<T>
+        => SignalUtil.ToLinearScale(value);
+
+    /// <summary>
+    /// メルスペクトログラム(対数スケール)の値をリニアスケールに変換する。
+    /// </summary>
+    /// <param name="value">メルスペクトログラム</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static T MspecToLinear<T>(T value) where T : IFloatingPointIeee754<T>
+        => SignalUtil.ToLinearScale(value);
 }

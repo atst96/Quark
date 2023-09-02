@@ -5,6 +5,7 @@ using Quark.Utils;
 using SkiaSharp;
 using static Quark.Controls.EditorRenderLayout;
 using Quark.Extensions;
+using System.Runtime.CompilerServices;
 
 namespace Quark.ImageRender.Score;
 
@@ -19,6 +20,9 @@ internal class DynamicsRendererV1
     {
         this._renderInfo = renderInfo;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static double ToLinear(double value) => NeutrinoUtil.MgcToLinear(value);
 
     public SKBitmap CreateImage()
     {
@@ -117,7 +121,7 @@ internal class DynamicsRendererV1
                             int x = frameIdx + dynamics.PhraseBeginFrameIdx - beginFrameIdx;
                             int y = (dimension - dim - 1) * frames;
 
-                            double value = editedMgc[(frameIdx * dimension) + dim];
+                            double value = ToLinear(editedMgc[(frameIdx * dimension) + dim]);
 
                             v += value;
 
@@ -129,8 +133,8 @@ internal class DynamicsRendererV1
                         }
 
                         {
-                            double value = mgc[frameIdx * dimension];
-                            double value2 = editedMgc[frameIdx * dimension];
+                            double value = ToLinear(mgc[frameIdx * dimension]);
+                            double value2 = ToLinear(editedMgc[frameIdx * dimension]);
 
                             float x = renderLayout.GetRenderPosXFromTime(offsetMs + NeutrinoUtil.MsToFrameIndex(frameIdx + dynamics.PhraseBeginFrameIdx) - beginTime);
 
