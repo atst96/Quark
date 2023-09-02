@@ -9,6 +9,7 @@
     <RootNamespace>Quark</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
