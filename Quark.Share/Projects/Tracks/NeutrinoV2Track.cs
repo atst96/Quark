@@ -366,7 +366,10 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
         this.WaveData.SilenceAtTimeRange(phrase.BeginTime, phrase.EndTime);
     }
 
-    public void ReSynthesis()
+    /// <summary>
+    /// 編集中情報を反映して再度 音声合成する。変更箇所がない場合は処理しない。
+    /// </summary>
+    public void ReSynseEditing()
     {
         var phrases = this.Phrases.Where(p => p.IsAudioFeatureEditing());
         if (!phrases.Any())
@@ -378,14 +381,38 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
         this.Project.Session.AddAudioRenderQueue(this, phrases);
     }
 
+    /// <summary>
+    /// フレーズ情報を取得する。
+    /// </summary>
+    /// <param name="beginTime">開始時間</param>
+    /// <param name="endTime">終了時間</param>
+    /// <returns></returns>
     private IEnumerable<NeutrinoV2Phrase> GetPhrases(int beginTime, int endTime)
-        => this.Phrases.Where(p => p.BeginTime <= beginTime && endTime <= p.EndTime);
+        => this.Phrases.Where(p => p.BeginTime <= beginTime && endTime < p.EndTime);
 
+    /// <summary>
+    /// F0値を編集する。
+    /// </summary>
+    /// <param name="beginTime">開始時間</param>
+    /// <param name="frequencies">ピッチ</param>
     public void EditF0(int beginTime, Span<float> frequencies)
     {
         int endTime = beginTime + NeutrinoUtil.FrameIndexToMs(frequencies.Length);
 
         foreach (var phrase in this.GetPhrases(beginTime, endTime))
             phrase.EditF0(beginTime, frequencies);
+    }
+
+    /// <summary>
+    /// ダイナミクス値を編集する。
+    /// </summary>
+    /// <param name="beginTime">開始時間</param>
+    /// <param name="dynamics">編集値</param>
+    public void EditDynamics(int beginTime, Span<float> dynamics)
+    {
+        int endTime = beginTime + NeutrinoUtil.FrameIndexToMs(dynamics.Length);
+
+        foreach (var phrase in this.GetPhrases(beginTime, endTime))
+            phrase.EditDynamics(beginTime, dynamics);
     }
 }

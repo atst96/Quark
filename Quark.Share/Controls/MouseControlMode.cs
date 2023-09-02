@@ -16,4 +16,10 @@ public enum MouseControlMode
 
     /// <summary>タイミング編集</summary>
     EditTiming,
+
+    /// <summary>ピッチ編集</summary>
+    EditPitch,
+
+    /// <summary>ダイナミクス編集</summary>
+    EditDynamics,
 }

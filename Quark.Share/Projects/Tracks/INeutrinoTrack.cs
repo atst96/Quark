@@ -35,5 +35,8 @@ public interface INeutrinoTrack
 
     internal void RaiseFeatureChanged();
 
-    public void ReSynthesis();
+    /// <summary>
+    /// 編集中情報を反映して再度 音声合成する。変更箇所がない場合は処理しない。
+    /// </summary>
+    public void ReSynseEditing();
 }

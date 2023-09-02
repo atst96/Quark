@@ -334,20 +334,38 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     /// 編集中のF0値を編集済み値に反映する。
     /// </summary>
     public void DetermineEditingF0()
-        => (this.EditedF0, this.EditingF0) = (this.EditingF0, null);
+    {
+        if (this.EditingF0 is { } editing)
+            (this.EditedF0, this.EditingF0) = (editing, null);
+    }
+
+    /// <summary>
+    /// 編集中のF0値を編集済み値に反映する。
+    /// </summary>
+    public void CancelEditingF0()
+        => this.EditingF0 = null;
 
     /// <summary>
     /// ダイナミクス値が編集中かどうかを取得する。
     /// </summary>
     /// <returns></returns>
     public bool IsDynamicsEditing()
-        => this.EditedDynamics != null;
+        => this.EditingDynamics != null;
 
     /// <summary>
     /// 編集中のF0値を編集済み値に反映する。
     /// </summary>
     public void DetermineEditingDynamics()
-        => (this.EditedDynamics, this.EditingDynamics) = (this.EditingDynamics, null);
+    {
+        if (this.EditingDynamics is { } editing)
+            (this.EditedDynamics, this.EditingDynamics) = (editing, null);
+    }
+
+    /// <summary>
+    /// 編集中のダイナミクス値を編集済み値に反映する。
+    /// </summary>
+    public void CancelEditingDynamics()
+        => this.EditingDynamics = null;
 
     /// <summary>
     /// 音響情報が編集中かどうかを取得する。

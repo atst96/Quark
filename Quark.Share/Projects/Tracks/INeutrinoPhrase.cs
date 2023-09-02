@@ -28,6 +28,11 @@ public interface INeutrinoPhrase
     public void DetermineEditingF0();
 
     /// <summary>
+    /// 編集中のF0値を編集済み値に反映する。
+    /// </summary>
+    public void CancelEditingF0();
+
+    /// <summary>
     /// ダイナミクス値が編集中かどうかを取得する。
     /// </summary>
     /// <returns></returns>
@@ -37,6 +42,11 @@ public interface INeutrinoPhrase
     /// 編集中のダイナミクス値を編集済み値に反映する。
     /// </summary>
     public void DetermineEditingDynamics();
+
+    /// <summary>
+    /// 編集中のダイナミクス値を編集済み値に反映する。
+    /// </summary>
+    public void CancelEditingDynamics();
 
     /// <summary>
     /// 音響情報が編集中かどうかを取得する。

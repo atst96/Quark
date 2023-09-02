@@ -12,6 +12,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Quark.Constants;
+using Quark.Controls.Editing;
 using Quark.Converters;
 using Quark.Drawing;
 using Quark.Extensions;
@@ -20,7 +21,6 @@ using Quark.ImageRender;
 using Quark.ImageRender.Parts;
 using Quark.ImageRender.PianoRoll;
 using Quark.ImageRender.Score;
-using Quark.Models.Neutrino;
 using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
@@ -96,8 +96,6 @@ public partial class PlotEditor : UserControl
 
     /// <summary>自動スクロール用の外側領域の幅</summary>
     private const double AutoScrollOuterWidth = 400;
-
-    private (int x, int y)? _tempMousePos = null;
 
     private double _displayDpi;
 
@@ -620,11 +618,12 @@ public partial class PlotEditor : UserControl
         if (trackScore != null)
         {
             var timings = this._timings;
+            var timingEditingTarget = (this._editingInfo as TimingEditingInfo)?.Target;
 
             this._renderCommon.RangeScoreRenderInfo = new RangeScoreRenderInfo
             {
                 Score = trackScore.Score.GetRangeInfo(beginTime, endTime),
-                Timings = ScoreLayoutHelper.GetRenderTargets(this._timingRenderer, this._renderCommon!, timings, this._editingTimingInfo?.Target),
+                Timings = ScoreLayoutHelper.GetRenderTargets(this._timingRenderer, this._renderCommon!, timings, timingEditingTarget),
                 NoteLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, this.Quantize),
                 RulerLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, LineType.Note8th),
             };
@@ -998,10 +997,10 @@ public partial class PlotEditor : UserControl
     /// <param name="mode"></param>
     /// <param name="receiver"></param>
     /// <param name="value"></param>
-    private void ChangeMouseMode<T>(MouseControlMode mode, out T? receiver, T value) where T : class
+    private void ChangeMouseMode<T>(MouseControlMode mode, T value) where T : IEditInfo
     {
         this.CancelEdit();
-        (this._mouseMode, receiver) = (mode, value);
+        (this._mouseMode, this._editingInfo) = (mode, value);
     }
 
     /// <summary>
@@ -1009,14 +1008,14 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="receiver"></param>
-    private void ClearMouseMode<T>(out T? receiver) where T : class
-        => (this._mouseMode, receiver) = (MouseControlMode.None, default);
+    private void ClearMouseMode()
+        => (this._mouseMode, this._editingInfo) = (MouseControlMode.None, default);
 
     /// <summary>
     /// タイミング編集情報
     /// タイミング編集時以外はnullを設定しておく
     /// </summary>
-    private TimingEditingInfo? _editingTimingInfo;
+    private IEditInfo? _editingInfo;
 
     private int _putNoteBeginTime = 0;
     private int _putNoteKeyIndex = 0;
@@ -1056,7 +1055,7 @@ public partial class PlotEditor : UserControl
                             {
                                 int idx = this._timings!.IndexOf(handle);
 
-                                this.ChangeMouseMode(MouseControlMode.EditTiming, out this._editingTimingInfo, new(handle, handle.TimingInfo.EditedBeginTime100Ns)
+                                this.ChangeMouseMode(MouseControlMode.EditTiming, new TimingEditingInfo(handle, handle.TimingInfo.EditedBeginTime100Ns)
                                 {
                                     LowerTime100Ns = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.EditedBeginTime100Ns,
                                     UpperTime100Ns = (idx == -1 || (this._timings.Count <= (idx + 1)))
@@ -1085,12 +1084,30 @@ public partial class PlotEditor : UserControl
                 // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
                 var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
+                var scoreArea = renderLayout.ScoreArea;
+                var dynamicsArea = renderLayout.DynamicsArea;
+
                 int beginTime = this.GetRenderBeginTimeMs();
-                this._tempMousePos = (mousePosition.X, mousePosition.Y);
-
                 int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
-
                 this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
+
+                if (scoreArea.IsContains(mousePosition))
+                {
+                    double pitch = this.GetPitchFromMousePosition(renderLayout, mousePosition);
+
+                    this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
+
+                    this.EditF0(adjustedTime, pitch);
+                }
+                else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
+                {
+                    double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
+                    double frequency = DynamicsCoeToFrequency(this.Track!, coe);
+
+                    this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
+
+                    this.EditDynamics(adjustedTime, frequency);
+                }
             }
         }
     }
@@ -1123,24 +1140,27 @@ public partial class PlotEditor : UserControl
             var trackScoreInfo = this._trackScoreInfo;
             if (trackScoreInfo != null)
             {
-                var editing = this._editingTimingInfo!;
+                var editingInfo = this._editingInfo;
 
-                // マウスの位置を取得、オフセット分補正する
-                var mousePosition = this.GetPhysicalMousePosition(renderLayout, e).GetOffset((int)scaling.ToScaled(-editing.OffsetX), 0);
+                if (editingInfo is TimingEditingInfo timingEditing)
+                {
+                    // マウスの位置を取得、オフセット分補正する
+                    var mousePosition = this.GetPhysicalMousePosition(renderLayout, e).GetOffset((int)scaling.ToScaled(-timingEditing.OffsetX), 0);
 
-                // マウスで選択中の時間を計算し、範囲内に収める
-                int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
-                adjustedTime = Math.Max(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.LowerTime100Ns));
-                if (editing.UpperTime100Ns != null)
-                    adjustedTime = Math.Min(adjustedTime, NeutrinoUtil.TimingTimeToMs(editing.UpperTime100Ns.Value));
+                    // マウスで選択中の時間を計算し、範囲内に収める
+                    int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
+                    adjustedTime = Math.Max(adjustedTime, NeutrinoUtil.TimingTimeToMs(timingEditing.LowerTime100Ns));
+                    if (timingEditing.UpperTime100Ns != null)
+                        adjustedTime = Math.Min(adjustedTime, NeutrinoUtil.TimingTimeToMs(timingEditing.UpperTime100Ns.Value));
 
-                // レイアウト、編集中のタイミング情報を更新
-                int adjustedX = this.GetScoreLocationX(renderLayout, adjustedTime);
-                editing.Target.MoveX(adjustedX);
-                editing.CurrentTimeMs = adjustedTime;
+                    // レイアウト、編集中のタイミング情報を更新
+                    int adjustedX = this.GetScoreLocationX(renderLayout, adjustedTime);
+                    timingEditing.Target.MoveX(adjustedX);
+                    timingEditing.CurrentTimeMs = adjustedTime;
 
-                // 再描画
-                this.Redraw();
+                    // 再描画
+                    this.Redraw();
+                }
             }
         }
         else if (this.EditMode == EditMode.AudioFeatures)
@@ -1149,105 +1169,78 @@ public partial class PlotEditor : UserControl
             var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
             int beginTime = this.GetRenderBeginTimeMs();
-            var scaling = this._renderCommon.ScreenLayout.Scaling;
-            var prevPos = this._tempMousePos;
-            (int x, int y) = mousePosition;
-            (int x, int y)? _prevPos = prevPos != null ? (scaling.ToUnscaled(prevPos.Value.x), scaling.ToUnscaled(prevPos.Value.y)) : null;
 
-            int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
+            int frameAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
-            bool isPianoRoll = !(renderLayout.HasDynamicsArea && renderLayout.DynamicsArea.Y <= y);
-            // this.DebugText(isDynamics.ToString());
-
-            this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
+            this.RelocateSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
 
             if (e.LeftButton == MouseButtonState.Pressed)
             {
-                int prevAdjustedTime = -1;
-
-                if (prevPos != null)
+                var editingInfo = this._editingInfo;
+                if (editingInfo is PitchEditingInfo pitchEditing)
                 {
-                    var mousePosition2 = new LayoutPoint(prevPos.Value.x, prevPos.Value.y);
-                    prevAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition2);
-                }
+                    // ピッチ編集中
+                    double currentPitch = this.GetPitchFromMousePosition(renderLayout, mousePosition);
 
-                if (isPianoRoll)
-                {
-                    int scrollPosition = this.GetVScrollPosition();
+                    int currentTime = frameAdjustedTime;
+                    int previousTime = pitchEditing.PreviousTime;
+                    double previousPitch = pitchEditing.PreviousPitch;
 
-                    double currentPitch = (double)(renderLayout.ScoreImage.Height - (scrollPosition + renderLayout.ScoreArea.RelativeY(y)) - (renderLayout.PhysicalKeyHeight / 2)) / renderLayout.PhysicalKeyHeight;
-                    double currentFrequency = AudioDataConverter.ScaleToFrequency(currentPitch);
-
-                    int currentTime = adjustedTime;
-                    int previousTime = prevPos == null ? currentTime : prevAdjustedTime;
-
-                    double[] frequencies;
                     int beginFrameTime;
+                    double[] frequencies;
 
-                    int length = Math.Abs(NeutrinoUtil.MsToFrameIndex(currentTime - previousTime));
+                    int length = Math.Abs(NeutrinoUtil.MsToFrameIndex(currentTime - previousTime)) + 1;
+                    if (length <= 1)
+                    {
+                        (beginFrameTime, frequencies) = (currentTime, new double[] { currentPitch });
+                    }
+                    else
+                    {
+                        (beginFrameTime, frequencies) = previousTime < currentTime
+                            // 右方向の変更
+                            ? (previousTime, CreateArithmeticSequenceArray(previousPitch, currentPitch, length))
+                            // 左方向への変更
+                            : (currentTime, CreateArithmeticSequenceArray(currentPitch, previousPitch, length));
+                    }
+
+                    this.EditF0(beginFrameTime, frequencies);
+
+                    // 直前の編集情報を更新
+                    pitchEditing.SetPrevious(currentTime, currentPitch);
+                }
+                else if (editingInfo is DynamicsEditingInfo dynamicsEditingInfo)
+                {
+                    // ピッチ編集中
+                    double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
+                    double currentFrequency = DynamicsCoeToFrequency(this.Track!, coe);
+
+                    int currentTime = frameAdjustedTime;
+                    int previousTime = dynamicsEditingInfo.PreviousTime;
+                    double previousDynamics = dynamicsEditingInfo.PreviousDynamics;
+
+                    int beginFrameTime;
+                    double[] frequencies;
+
+                    int length = Math.Abs(NeutrinoUtil.MsToFrameIndex(currentTime - previousTime)) + 1;
                     if (length <= 1)
                     {
                         (beginFrameTime, frequencies) = (currentTime, new double[] { currentFrequency });
                     }
                     else
                     {
-                        double previousPitch = (double)(renderLayout.ScoreImage.Height - (scrollPosition + (renderLayout.ScoreArea.RelativeY(_prevPos.Value.y))) - (renderLayout.PhysicalKeyHeight / 2)) / renderLayout.PhysicalKeyHeight;
-                        double previousFrequency = AudioDataConverter.ScaleToFrequency(previousPitch);
-
                         (beginFrameTime, frequencies) = previousTime < currentTime
                             // 右方向の変更
-                            ? (previousTime, CreateArithmeticSequenceArray(previousFrequency, currentFrequency, length))
+                            ? (previousTime, CreateArithmeticSequenceArray(previousDynamics, currentFrequency, length))
                             // 左方向への変更
-                            : (currentTime, CreateArithmeticSequenceArray(currentFrequency, previousFrequency, length));
+                            : (currentTime, CreateArithmeticSequenceArray(currentFrequency, previousDynamics, length));
                     }
 
-                    var track = this.Track!;
+                    this.EditDynamics(beginFrameTime, frequencies);
 
-                    if (track is NeutrinoV1Track v1Track)
-                        v1Track.EditF0(beginFrameTime, frequencies);
-                    else if (track is NeutrinoV2Track v2Track)
-                        v2Track.EditF0(beginFrameTime, DataConvertUtil.ConvertArray<double, float>(frequencies));
-                }
-                else
-                {
-                    int y2 = y - renderLayout.DynamicsArea!.Y;
-                    double coe = 1d - ((double)y2) / renderLayout.DynamicsArea.Height;
-
-                    var track = this.Track!;
-                    if (track == null)
-                        return;
-
-                    var foundPhrase = track.Phrases.FirstOrDefault(i => i.BeginTime <= adjustedTime && adjustedTime <= i.EndTime);
-                    if (foundPhrase == null)
-                        return;
-
-                    if (track is NeutrinoV1Track v1Track)
-                    {
-                        var phrase = (NeutrinoV1Phrase)foundPhrase;
-
-                        const double min = -30d;
-                        const double max = 0d;
-                        const double period = max - min;
-
-                        double value = (coe * period) + min;
-
-                        phrase.EditDynamics(adjustedTime, value);
-                    }
-                    else if (track is NeutrinoV2Track v2Track)
-                    {
-                        var phrase = (NeutrinoV2Phrase)foundPhrase;
-
-                        const float min = -6.0f;
-                        const float max = 1.0f;
-                        const float period = max - min;
-
-                        float value = ((float)coe * period) + min;
-
-                        phrase.EditDynamics(adjustedTime, value);
-                    }
+                    // 直前の編集情報を更新
+                    dynamicsEditingInfo.SetPrevious(currentTime, currentFrequency);
                 }
 
-                this._tempMousePos = (x, y);
                 this.UpdateRenderContent();
             }
         }
@@ -1293,6 +1286,14 @@ public partial class PlotEditor : UserControl
 
         this.SetCursor(cursor);
     }
+
+    private static float ToLower(float v) => v == 0f ? 0f : float.Log10(v);
+
+    private static double ToLower(double v) => v == 0d ? 0d : double.Log10(v);
+
+    private static float ToLinear(float v) => v == 0f ? 0f : float.Pow(10, v);
+
+    private static double ToLinear(double v) => v == 0d ? 0d : double.Pow(10, v);
 
     private Cursor _cursor = Cursors.Arrow;
 
@@ -1486,48 +1487,87 @@ public partial class PlotEditor : UserControl
             this.SKElement.ReleaseMouseCapture();
             Debug.WriteLine("Mouse released.");
 
-            if (this._mouseMode == MouseControlMode.Seek)
+            switch (this._mouseMode)
             {
-                this._mouseMode = MouseControlMode.None;
-                this._mouseTimer.Stop();
-            }
-            else if (this._mouseMode == MouseControlMode.PutNote)
-            {
-                this._mouseMode = MouseControlMode.None;
-            }
-            else if (this._mouseMode == MouseControlMode.EditTiming)
-            {
-                this.DetermineTimingEdit();
-            }
-            else if (this.EditMode == EditMode.AudioFeatures)
-            {
-                var renderLayout = this._renderLayout;
-                var scaling = this._renderCommon.ScreenLayout.Scaling;
-                // var mousePosition = e.GetPosition(this);
-                var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
+                case MouseControlMode.Seek:
+                    // その他
+                    this._mouseTimer.Stop();
+                    this.ClearMouseMode();
+                    return;
 
-                int beginTime = this.GetRenderBeginTimeMs();
-                (int x, int y) = mousePosition;
+                case MouseControlMode.PutNote:
+                    // ノート配置中
+                    this.ClearMouseMode();
+                    return;
 
-                int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
+                case MouseControlMode.EditTiming:
+                    // タイミング編集中
+                    this.DetermineTimingEdit();
+                    return;
 
-                if (IsWithinPianoRoll(renderLayout, mousePosition))
-                {
-                    // this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
-                    this.Track?.ReSynthesis();
-                }
+                case MouseControlMode.EditPitch:
+                    // ピッチ編集中
+                    this.DeterminePitchEdit();
+                    return;
 
-                this._tempMousePos = null;
+                case MouseControlMode.EditDynamics:
+                    // ダイナミクス編集中
+                    this.DetermineDynamicsEdit();
+                    return;
             }
         }
     }
 
     /// <summary>
+    /// マウス位置からピッチを取得する。
+    /// </summary>
+    /// <param name="renderLayout">レイアウト情報</param>
+    /// <param name="mousePosition">マウス位置</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private double GetPitchFromMousePosition(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
+    {
+        int scrollPosition = this.GetVScrollPosition();
+        var scoreArea = renderLayout.ScoreArea;
+        int keyHeight = renderLayout.PhysicalKeyHeight;
+
+        double pitch = (double)(renderLayout.ScoreImage.Height - (scrollPosition + scoreArea.RelativeY(mousePosition.Y)) - (keyHeight / 2)) / keyHeight;
+        return AudioDataConverter.ScaleToFrequency(pitch);
+    }
+
+    /// <summary>
+    /// ダイナミクス値を取得する。
+    /// </summary>
+    /// <param name="renderLayout">レイアウト</param>
+    /// <param name="mousePosition">マウス位置</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public double GetDynamicsCoeFromMousePosition(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
+    {
+        double areaY = renderLayout.DynamicsArea!.RelativeY(mousePosition.Y);
+        return 1d - (((double)areaY) / renderLayout.DynamicsArea.Height);
+    }
+
+    /// <summary>
     /// タイミング編集を確定する
+    /// </summary>
+    public void DetermineTimingEdit()
+    {
+        if (this._editingInfo is TimingEditingInfo editing)
+        {
+            var track = this.Track;
+            track?.ChangeTiming(Array.IndexOf(track.Timings, editing.Target.TimingInfo), editing.CurrentTimeMs);
+        }
+
+        this.ClearMouseMode();
+    }
+
+    /// <summary>
+    /// タイミング編集をキャンセルする
     /// </summary>
     public void CancelTimingEdit()
     {
-        var editing = this._editingTimingInfo;
+        var editing = this._editingInfo as TimingEditingInfo;
         if (editing != null)
         {
             int adjustedX = this.GetScoreLocationX(NeutrinoUtil.TimingTimeToMs(editing.InitialTime100Ns));
@@ -1542,22 +1582,105 @@ public partial class PlotEditor : UserControl
             this.Redraw();
         }
 
-        this.ClearMouseMode(out this._editingTimingInfo);
+        this.ClearMouseMode();
     }
 
     /// <summary>
-    /// タイミング編集を確定する
+    /// F0値を編集する。
     /// </summary>
-    public void DetermineTimingEdit()
+    /// <param name="time">開始時間</param>
+    /// <param name="pitches">F0値</param>
+    private void EditF0(int time, params double[] pitches)
     {
-        var editing = this._editingTimingInfo;
-        if (editing != null)
+        var track = this.Track;
+
+        if (track is NeutrinoV1Track v1Track)
+            v1Track.EditF0(time, pitches);
+        else if (track is NeutrinoV2Track v2Track)
+            v2Track.EditF0(time, pitches.Select(i => (float)i).ToArray());
+
+        this.UpdateRenderContent();
+    }
+
+    /// <summary>
+    /// ピッチ編集を確定する
+    /// </summary>
+    public void DeterminePitchEdit()
+    {
+        if (this.Track is { } track)
         {
-            var track = this.Track;
-            track?.ChangeTiming(Array.IndexOf(track.Timings, editing.Target.TimingInfo), editing.CurrentTimeMs);
+            track.ReSynseEditing();
         }
 
-        this.ClearMouseMode(out this._editingTimingInfo);
+        this.ClearMouseMode();
+    }
+
+    /// <summary>
+    /// ピッチ編集をキャンセルする
+    /// </summary>
+    public void CancelPitchEdit()
+    {
+        if (this.Track is { } track && this._editingInfo is PitchEditingInfo editing)
+        {
+            foreach (var phrase in track.Phrases.Where(p => p.IsF0Editing()))
+            {
+                phrase.CancelEditingF0();
+            }
+
+            // 再描画
+            this.UpdateRenderContent();
+        }
+
+        this.ClearMouseMode();
+    }
+
+    /// <summary>
+    /// ダイナミクス値を編集する。
+    /// </summary>
+    /// <param name="time">開始時間</param>
+    /// <param name="dynamics">ダイナミクス値</param>
+    private void EditDynamics(int time, params double[] dynamics)
+    {
+        var track = this.Track;
+
+        if (track is NeutrinoV1Track v1Track)
+            v1Track.EditDynamics(time, dynamics);
+        else if (track is NeutrinoV2Track v2Track)
+            v2Track.EditDynamics(time, dynamics.Select(i => (float)i).ToArray());
+
+        this.UpdateRenderContent();
+    }
+
+    /// <summary>
+    /// ダイナミクス編集を確定する
+    /// </summary>
+    public void DetermineDynamicsEdit()
+    {
+        if (this.Track is { } track)
+        {
+            track.ReSynseEditing();
+        }
+
+        this.ClearMouseMode();
+    }
+
+    /// <summary>
+    /// ダイナミクス編集をキャンセルする
+    /// </summary>
+    public void CancelDynamicsEdit()
+    {
+        if (this.Track is { } track && this._editingInfo is DynamicsEditingInfo editing)
+        {
+            foreach (var phrase in track.Phrases.Where(p => p.IsDynamicsEditing()))
+            {
+                phrase.CancelEditingDynamics();
+            }
+
+            // 再描画
+            this.UpdateRenderContent();
+        }
+
+        this.ClearMouseMode();
     }
 
     /// <summary>
@@ -1571,6 +1694,14 @@ public partial class PlotEditor : UserControl
         {
             case MouseControlMode.EditTiming:
                 this.CancelTimingEdit();
+                return;
+
+            case MouseControlMode.EditPitch:
+                this.CancelPitchEdit();
+                return;
+
+            case MouseControlMode.EditDynamics:
+                this.CancelDynamicsEdit();
                 return;
         }
     }
@@ -1732,5 +1863,28 @@ public partial class PlotEditor : UserControl
     {
         var position = e.GetPosition(this.SKElement);
         return ToUnscaled(renderLayout.Scaling, ref position);
+    }
+
+    public static double DynamicsCoeToFrequency(INeutrinoTrack track, double coe)
+    {
+        if (track is NeutrinoV1Track)
+        {
+            const double min = -30d;
+            const double max = 0d;
+            const double period = max - min;
+
+            return (coe * period) + min;
+        }
+        else if (track is NeutrinoV2Track)
+        {
+            float padding = 6.0f;
+            float min = ToLower(-6.0f + padding);
+            float max = ToLower(1.0f + padding);
+            float period = max - min;
+
+            return ToLinear(((float)coe * period) + min) - padding;
+        }
+
+        return double.NaN;
     }
 }

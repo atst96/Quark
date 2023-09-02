@@ -1,12 +1,16 @@
-﻿using Quark.Utils;
+﻿using Quark.Constants;
+using Quark.Utils;
 
-namespace Quark.Constants;
+namespace Quark.Controls.Editing;
 
 /// <summary>
-/// 編集中タイミング情報
+/// タイミング編集データ
 /// </summary>
-public class TimingEditingInfo
+public class TimingEditingInfo : IEditInfo
 {
+    /// <summary>編集モード</summary>
+    public EditInfoType Type { get; } = EditInfoType.Timing;
+
     /// <summary>編集対象要素</summary>
     public TimingHandle Target { get; }
 
