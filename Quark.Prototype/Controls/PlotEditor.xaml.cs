@@ -993,6 +993,16 @@ public partial class PlotEditor : UserControl
     /// <summary>
     /// 編集モードを変更する
     /// </summary>
+    /// <param name="mode"></param>
+    private void ChangeMouseMode(MouseControlMode mode)
+    {
+        this.CancelEdit();
+        (this._mouseMode, this._editingInfo) = (mode, null);
+    }
+
+    /// <summary>
+    /// 編集モードを変更する
+    /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="mode"></param>
     /// <param name="receiver"></param>
@@ -1034,14 +1044,17 @@ public partial class PlotEditor : UserControl
             Mouse.Capture(this.SKElement);
 
             var mousePos = this.GetPhysicalMousePosition(renderLayout, e);
-            if (this.EditMode == EditMode.ScoreAndTiming)
+
+            if (IsWithinRuler(renderLayout, mousePos))
             {
-                if (IsWithinRuler(renderLayout, mousePos))
+                if (this._mouseMode == MouseControlMode.None)
                 {
-                    this._mouseMode = MouseControlMode.Seek;
-                    this.RelocateSeekBarForSeeking(e);
+                    this.ChangeMouseMode(MouseControlMode.Seek);
                 }
-                else if (IsWithinPianoRoll(renderLayout, mousePos))
+                }
+            else if (IsWithinEditArea(renderLayout, mousePos))
+            {
+                if (this.EditMode == EditMode.ScoreAndTiming)
                 {
                     if (this._isTimingEditable)
                     {
@@ -1078,7 +1091,6 @@ public partial class PlotEditor : UserControl
 
                     this.RelocateNoteRectangle(e);
                 }
-            }
             else if (this.EditMode == EditMode.AudioFeatures)
             {
                 // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
@@ -1110,6 +1122,7 @@ public partial class PlotEditor : UserControl
                 }
             }
         }
+    }
     }
 
     private void OnMouseMove(object sender, MouseEventArgs e)
@@ -1168,14 +1181,14 @@ public partial class PlotEditor : UserControl
             var renderLayout = this._renderLayout;
             var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-            int beginTime = this.GetRenderBeginTimeMs();
 
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+            int beginTime = this.GetRenderBeginTimeMs();
             int frameAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
             this.RelocateSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
 
-            if (e.LeftButton == MouseButtonState.Pressed)
-            {
                 var editingInfo = this._editingInfo;
                 if (editingInfo is PitchEditingInfo pitchEditing)
                 {
@@ -1252,7 +1265,7 @@ public partial class PlotEditor : UserControl
             var renderLayout = this._renderLayout;
             var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-            if (IsWithinPianoRoll(this._renderLayout, mousePosition))
+            if (IsWithinEditArea(this._renderLayout, mousePosition))
             {
                 if (this._isTimingEditable)
                 {
@@ -1741,13 +1754,25 @@ public partial class PlotEditor : UserControl
         }
     }
 
+    /// <summary>
+    /// マウス座標がルーラ内にあるかどうかを判定する。
+    /// </summary>
+    /// <param name="renderLayout">レイアウト情報</param>
+    /// <param name="mousePosition">マウス位置</param>
+    /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsWithinRuler(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
         => renderLayout.RulerArea.IsContainsY(mousePosition.Y);
 
+    /// <summary>
+    /// マウス位置が編集エリア内にあるかどうかを判定する。
+    /// </summary>
+    /// <param name="renderLayout">レイアウト情報</param>
+    /// <param name="mousePosition">マウス位置</param>
+    /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsWithinPianoRoll(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
-        => renderLayout.ScoreArea.IsContainsY(mousePosition.Y);
+    private static bool IsWithinEditArea(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
+        => renderLayout.IsContainsEditAreaY(mousePosition.Y);
 
     private static string GetLyrics(PartScore score)
         => string.Concat(score.Phrases.Select(i => i.Lyrics.Length > 1 ? $"({i.Lyrics})" : i.Lyrics));

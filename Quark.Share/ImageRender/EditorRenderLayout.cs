@@ -166,4 +166,22 @@ public class EditorRenderLayout
     /// <returns>描画幅(ms)</returns>
     public int GetRenderPosXFromTime(int durationMs)
         => (int)this.Scaling.ToUnscaled(durationMs * this.WidthStretch);
+
+    /// <summary>
+    /// 指定された座標が編集エリアに含まれるかどうかを取得する。
+    /// </summary>
+    /// <param name="point"></param>
+    /// <returns></returns>
+    public bool IsContainsEditArea(LayoutPoint point)
+        => this.ScoreArea.IsContains(point)
+            || (this.HasDynamicsArea && this.DynamicsArea.IsContains(point));
+
+    /// <summary>
+    /// 指定された座標(Y)が編集エリアに含まれるかどうかを取得する。
+    /// </summary>
+    /// <param name="point"></param>
+    /// <returns></returns>
+    public bool IsContainsEditAreaY(int y)
+        => this.ScoreArea.IsContainsY(y)
+            || (this.HasDynamicsArea && this.DynamicsArea.IsContainsY(y));
 }
