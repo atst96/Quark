@@ -382,7 +382,7 @@ public static partial class NeutrinoUtil
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float LinearMspecCoeToLogValue(float coe)
-        => LinearCoeToLogValue(MspecLinearValueF, coe, MgcValueF.Lower);
+        => LinearCoeToLogValue(MspecLinearValueF, coe, MspecValueF.Lower);
 
     /// <summary>
     /// MGC(対数スケール)の値をリニアスケールに変換する。
