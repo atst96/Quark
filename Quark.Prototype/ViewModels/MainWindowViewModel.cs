@@ -414,7 +414,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         private set => this.RaisePropertyChangedIfSet(ref this._maximumTime, value);
     }
 
-    private LineType _selectedQuantize = LineType.Note4th;
+    private LineType _selectedQuantize = LineType.Note16th;
     public LineType SelectedQuantize
     {
         get => this._selectedQuantize;

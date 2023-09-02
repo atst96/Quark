@@ -299,7 +299,7 @@ public partial class PlotEditor : UserControl
     /// <summary><seealso cref="Quantize"/>の依存関係プロパティ</summary>
     public static readonly DependencyProperty QuantizeProperty =
         DependencyProperty.Register(nameof(Quantize), typeof(LineType), typeof(PlotEditor),
-            new PropertyMetadata(LineType.Note4th, OnQuantizeChanged));
+            new PropertyMetadata(LineType.Note16th, OnQuantizeChanged));
 
     /// <summary>スナッピングの切り替え</summary>
     public bool IsQuantizeSnapping
