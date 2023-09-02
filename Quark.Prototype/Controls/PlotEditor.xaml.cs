@@ -800,6 +800,9 @@ public partial class PlotEditor : UserControl
             return;
         }
 
+        // 自動スクロールを解除
+        this.CancelAudoScroll();
+
         this.OnRenderBeginMsChanged(time);
         this.UpdateRenderContent();
         this.RelocateSeekBar();
@@ -861,6 +864,10 @@ public partial class PlotEditor : UserControl
             var targetScrollBar = isHorizontal
                 ? this.hScrollBar1
                 : this.vScrollBar1;
+
+            if (isHorizontal)
+                // 横スクロールの場合は自動スクロールを無効化
+                this.CancelAudoScroll();
 
             int change = (int)targetScrollBar.LargeChange;
             if (e.Delta > 0)
@@ -1888,4 +1895,15 @@ public partial class PlotEditor : UserControl
             NeutrinoV2Track => NeutrinoUtil.LinearMspecCoeToLogValue((float)coe),
             _ => throw new NotSupportedException(),
         };
+
+    /// <summary>
+    /// 自動スクロールを無効にする。
+    /// </summary>
+    public void CancelAudoScroll()
+    {
+        if (this.IsAutoScroll)
+        {
+            this.IsAutoScroll = false;
+        }
+    }
 }
