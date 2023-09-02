@@ -18,6 +18,12 @@
     lb:ViewModelBehavior.DisposeDataContextOnWindowClosed="True"
     d:DataContext="{d:DesignInstance Type={x:Type vm:MainWindowViewModel}}"
     FontFamily="{StaticResource UIFont}">
+    <Window.InputBindings>
+        <!-- Spaceキー押下 -->
+        <KeyBinding Modifiers="" Key="Space" Command="{Binding TogglePlayCommand, Mode=OneTime}" />
+        <!-- Space+Shiftキー押下 -->
+        <KeyBinding Modifiers="Shift" Key="Space" Command="{Binding TogglePlayResumeCommand, Mode=OneTime}" />
+    </Window.InputBindings>
     <i:Interaction.Triggers>
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenSettingWindow">
             <l:TransitionInteractionMessageAction WindowType="{x:Type v:PreferenceWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False" />
@@ -165,8 +171,8 @@
                     DisplayMemberPath="Value" />
 
                 <Button Content="Play" Command="{Binding PlayCommand, Mode=OneTime}" />
-                <Button Content="Pause" Command="{Binding PauseCommand, Mode=OneTime}" />
                 <Button Content="Stop" Command="{Binding StopCommand, Mode=OneTime}" />
+                <Button Content="Stop(Back)" Command="{Binding StopRestoreCommand, Mode=OneTime}" />
                 <ToggleButton Content="Scroll" IsChecked="{Binding Path=IsAutoScroll, ElementName=PloatEditor1, Mode=TwoWay}" />
                 <Separator />
                 <Label Content="{Binding CurrentTime, Mode=OneWay}" />

@@ -369,7 +369,11 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
     private void CloseAudio()
     {
-        this._player?.Dispose();
+        if (this._player is { } player)
+        {
+            player.PlaybackStopped -= this.OnPlayerStopped;
+            player.Dispose();
+        }
         this._waveStream?.Dispose();
     }
 
@@ -380,10 +384,15 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         var device = new WasapiOut(AudioClientShareMode.Shared, Latency);
         var waveStream = new WaveDataStream(track.WaveData);
 
+        device.PlaybackStopped += this.OnPlayerStopped;
         device.Init(waveStream);
 
         this._player = device;
         this._waveStream = waveStream;
+    }
+
+    private void OnPlayerStopped(object? sender, StoppedEventArgs e)
+    {
     }
 
     private INeutrinoTrack _currentTrack;
@@ -422,31 +431,36 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     }
 
     private Command _playCommand;
-    public Command PlayCommand => this._playCommand ??= this.AddCommand(() =>
-    {
-        this._player?.Play();
-        this.StartPlayTimer();
-    });
-
-    private Command _pauseCommand;
-    public Command PauseCommand => this._pauseCommand ??= this.AddCommand(() =>
-    {
-        this._player?.Pause();
-        this.StopPlayTimer();
-    });
+    public Command PlayCommand => this._playCommand ??= this.AddCommand(() => this.Play());
 
     private Command _stopCommand;
-    public Command StopCommand => this._stopCommand ??= this.AddCommand(() =>
+    public Command StopCommand => this._stopCommand ??= this.AddCommand(() => this.Stop(false));
+
+    private Command _stopRestoreCommand;
+    public Command StopRestoreCommand => this._stopRestoreCommand ??= this.AddCommand(() => this.Stop(true));
+
+    private TimeSpan _beginPlayTime = default;
+
+    private void Play()
     {
-        this._player?.Stop();
-        this.StopPlayTimer();
-    });
+        this._beginPlayTime = this.CurrentTime;
+        this._player?.Play();
+        this.StartPlayTimer();
+    }
 
     private void StartPlayTimer()
     {
         this._waveStream.Position = (int)((double)this._waveStream.WaveFormat.AverageBytesPerSecond / 1000 * (int)this.CurrentTime.TotalMilliseconds);
 
         this._timer.Start();
+    }
+
+    private void Stop(bool resume)
+    {
+        this._player?.Stop();
+        if (resume)
+            this.CurrentTime = this._beginPlayTime;
+        this.StopPlayTimer();
     }
 
     private void StopPlayTimer()
@@ -487,4 +501,28 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             player.Stop();
         }
     }));
+
+    private Command _togglePlayCommand;
+    public Command TogglePlayCommand => this._togglePlayCommand ??= this.AddCommand(() =>
+    {
+        if (this._player is { } player)
+        {
+            if (player.PlaybackState != PlaybackState.Playing)
+                this.Play();
+            else
+                this.Stop(false);
+        }
+    });
+
+    private Command _togglePlayResumeCommand;
+    public Command TogglePlayResumeCommand => this._togglePlayResumeCommand ??= this.AddCommand(() =>
+    {
+        if (this._player is { } player)
+        {
+            if (player.PlaybackState != PlaybackState.Playing)
+                this.Play();
+            else
+                this.Stop(true);
+        }
+    });
 }
