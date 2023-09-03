@@ -1188,7 +1188,7 @@ public partial class PlotEditor : UserControl
             var renderLayout = this._renderLayout;
             var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-            if (IsWithinEditArea(renderLayout, mousePosition))
+            if (renderLayout.IsContainsEditArea(mousePosition))
                 cursor = Cursors.Pen;
 
             if (e.LeftButton == MouseButtonState.Pressed)
