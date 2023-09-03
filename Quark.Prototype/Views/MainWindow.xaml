@@ -175,7 +175,8 @@
                 <Button Content="Stop(Back)" Command="{Binding StopRestoreCommand, Mode=OneTime}" />
                 <ToggleButton Content="Scroll" IsChecked="{Binding Path=IsAutoScroll, ElementName=PloatEditor1, Mode=TwoWay}" />
                 <Separator />
-                <Label Content="{Binding CurrentTime, Mode=OneWay}" />
+                <Label Content="{Binding SelectionTime, Mode=OneWay}" />
+                <Label Content="{Binding PlayingTime, Mode=OneWay}" />
                 <Separator />
                 <Label Content="編集モード：" />
                 <ComboBox Width="130"
@@ -201,7 +202,9 @@
                 <ctr:PlotEditor
                     x:Name="PloatEditor1"
                     Track="{Binding CurrentTrack, Mode=OneWay}"
-                    SelectionTime="{Binding CurrentTime, Mode=TwoWay}"
+                    IsPlayMode="{Binding IsPlaying, Mode=OneWay}"
+                    PlayingTime="{Binding PlayingTime, Mode=OneWay}"
+                    SelectionTime="{Binding SelectionTime, Mode=TwoWay}"
                     Quantize="{Binding SelectedQuantize, Mode=OneWay}" />
 
                 <StackPanel

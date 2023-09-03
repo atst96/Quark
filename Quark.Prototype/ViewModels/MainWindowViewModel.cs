@@ -36,7 +36,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
     private Project? _currentProject;
 
-    private DispatcherTimer _timer;
+    private DispatcherTimer _playerTimer;
 
     private NeutrinoV1Service _neutrinoV1;
     private NeutrinoV2Service _neutrinoV2;
@@ -130,10 +130,10 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
         this._projects = projects;
 
-        this._timer = new(
+        this._playerTimer = new(
             TimeSpan.FromMilliseconds(1000d / 60),
             DispatcherPriority.Normal,
-            this.OnPlayerTimerTicked,
+            this.OnMonitoringTimerTicked,
             App.Instance.Dispatcher)
         {
             IsEnabled = false,
@@ -364,8 +364,16 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
     }
 
+    private TimeSpan? _beginPlayTime = null;
     private IWavePlayer _player;
     private WaveDataStream _waveStream;
+
+    private bool _isPlaying;
+    public bool IsPlaying
+    {
+        get => this._isPlaying;
+        private set => this.RaisePropertyChangedIfSet(ref this._isPlaying, value);
+    }
 
     private void CloseAudio()
     {
@@ -391,9 +399,10 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         this._waveStream = waveStream;
     }
 
-    private void OnPlayerStopped(object? sender, StoppedEventArgs e)
+    private void OnPlayerStopped(object? sender, StoppedEventArgs e) => App.Instance.Dispatcher.InvokeAsync(() =>
     {
-    }
+        this.IsPlaying = false;
+    });
 
     private INeutrinoTrack _currentTrack;
     public INeutrinoTrack CurrentTrack
@@ -403,17 +412,46 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         {
             if (this.RaisePropertyChangedIfSet(ref this._currentTrack, value))
             {
-                this.CurrentTime = TimeSpan.Zero;
+                this.PlayingTime = TimeSpan.Zero;
+                this.SelectionTime = TimeSpan.Zero;
                 // this.MaximumTime = TimeSpan.FromMilliseconds(value.GetFeatures().F0!.Length * 5);
             }
         }
     }
 
-    private TimeSpan _currentTime = TimeSpan.Zero;
-    public TimeSpan CurrentTime
+    private TimeSpan _selectionTime = TimeSpan.Zero;
+    public TimeSpan SelectionTime
     {
-        get => this._currentTime;
-        set => this.RaisePropertyChangedIfSet(ref this._currentTime, value);
+        get => this._selectionTime;
+        set
+        {
+            this.RaisePropertyChangedIfSet(ref this._selectionTime, value);
+            this.UpdatePlayingTime(value);
+        }
+    }
+
+    private void UpdatePlayingTime(TimeSpan playingTime)
+    {
+        this.PlayingTime = playingTime;
+        if (this.IsPlaying)
+        {
+            this.SeekPlayer(playingTime);
+        }
+    }
+
+    private void SeekPlayer(TimeSpan time)
+    {
+        if (this._waveStream is { } waveStream)
+        {
+            waveStream.Position = (int)((double)waveStream.WaveFormat.AverageBytesPerSecond / 1000 * time.TotalMilliseconds);
+        }
+    }
+
+    private TimeSpan _playingTime = TimeSpan.Zero;
+    public TimeSpan PlayingTime
+    {
+        get => this._playingTime;
+        private set => this.RaisePropertyChangedIfSet(ref this._playingTime, value);
     }
 
     private TimeSpan _maximumTime = TimeSpan.Zero;
@@ -431,63 +469,85 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     }
 
     private Command _playCommand;
-    public Command PlayCommand => this._playCommand ??= this.AddCommand(() => this.Play());
+    public Command PlayCommand => this._playCommand ??= this.AddCommand(() => this.StartPlayer());
 
     private Command _stopCommand;
-    public Command StopCommand => this._stopCommand ??= this.AddCommand(() => this.Stop(false));
+    public Command StopCommand => this._stopCommand ??= this.AddCommand(() => this.StopPlayer(false));
 
     private Command _stopRestoreCommand;
-    public Command StopRestoreCommand => this._stopRestoreCommand ??= this.AddCommand(() => this.Stop(true));
+    public Command StopRestoreCommand => this._stopRestoreCommand ??= this.AddCommand(() => this.StopPlayer(true));
 
-    private TimeSpan? _beginPlayTime = default;
-
-    private void Play(TimeSpan? beginTime = null)
+    /// <summary>
+    /// 再生開始する。
+    /// </summary>
+    /// <param name="beginTime">再生開始位置</param>
+    private void StartPlayer(TimeSpan? beginTime = null)
     {
+        // 再生開始時間を設定
         if (beginTime != null)
         {
             this._beginPlayTime = beginTime.Value;
-            this.CurrentTime = beginTime.Value;
+            this.PlayingTime = beginTime.Value;
         }
         else
         {
-            this._beginPlayTime = this.CurrentTime;
+            this._beginPlayTime = this.PlayingTime;
         }
 
-        this._player?.Play();
-        this.StartPlayTimer();
+        // 再生開始
+        if (this._player is { } player)
+        {
+            this.SeekPlayer(this.PlayingTime);
+            player.Play();
+
+            this.IsPlaying = true;
+            // 再生位置監視タイマを開始
+            this.StartMonitoringTimer();
+        }
     }
 
-    private void StartPlayTimer()
+    /// <summary>
+    /// プレーやを停止する。
+    /// </summary>
+    /// <param name="restore">再生位置を戻すフラグ</param>
+    private void StopPlayer(bool restore)
     {
-        this._waveStream.Position = (int)((double)this._waveStream.WaveFormat.AverageBytesPerSecond / 1000 * (int)this.CurrentTime.TotalMilliseconds);
+        if (this._player is { } player)
+        {
+            // 再生位置監視タイマを停止
+            this.StopMonitoringTimer();
+            // 再生停止
+            player.Stop();
 
-        this._timer.Start();
+            if (restore && this._beginPlayTime is { } beginTime)
+                this.PlayingTime = beginTime;
+        }
+
+        this.IsPlaying = false;
     }
 
-    private void Stop(bool resume)
+    /// <summary>再生位置監視タイマを開始</summary>
+    private void StartMonitoringTimer()
+        => this._playerTimer.Start();
+
+    /// <summary>再生位置監視タイマを停止</summary>
+    private void StopMonitoringTimer()
+        => this._playerTimer.Stop();
+
+    private const int Latency = 48 * 2; // 48kHz * 2ch
+
+    /// <summary>
+    /// 再生位置監視タイマのイベント発火時
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnMonitoringTimerTicked(object? sender, EventArgs e)
     {
-        this._player?.Stop();
-        if (resume && this._beginPlayTime is { } beginTime)
-            this.CurrentTime = beginTime;
-        this.StopPlayTimer();
-    }
-
-    private void StopPlayTimer()
-    {
-        this._timer.Stop();
-    }
-
-    private const int Latency = 96 * 1;
-
-    private void OnPlayerTimerTicked(object? sender, EventArgs e)
-    {
-        var stream = this._waveStream;
-
-        if (stream is not null)
+        if (this._waveStream is { } stream)
         {
             int millis = Math.Max(0, (int)(stream.Position / 96) - Latency);
 
-            this.CurrentTime = TimeSpan.FromMilliseconds(millis);
+            this.PlayingTime = TimeSpan.FromMilliseconds(millis);
         }
     }
 
@@ -500,7 +560,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     public Command<WindowCloseRequest> OnClosingCommand => this._onCloseCommand ??= (this.AddCommand(
         (WindowCloseRequest request) =>
     {
-        this.StopPlayTimer();
+        this.StopMonitoringTimer();
 
         this._projectSession?.EndSession();
 
@@ -517,9 +577,9 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         if (this._player is { } player)
         {
             if (player.PlaybackState != PlaybackState.Playing)
-                this.Play();
+                this.StartPlayer();
             else
-                this.Stop(false);
+                this.StopPlayer(false);
         }
     });
 
@@ -529,9 +589,9 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         if (this._player is { } player)
         {
             if (player.PlaybackState != PlaybackState.Playing)
-                this.Play(this._beginPlayTime ?? this.CurrentTime);
+                this.StartPlayer(this._beginPlayTime ?? this.PlayingTime);
             else
-                this.Stop(true);
+                this.StopPlayer(true);
         }
     });
 }

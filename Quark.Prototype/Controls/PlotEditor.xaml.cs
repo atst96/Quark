@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using Quark.Constants;
 using Quark.Controls.Editing;
@@ -25,6 +26,7 @@ using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
+using static System.Windows.Forms.LinkLabel;
 using static Quark.Controls.EditorRenderLayout;
 
 namespace Quark.Controls;
@@ -169,7 +171,16 @@ public partial class PlotEditor : UserControl
         }
 
         @this.UpdateScrollLayout();
-        @this.RelocateSeekBar();
+        @this.RelocateSeekBars();
+    }
+
+    /// <summary>内部の編集シークバーの選択位置</summary>
+    public TimeSpan _tempSelectionTime;
+
+    private void UpdateTempSelectionTime(TimeSpan selectionTime)
+    {
+        this._tempSelectionTime = selectionTime;
+        this.RelocateSelectionSeekBar(selectionTime);
     }
 
     /// <summary>シークバーの選択位置</summary>
@@ -187,7 +198,7 @@ public partial class PlotEditor : UserControl
     /// <seealso cref="SelectionTime"/>プロパティ変更時
     /// </summary>
     private static void OnSelectionTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((PlotEditor)d).RelocateSeekBar((TimeSpan)e.NewValue, (TimeSpan)e.OldValue);
+        => ((PlotEditor)d).UpdateTempSelectionTime((TimeSpan)e.NewValue);
 
     /// <summary>
     /// スクロール追従の有効／無効
@@ -323,6 +334,44 @@ public partial class PlotEditor : UserControl
         ((PlotEditor)d).UpdateRenderContent();
     }
 
+    /// <summary>再生中モードの有効／無効</summary>
+    public bool IsPlayMode
+    {
+        get => (bool)this.GetValue(IsPlayModeProperty);
+        set => this.SetValue(IsPlayModeProperty, value);
+    }
+
+    /// <summary><see cref="IsPlayMode"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty IsPlayModeProperty =
+        DependencyProperty.Register(nameof(IsPlayMode), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false, OnIsPlayModePropertyChanged));
+
+    /// <summary>
+    /// <see cref="IsPlayMode"/>プロパティ変更時
+    /// </summary>
+    /// <param name="d">対象要素</param>
+    /// <param name="e">イベント情報</param>
+    private static void OnIsPlayModePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((PlotEditor)d).RelocatePlayingSeekBar();
+
+    /// <summary>現在再生時点の時刻</summary>
+    public TimeSpan PlayingTime
+    {
+        get => (TimeSpan)this.GetValue(PlayingTimeProperty);
+        set => this.SetValue(PlayingTimeProperty, value);
+    }
+
+    /// <summary><see cref="PlayingTime"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty PlayingTimeProperty =
+        DependencyProperty.Register(nameof(PlayingTime), typeof(TimeSpan), typeof(PlotEditor), new PropertyMetadata(TimeSpan.Zero, OnPlayingTimePropertyChanged));
+
+    /// <summary>
+    /// <see cref="PlayingTime"/>プロパティ変更時
+    /// </summary>
+    /// <param name="d">対象要素</param>
+    /// <param name="e">イベント情報</param>
+    private static void OnPlayingTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((PlotEditor)d).RelocatePlayingSeekBar((TimeSpan)e.NewValue, (TimeSpan)e.OldValue);
+
     /// <summary>
     /// 内部的に保持している横伸長率を更新する
     /// </summary>
@@ -414,7 +463,7 @@ public partial class PlotEditor : UserControl
 
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
-        this.RelocateSeekBar();
+        this.RelocateSeekBars();
     }
 
     /// <summary>
@@ -472,45 +521,98 @@ public partial class PlotEditor : UserControl
         });
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
-        this.RelocateSeekBar();
+        this.RelocateSeekBars();
     }
 
     /// <summary>
-    /// シークバーの位置を補正する
+    /// シークバーを移動して表示させる。
     /// </summary>
-    /// <param name="isRecursive"></param>
-    private void RelocateSeekBar(bool isRecursive = false) => this.RelocateSeekBar(this.SelectionTime, isRecursive: isRecursive);
+    /// <param name="seekBar">シークバー要素</param>
+    /// <param name="x">X座標</param>
+    /// <param name="h">高さ</param>
+    /// <param name="toDisplay">表示させるかどうかのフラグ</param>
+    private static void MoveSeekBar(Line seekBar, double x, double h, bool toDisplay)
+    {
+        using (seekBar.Dispatcher.DisableProcessing())
+        {
+            seekBar.X1 = x;
+            seekBar.X2 = x;
+            seekBar.Y1 = 0;
+            seekBar.Y2 = h;
+
+            if (toDisplay && seekBar.Visibility != Visibility.Visible)
+                seekBar.Visibility = Visibility.Visible;
+        }
+    }
 
     /// <summary>
-    /// シークバーの位置を補正する
+    /// シークバーを隠す
+    /// </summary>
+    /// <param name="seekBar">シークバー要素</param>
+    static void HideSeekBar(Line seekBar)
+    {
+        if (seekBar.Visibility == Visibility.Visible)
+            seekBar.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>編集位置を示すシークバーの画面要素を取得する</summary>
+    private Line GetSelectionSeekBar()
+        => this.PART_SelectionTime;
+
+    /// <summary>編集用シークバーを移動する。</summary>
+    private void DisplaySelectionSeekBar(double x)
+        => MoveSeekBar(this.GetSelectionSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
+
+    /// <summary>編集用のシークバーを隠す</summary>
+    private void HideSelectionSeekBar()
+        => HideSeekBar(this.GetSelectionSeekBar());
+
+    /// <summary>編集位置を示すシークバーの画面要素を取得する</summary>
+    private Line GetPlayingSeekBar()
+        => this.PART_PlayingTime;
+
+    /// <summary>編集用シークバーを移動する。</summary>
+    private void DisplayPlayingSeekBar(double x)
+        => MoveSeekBar(this.GetPlayingSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
+
+    /// <summary>編集用のシークバーを隠す</summary>
+    private void HidePlayingSeekBar()
+        => HideSeekBar(this.GetPlayingSeekBar());
+
+
+    /// <summary>
+    /// 再生用シークバーの配置を修正する。
+    /// </summary>
+    /// <param name="isRecursive"></param>
+    private void RelocatePlayingSeekBar(bool isRecursive = false)
+        => this.RelocatePlayingSeekBar(this._tempSelectionTime, isRecursive: isRecursive);
+
+    /// <summary>
+    /// 再生位置シークバーの配置を修正する。
     /// </summary>
     /// <param name="time">現在時刻</param>
     /// <param name="prevTime">前の時刻</param>
     /// <param name="isRecursive">再帰呼び出しフラグ</param>
-    private void RelocateSeekBar(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
+    private void RelocatePlayingSeekBar(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
     {
         long totalFrameCount = this._framesCount;
 
         var renderLayout = this._renderLayout;
-        var scaling = renderLayout.Scaling;
 
         // 開始フレーム位置
         int beginTime = this.GetRenderBeginTimeMs();
         int endTime = beginTime + renderLayout.GetRenderTimes();
         int currentTime = (int)time.TotalMilliseconds;
 
-        var lineElement = this.PART_SelectionTime;
-        var renderElement = this.SKElement;
-        if (beginTime <= currentTime && currentTime < endTime)
+        if (!this.IsPlayMode)
+        {
+            this.HidePlayingSeekBar();
+        }
+        else if (beginTime <= currentTime && currentTime < endTime)
         {
             double x = renderLayout.GetRenderPosXFromTime(currentTime - beginTime) + renderLayout.ScoreArea.X;
 
-            lineElement.X1 = x;
-            lineElement.X2 = x;
-            lineElement.Y1 = 0;
-            lineElement.Y2 = renderElement.ActualHeight;
-
-            lineElement.Visibility = Visibility.Visible;
+            this.DisplayPlayingSeekBar(x);
         }
         else
         {
@@ -536,7 +638,7 @@ public partial class PlotEditor : UserControl
                 if (!isRecursive)
                 {
                     this.SetRenderBeginMs((int)value);
-                    this.RelocateSeekBar(TimeSpan.FromMilliseconds(value), time, true);
+                    this.RelocatePlayingSeekBar(TimeSpan.FromMilliseconds(value), time, true);
                     this.UpdateRenderContent();
                 }
 
@@ -544,7 +646,78 @@ public partial class PlotEditor : UserControl
             }
             else
             {
-                lineElement.Visibility = Visibility.Collapsed;
+                this.HidePlayingSeekBar();
+            }
+        }
+    }
+
+    private void RelocateSeekBars()
+    {
+        this.RelocatePlayingSeekBar();
+        this.RelocateSelectionSeekBar();
+    }
+
+    /// <summary>
+    /// 編集用シークバーの位置を修正する。
+    /// </summary>
+    /// <param name="isRecursive"></param>
+    private void RelocateSelectionSeekBar(bool isRecursive = false)
+        => this.RelocateSelectionSeekBar(this._tempSelectionTime, isRecursive: isRecursive);
+
+    /// <summary>
+    /// 編集用シークバーの位置を修正する。
+    /// </summary>
+    /// <param name="time">現在時刻</param>
+    /// <param name="prevTime">前の時刻</param>
+    /// <param name="isRecursive">再帰呼び出しフラグ</param>
+    private void RelocateSelectionSeekBar(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
+    {
+        var renderLayout = this._renderLayout;
+
+        // 開始フレーム位置
+        int beginTime = this.GetRenderBeginTimeMs();
+        int endTime = beginTime + renderLayout.GetRenderTimes();
+        int currentTime = (int)time.TotalMilliseconds;
+
+        if (beginTime <= currentTime && currentTime < endTime)
+        {
+            double x = renderLayout.GetRenderPosXFromTime(currentTime - beginTime) + renderLayout.ScoreArea.X;
+
+            this.DisplaySelectionSeekBar(x);
+        }
+        else
+        {
+            bool isAutoScroll = this.IsAutoScroll;
+            if (isAutoScroll)
+            {
+                //double value;
+                //if (totalFrameCount <= 0)
+                //{
+                //    value = 0;
+                //}
+                //else if (prevTime.HasValue && prevTime < time)
+                //{
+                //    // 前方向への移動
+                //    value = Math.Ceiling(time.TotalMilliseconds / (totalFrameCount * 5) * MaxHScrollHeight);
+                //}
+                //else
+                //{
+                //    // 後方向への移動
+                //    value = Math.Ceiling((time.TotalMilliseconds - (endTime - beginTime)) / (totalFrameCount * 5) * MaxHScrollHeight);
+                //}
+
+                //if (!isRecursive)
+                //{
+                //    this.SetRenderBeginMs((int)value);
+                //    this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(value), time, true);
+                //    this.UpdateRenderContent();
+                //}
+
+                return;
+            }
+            else
+            {
+                this.HideSelectionSeekBar();
             }
         }
     }
@@ -661,7 +834,7 @@ public partial class PlotEditor : UserControl
     {
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
-        this.RelocateSeekBar();
+        this.RelocateSeekBars();
     }
 
     /// <summary>縦スクロール位置を取得する</summary>
@@ -805,7 +978,7 @@ public partial class PlotEditor : UserControl
 
         this.OnRenderBeginMsChanged(time);
         this.UpdateRenderContent();
-        this.RelocateSeekBar();
+        this.RelocateSeekBars();
     }
 
     /// <summary>
@@ -881,7 +1054,7 @@ public partial class PlotEditor : UserControl
                     this.SetVerticalPositionOffset(-change);
                 }
                 this.UpdateRenderContent();
-                this.RelocateSeekBar();
+                this.RelocateSeekBars();
             }
             else if (e.Delta < 0)
             {
@@ -894,7 +1067,7 @@ public partial class PlotEditor : UserControl
                     this.SetVerticalPositionOffset(change);
                 }
                 this.UpdateRenderContent();
-                this.RelocateSeekBar();
+                this.RelocateSeekBars();
             }
         }
     }
@@ -1109,7 +1282,7 @@ public partial class PlotEditor : UserControl
 
                     int beginTime = this.GetRenderBeginTimeMs();
                     int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
-                    this.RelocateSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
+                    this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
 
                     if (scoreArea.IsContains(mousePosition))
                     {
@@ -1197,7 +1370,7 @@ public partial class PlotEditor : UserControl
                 int beginTime = this.GetRenderBeginTimeMs();
                 int frameAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
-                this.RelocateSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
+                this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
 
                 var editingInfo = this._editingInfo;
                 if (editingInfo is PitchEditingInfo pitchEditing)
@@ -1382,7 +1555,7 @@ public partial class PlotEditor : UserControl
             }
         }
 
-        this.SelectionTime = TimeSpan.FromMilliseconds(conditionTime);
+        this.UpdateTempSelectionTime(TimeSpan.FromMilliseconds(conditionTime));
     }
 
     private void RelocateNoteRectangle(MouseEventArgs e)
@@ -1431,9 +1604,6 @@ public partial class PlotEditor : UserControl
 
         element.Visibility = Visibility.Visible;
     }
-
-    private void HideBorder()
-        => this.PART_Rectangle.Visibility = Visibility.Collapsed;
 
     private int FindJustBeforeQuantizeSnapping(EditorRenderLayout renderLayout, int beginTime, LayoutPoint mousePosition)
     {
@@ -1507,6 +1677,7 @@ public partial class PlotEditor : UserControl
                 case MouseControlMode.Seek:
                     // その他
                     this._mouseTimer.Stop();
+                    this.SelectionTime = this._tempSelectionTime;
                     this.ClearMouseMode();
                     return;
 
@@ -1836,7 +2007,7 @@ public partial class PlotEditor : UserControl
         // 音符の位置にシークバーを移動させる。
         bool tempAutoScroll = this.IsAutoScroll;
         this.IsAutoScroll = true;
-        this.SelectionTime = TimeSpan.FromMilliseconds(note.BeginTime);
+        this.UpdateTempSelectionTime(TimeSpan.FromMilliseconds(note.BeginTime));
         if (!tempAutoScroll)
             this.IsAutoScroll = tempAutoScroll;
     }
