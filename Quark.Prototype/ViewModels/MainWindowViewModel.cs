@@ -439,11 +439,20 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private Command _stopRestoreCommand;
     public Command StopRestoreCommand => this._stopRestoreCommand ??= this.AddCommand(() => this.Stop(true));
 
-    private TimeSpan _beginPlayTime = default;
+    private TimeSpan? _beginPlayTime = default;
 
-    private void Play()
+    private void Play(TimeSpan? beginTime = null)
     {
-        this._beginPlayTime = this.CurrentTime;
+        if (beginTime != null)
+        {
+            this._beginPlayTime = beginTime.Value;
+            this.CurrentTime = beginTime.Value;
+        }
+        else
+        {
+            this._beginPlayTime = this.CurrentTime;
+        }
+
         this._player?.Play();
         this.StartPlayTimer();
     }
@@ -458,8 +467,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private void Stop(bool resume)
     {
         this._player?.Stop();
-        if (resume)
-            this.CurrentTime = this._beginPlayTime;
+        if (resume && this._beginPlayTime is { } beginTime)
+            this.CurrentTime = beginTime;
         this.StopPlayTimer();
     }
 
@@ -520,7 +529,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         if (this._player is { } player)
         {
             if (player.PlaybackState != PlaybackState.Playing)
-                this.Play();
+                this.Play(this._beginPlayTime ?? this.CurrentTime);
             else
                 this.Stop(true);
         }

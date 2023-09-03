@@ -1057,6 +1057,7 @@ public partial class PlotEditor : UserControl
                 if (this._mouseMode == MouseControlMode.None)
                 {
                     this.ChangeMouseMode(MouseControlMode.Seek);
+                    this.RelocateSeekBarForSeeking(e);
                 }
             }
             else if (IsWithinEditArea(renderLayout, mousePos))
