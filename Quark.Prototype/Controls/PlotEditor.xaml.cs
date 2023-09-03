@@ -9,8 +9,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 using Quark.Constants;
 using Quark.Controls.Editing;
@@ -26,7 +26,6 @@ using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
-using static System.Windows.Forms.LinkLabel;
 using static Quark.Controls.EditorRenderLayout;
 
 namespace Quark.Controls;
@@ -114,6 +113,8 @@ public partial class PlotEditor : UserControl
         };
     }
 
+    private nint _ownerHandle = IntPtr.Zero;
+
     /// <summary>
     /// コントロール読み込み完了時
     /// </summary>
@@ -123,6 +124,19 @@ public partial class PlotEditor : UserControl
     {
         var window = Window.GetWindow(this);
         window.DpiChanged += this.OnDpiChanged;
+        window.LocationChanged += this.OnParentWindowLocationChanged;
+
+        nint handle = this._ownerHandle = new WindowInteropHelper(window).Handle;
+    }
+
+    /// <summary>
+    /// コントロール読み込み完了時
+    /// </summary>
+    /// <param name="sender">イベント発火元</param>
+    /// <param name="e">イベント情報</param>
+    private void OnUnload(object sender, RoutedEventArgs e)
+    {
+        this._ownerHandle = IntPtr.Zero;
     }
 
     /// <summary>
@@ -134,6 +148,16 @@ public partial class PlotEditor : UserControl
     {
         this._displayDpi = e.NewDpi.DpiScaleX;
         this.OnLayoutChanged();
+    }
+
+    /// <summary>
+    /// コントロールを内包しているウィンドウの移動
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnParentWindowLocationChanged(object? sender, EventArgs e)
+    {
+        this.RelocateSeekBars();
     }
 
     /// <summary>トラック情報</summary>
@@ -531,17 +555,20 @@ public partial class PlotEditor : UserControl
     /// <param name="x">X座標</param>
     /// <param name="h">高さ</param>
     /// <param name="toDisplay">表示させるかどうかのフラグ</param>
-    private static void MoveSeekBar(Line seekBar, double x, double h, bool toDisplay)
+    private void MoveSeekBar(IsolatedSeekBar seekBar, double x, double h, bool toDisplay)
     {
         using (seekBar.Dispatcher.DisableProcessing())
         {
-            seekBar.X1 = x;
-            seekBar.X2 = x;
-            seekBar.Y1 = 0;
-            seekBar.Y2 = h;
+            var point = this.SKElement.PointToScreen(new Point(x, 0));
 
-            if (toDisplay && seekBar.Visibility != Visibility.Visible)
-                seekBar.Visibility = Visibility.Visible;
+            double halfWidth = seekBar.Width / 2;
+
+            seekBar.Top = point.Y;
+            seekBar.Left = double.IsNaN(halfWidth) ? point.X : (point.X - halfWidth);
+            seekBar.Height = h;
+
+            if (toDisplay && !seekBar.IsOpen)
+                seekBar.IsOpen = true;
         }
     }
 
@@ -549,31 +576,31 @@ public partial class PlotEditor : UserControl
     /// シークバーを隠す
     /// </summary>
     /// <param name="seekBar">シークバー要素</param>
-    static void HideSeekBar(Line seekBar)
+    static void HideSeekBar(IsolatedSeekBar seekBar)
     {
-        if (seekBar.Visibility == Visibility.Visible)
-            seekBar.Visibility = Visibility.Collapsed;
+        if (seekBar.IsOpen)
+            seekBar.IsOpen = false;
     }
 
     /// <summary>編集位置を示すシークバーの画面要素を取得する</summary>
-    private Line GetSelectionSeekBar()
+    private IsolatedSeekBar GetSelectionSeekBar()
         => this.PART_SelectionTime;
 
     /// <summary>編集用シークバーを移動する。</summary>
     private void DisplaySelectionSeekBar(double x)
-        => MoveSeekBar(this.GetSelectionSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
+        => this.MoveSeekBar(this.GetSelectionSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
 
     /// <summary>編集用のシークバーを隠す</summary>
     private void HideSelectionSeekBar()
         => HideSeekBar(this.GetSelectionSeekBar());
 
     /// <summary>編集位置を示すシークバーの画面要素を取得する</summary>
-    private Line GetPlayingSeekBar()
+    private IsolatedSeekBar GetPlayingSeekBar()
         => this.PART_PlayingTime;
 
     /// <summary>編集用シークバーを移動する。</summary>
     private void DisplayPlayingSeekBar(double x)
-        => MoveSeekBar(this.GetPlayingSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
+        => this.MoveSeekBar(this.GetPlayingSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
 
     /// <summary>編集用のシークバーを隠す</summary>
     private void HidePlayingSeekBar()
@@ -585,7 +612,7 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="isRecursive"></param>
     private void RelocatePlayingSeekBar(bool isRecursive = false)
-        => this.RelocatePlayingSeekBar(this._tempSelectionTime, isRecursive: isRecursive);
+        => this.RelocatePlayingSeekBar(this.PlayingTime, isRecursive: isRecursive);
 
     /// <summary>
     /// 再生位置シークバーの配置を修正する。
@@ -613,11 +640,11 @@ public partial class PlotEditor : UserControl
             double x = renderLayout.GetRenderPosXFromTime(currentTime - beginTime) + renderLayout.ScoreArea.X;
 
             this.DisplayPlayingSeekBar(x);
+            this.RelocateSelectionSeekBar();
         }
         else
         {
-            bool isAutoScroll = this.IsAutoScroll;
-            if (isAutoScroll)
+            if (this.IsAutoScroll && this._mouseMode == MouseControlMode.None)
             {
                 double value;
                 if (totalFrameCount <= 0)
@@ -641,6 +668,9 @@ public partial class PlotEditor : UserControl
                     this.RelocatePlayingSeekBar(TimeSpan.FromMilliseconds(value), time, true);
                     this.UpdateRenderContent();
                 }
+
+                //this.SetRenderBeginMs((int)value);
+                //this.UpdateRenderContent();
 
                 return;
             }
@@ -687,38 +717,7 @@ public partial class PlotEditor : UserControl
         }
         else
         {
-            bool isAutoScroll = this.IsAutoScroll;
-            if (isAutoScroll)
-            {
-                //double value;
-                //if (totalFrameCount <= 0)
-                //{
-                //    value = 0;
-                //}
-                //else if (prevTime.HasValue && prevTime < time)
-                //{
-                //    // 前方向への移動
-                //    value = Math.Ceiling(time.TotalMilliseconds / (totalFrameCount * 5) * MaxHScrollHeight);
-                //}
-                //else
-                //{
-                //    // 後方向への移動
-                //    value = Math.Ceiling((time.TotalMilliseconds - (endTime - beginTime)) / (totalFrameCount * 5) * MaxHScrollHeight);
-                //}
-
-                //if (!isRecursive)
-                //{
-                //    this.SetRenderBeginMs((int)value);
-                //    this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(value), time, true);
-                //    this.UpdateRenderContent();
-                //}
-
-                return;
-            }
-            else
-            {
-                this.HideSelectionSeekBar();
-            }
+            this.HideSelectionSeekBar();
         }
     }
 

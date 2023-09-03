@@ -7,7 +7,7 @@
              xmlns:local="clr-namespace:Quark.Controls"
              mc:Ignorable="d"
              d:DesignHeight="450" d:DesignWidth="800"
-             Loaded="OnLoaded" Focusable="True">
+             Loaded="OnLoaded" Unloaded="OnUnload" Focusable="True">
     <Grid>
         <Grid>
             <Grid.ColumnDefinitions>
@@ -22,8 +22,20 @@
 
             <skia:SKElement Focusable="True" x:Name="SKElement" PaintSurface="OnPaintSurface" MouseWheel="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
                             MouseDown="OnMouseDown" MouseMove="OnMouseMove" MouseUp="OnMouseUp"/>
-            <Line x:Name="PART_PlayingTime" Margin="0.5,0" X1="0" X2="0" Y1="0" Y2="0" Stroke="Black" StrokeThickness="1" RenderOptions.EdgeMode="Aliased" IsHitTestVisible="False" />
-            <Line x:Name="PART_SelectionTime" Margin="0.5,0" X1="0" X2="0" Y1="0" Y2="0" Stroke="Red" StrokeThickness="1" RenderOptions.EdgeMode="Aliased" IsHitTestVisible="False" />
+
+            <!--再生用シークバー-->
+            <local:IsolatedSeekBar
+                x:Name="PART_PlayingTime" Width="1"
+                Owner="{Binding RelativeSource={RelativeSource AncestorType=Window}}">
+                <Border Background="Green" Margin="0.5,0" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" />
+            </local:IsolatedSeekBar>
+
+            <!--編集用シークバー-->
+            <local:IsolatedSeekBar 
+                x:Name="PART_SelectionTime" Width="1"
+                Owner="{Binding RelativeSource={RelativeSource AncestorType=Window}}">
+                <Border Background="Red" Margin="0.5,0" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" />
+            </local:IsolatedSeekBar>
 
             <Rectangle x:Name="PART_Rectangle" Stroke="Blue" StrokeThickness="1"
                        Margin="0,40,0,0"
@@ -36,7 +48,6 @@
                          AcceptsReturn="False" AcceptsTab="False" TextWrapping="NoWrap"
                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Hidden"
                          TextChanged="OnLyricsTextBoxChanged" SelectionChanged="OnLyricsTextBoxSelectionChanged" />
-
 
             <TextBlock x:Name="debugTextBlock1" IsHitTestVisible="False" Foreground="White" />
 
