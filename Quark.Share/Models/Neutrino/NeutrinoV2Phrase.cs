@@ -328,7 +328,7 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     /// F0値が編集中かどうかを取得する。
     /// </summary>
     public bool IsF0Editing()
-        => this.EditedF0 != null;
+        => this.EditingF0 != null;
 
     /// <summary>
     /// 編集中のF0値を編集済み値に反映する。

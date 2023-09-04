@@ -366,8 +366,8 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     /// </summary>
     public void ReSynseEditing()
     {
-        var phrases = this.Phrases.Where(p => p.IsAudioFeatureEditing());
-        if (!phrases.Any())
+        var phrases = this.Phrases.Where(p => p.IsAudioFeatureEditing()).ToArray();
+        if (phrases.Length < 1)
             return;
 
         foreach (var p in phrases)
