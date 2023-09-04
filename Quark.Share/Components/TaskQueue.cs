@@ -116,7 +116,10 @@ public class TaskQueue<TElement, TPriority> : IReadOnlyCollection<TElement>
     }
 
     public IEnumerator<TElement> GetEnumerator()
-        => this._queue.UnorderedItems.Select(i => i.Element).GetEnumerator();
+    {
+        lock (this.@_lock)
+            return ((IEnumerable<TElement>)this._queue.UnorderedItems.Select(i => i.Element).ToArray()).GetEnumerator();
+    }
 
     IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 }
