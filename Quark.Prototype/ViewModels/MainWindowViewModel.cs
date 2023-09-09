@@ -103,7 +103,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
                 this.SetTitle(value!.Name);
 
-                this._saveCommand?.RaiseCanExecute();
+                this._saveProjectFileCommand?.RaiseCanExecute();
             }
         }
     }
@@ -149,89 +149,20 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         });
     }
 
-    //public ICommand? _newProjectCommand;
-    //public ICommand NewProjectCommand
-    //{
-    //    get => this._newProjectCommand ??= this.AddCommand(() =>
-    //        this.Messenger.Raise(new InteractionMessage("OpenNewProjectWindow")));
-    //}
+    private Command? _selectMusicXmlForNewProjectCommand;
 
-    public void OnNewProjectSelected(TransitionMessage msg)
+    /// <summary>MusicXMLを選択する</summary>
+    public Command SelectMusicXmlForNewProjectCommand => this._selectMusicXmlForNewProjectCommand ??= this.AddCommand(() =>
     {
-        var viewModel = (NewProjectWindowViewModel)msg.TransitionViewModel;
-        if (viewModel is { IsInvalid: true })
-        {
-            var project = this._projects.Create(viewModel.ProjectName);
-            this.SetProject(project);
-        }
-    }
+        // TODO: 未保存の場合は確認ダイアログを表示する
 
-    private Command? _openCommand;
-    public Command OpenCommand => this._openCommand ??= this.AddCommand(() =>
-    {
-        this.Messenger.Raise(new("OpenProjectDialog"));
+        this.Messenger.Raise(new("SelectNewProjectMusicXml"));
     });
 
-    private Command? _saveCommand;
-    public Command SaveCommand => this._saveCommand ??= this.AddCommand(
-        () => this._currentProject is not null,
-        () =>
-        {
-            if (this.CurrentProject!.ProjectFilePath is null)
-            {
-                this.Messenger.Raise(new("SaveProjectDialog"));
-            }
-            else
-            {
-                this.SaveProject();
-            }
-        });
-
-    public void OnOpenProjectFileSelected(OpeningFileSelectionMessage msg)
-    {
-        if (msg is { Response.Length: > 0 })
-        {
-            var project = this._projects.Open(msg.Response[0]);
-            this.SetProject(project);
-        }
-    }
-
-    private void SetProject(Project project)
-    {
-        this.CurrentProject = project;
-        this._projectSession = project.Session;
-
-        var track = this.CurrentProject.Tracks.OfType<INeutrinoTrack>().LastOrDefault();
-        this.SetTrack(track);
-    }
-
-    private void SetTrack(INeutrinoTrack? track)
-    {
-        this.CurrentTrack = track!;
-
-        if (track == null)
-        {
-            this.CloseAudio();
-        }
-        else
-        {
-            this.InitAudio(track);
-        }
-    }
-
-    public void OnSaveProjectFileSelected(SavingFileSelectionMessage msg)
-    {
-        if (msg is { Response.Length: > 0 })
-        {
-            this.SaveProject(msg.Response[0]);
-        }
-    }
-
-    private void SaveProject(string? path = null)
-    {
-        this.CurrentProject!.SaveToFile(path);
-    }
-
+    /// <summary>
+    /// MusicXML選択時
+    /// </summary>
+    /// <param name="msg"></param>
     public void OnNewProjectMusicXmlFileSelected(OpeningFileSelectionMessage msg)
     {
         var paths = msg.Response;
@@ -275,38 +206,66 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         this.SetProject(project);
     }
 
-    private Command? _newProjectFromMusicXmlCommand;
-    public Command NewProjectFromMusicXmlCommand => this._newProjectFromMusicXmlCommand ??= this.AddCommand(() =>
-    {
-        // TODO: 未保存の場合は確認ダイアログを表示する
+    private Command? _selectProjectFileCommand;
 
-        this.Messenger.Raise(new("SelectNewProjectMusicXml"));
-    });
+    /// <summary>プロジェクトファイル選択コマンド</summary>
+    public Command SelectProjectFileCommand => this._selectProjectFileCommand ??= this.AddCommand(
+        () => this.Messenger.Raise(new("OpenProjectFileDialog")));
 
-    public void OnImportMusicXMLFileSelected(OpeningFileSelectionMessage msg)
+    /// <summary>
+    /// プロジェクトファイル選択時
+    /// </summary>
+    /// <param name="msg"></param>
+    public void OnOpenProjectFileSelected(OpeningFileSelectionMessage msg)
     {
-        if (!this.HasProject || msg is not { Response.Length: > 0 })
-        {
+        if (msg is not { Response.Length: > 0 })
+            // 未選択(キャンセル)の場合は処理しない
             return;
-        }
 
-        var path = msg.Response[0];
-
-
-        using var fs = File.OpenRead(path);
-        // {
-        var parts = MusicXmlUtil.EnumerateParts(fs);
-        var part = parts.First();
-        //}
-
-        var track = this.CurrentProject?.Tracks.ImportFromMusicXmlV2(part.Part, part.Info?.PartName ?? Path.GetFileNameWithoutExtension(path), this.SelectedModelInfo!);
-        this.SetTrack(track);
+        var project = this._projects.Open(msg.Response[0]);
+        this.SetProject(project);
     }
 
+    private Command? _saveProjectFileCommand;
+
+    /// <summary>プロジェクトファイル保存コマンド</summary>
+    public Command SaveProjectFileCommand => this._saveProjectFileCommand ??= this.AddCommand(
+        () => this._currentProject is not null,
+        () =>
+        {
+            if (this.CurrentProject!.ProjectFilePath is null)
+            {
+                this.Messenger.Raise(new("SaveProjectDialog"));
+            }
+            else
+            {
+                this.SaveProject();
+            }
+        });
+
+    /// <summary>
+    /// 保存ファイル選択時
+    /// </summary>
+    /// <param name="msg"></param>
+    public void OnSaveProjectFileSelected(SavingFileSelectionMessage msg)
+    {
+        if (msg is not { Response.Length: > 0 })
+            // 未選択(キャンセル)の場合は処理しない
+            return;
+
+        this.SaveProject(msg.Response[0]);
+    }
+
+    /// <summary>
+    /// 音声合成後WAVファイルの出力先選択時
+    /// </summary>
+    /// <param name="msg"></param>
+    /// <exception cref="NotSupportedException"></exception>
     public async void OnWaveExportFileSelected(SavingFileSelectionMessage msg)
     {
         if (!this.HasProject || msg is not { Response.Length: > 0 })
         {
+            // 未選択(キャンセル)の場合は処理しない
             return;
         }
 
@@ -362,6 +321,34 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         {
             // TODO: 
         }
+    }
+
+    private void SetProject(Project project)
+    {
+        this.CurrentProject = project;
+        this._projectSession = project.Session;
+
+        var track = this.CurrentProject.Tracks.OfType<INeutrinoTrack>().LastOrDefault();
+        this.SetTrack(track);
+    }
+
+    private void SetTrack(INeutrinoTrack? track)
+    {
+        this.CurrentTrack = track!;
+
+        if (track == null)
+        {
+            this.CloseAudio();
+        }
+        else
+        {
+            this.InitAudio(track);
+        }
+    }
+
+    private void SaveProject(string? path = null)
+    {
+        this.CurrentProject!.SaveToFile(path);
     }
 
     private TimeSpan? _beginPlayTime = null;

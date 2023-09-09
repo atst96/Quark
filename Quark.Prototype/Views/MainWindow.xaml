@@ -19,9 +19,15 @@
     d:DataContext="{d:DesignInstance Type={x:Type vm:MainWindowViewModel}}"
     FontFamily="{StaticResource UIFont}">
     <Window.InputBindings>
-        <!-- Spaceキー押下 -->
+        <!-- Ctrl+Shift+M: MusicXMLをインポート -->
+        <KeyBinding Modifiers="Ctrl+Shift" Key="M" Command="{Binding SelectMusicXmlForNewProjectCommand, Mode=OneTime}" />
+        <!-- Ctrl+O: ファイルを開く -->
+        <KeyBinding Modifiers="Ctrl" Key="O" Command="{Binding SelectProjectFileCommand, Mode=OneTime}" />
+        <!-- Ctrl+S: ファイルを保存 -->
+        <KeyBinding Modifiers="Ctrl" Key="S" Command="{Binding SaveProjectFileCommand, Mode=OneTime}" />
+        <!-- Space: 再生 -->
         <KeyBinding Modifiers="" Key="Space" Command="{Binding TogglePlayCommand, Mode=OneTime}" />
-        <!-- Space+Shiftキー押下 -->
+        <!-- Shift+Space: 前の再生開始時点から再生 -->
         <KeyBinding Modifiers="Shift" Key="Space" Command="{Binding TogglePlayResumeCommand, Mode=OneTime}" />
     </Window.InputBindings>
     <i:Interaction.Triggers>
@@ -37,14 +43,16 @@
             </l:TransitionInteractionMessageAction>
         </l:InteractionMessageTrigger>
 
-        <!--<l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenNewProjectWindow">
-            <l:TransitionInteractionMessageAction WindowType="{x:Type v:NewProjectWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False">
-                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnNewProjectSelected">
-                    <l:TransitionMessage TransitionViewModel="{Binding NewProjectViewModel, Mode=OneTime}" />
+        <!-- 開くプロジェクトファイルを選択 -->
+        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenProjectFileDialog">
+            <l:OpenFileDialogInteractionMessageAction>
+                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnOpenProjectFileSelected">
+                    <l:OpeningFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
                 </l:DirectInteractionMessage>
-            </l:TransitionInteractionMessageAction>
-        </l:InteractionMessageTrigger>-->
+            </l:OpenFileDialogInteractionMessageAction>
+        </l:InteractionMessageTrigger>
 
+        <!-- ファイル保存 -->
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="SaveProjectDialog">
             <l:SaveFileDialogInteractionMessageAction InvokeActionOnlyWhenWindowIsActive="False">
                 <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnSaveProjectFileSelected">
@@ -89,21 +97,11 @@
             <MenuItem Header="ファイル(_F)">
                 <MenuItem Header="新しいプロジェクト">
                     <!--<MenuItem Header="新規作成(_N)" Command="{Binding NewProjectCommand, Mode=OneTime}" />-->
-                    <MenuItem Header="MusicXMLからインポート(_M)" Command="{Binding NewProjectFromMusicXmlCommand, Mode=OneTime}" />
+                    <MenuItem Header="MusicXMLからインポート(_M)" InputGestureText="Ctrl+Shift+M" Command="{Binding SelectMusicXmlForNewProjectCommand, Mode=OneTime}" />
                 </MenuItem>
-                <MenuItem Header="開く(_O)">
-                    <i:Interaction.Triggers>
-                        <i:EventTrigger EventName="Click">
-                            <l:OpenFileDialogInteractionMessageAction>
-                                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnOpenProjectFileSelected">
-                                    <l:OpeningFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
-                                </l:DirectInteractionMessage>
-                            </l:OpenFileDialogInteractionMessageAction>
-                        </i:EventTrigger>
-                    </i:Interaction.Triggers>
-                </MenuItem>
+                <MenuItem Header="開く(_O)" InputGestureText="Ctrl+O" Command="{Binding SelectProjectFileCommand, Mode=OneTime}" />
                 <Separator />
-                <MenuItem Header="保存(_S)" Command="{Binding SaveCommand,Mode=OneTime}" />
+                <MenuItem Header="保存(_S)" Command="{Binding SaveProjectFileCommand,Mode=OneTime}" InputGestureText="Ctrl+S" />
                 <Separator />
                 <MenuItem Header="終了(_X)" InputGestureText="Alt+F4">
                     <!-- ウィンドウを閉じる -->
@@ -120,20 +118,6 @@
             </MenuItem>
 
             <MenuItem Header="プロジェクト(_P)" IsEnabled="{Binding IsProjectCreated, Mode=OneWay}">
-                <!--<MenuItem Header="MusicXMLをインポート(_I)">
-                    <i:Interaction.Triggers>
-                        <i:EventTrigger EventName="Click">
-                            <l:OpenFileDialogInteractionMessageAction>
-                                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnImportMusicXMLFileSelected">
-                                    <l:OpeningFileSelectionMessage Filter="MusicXML|*.musicxml;*.xml;*.mxl" />
-                                </l:DirectInteractionMessage>
-                            </l:OpenFileDialogInteractionMessageAction>
-                        </i:EventTrigger>
-                    </i:Interaction.Triggers>
-                </MenuItem>
-
-                <Separator />-->
-
                 <MenuItem Header="トラックの音声を出力">
                     <i:Interaction.Triggers>
                         <i:EventTrigger EventName="Click">
