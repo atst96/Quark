@@ -103,7 +103,7 @@ internal class PitchRendererV2
             if (pointsIdx > 0)
             {
                 var range = 0..pointsIdx;
-                g.DrawPoints(SKPointMode.Polygon, origPoints[range], new SKPaint { Color = SKColors.OrangeRed, StrokeWidth = 1.5f, IsAntialias = true });
+                g.DrawPoints(SKPointMode.Polygon, origPoints[range], new SKPaint { Color = SKColors.OrangeRed.WithAlpha(150), StrokeWidth = 1.5f, IsAntialias = true });
                 g.DrawPoints(SKPointMode.Polygon, editedPoints[range], new SKPaint { Color = SKColors.Red, StrokeWidth = 1.5f, IsAntialias = true });
             }
         }

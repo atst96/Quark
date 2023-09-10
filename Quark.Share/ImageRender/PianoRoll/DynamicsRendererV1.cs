@@ -50,7 +50,7 @@ internal class DynamicsRendererV1
         if (ri.Track is not NeutrinoV1Track track || rangeScoreInfo == null)
             return new(renderWidth, renderHeight, SKColorType.Rgb888x, SKAlphaType.Unknown);
 
-        SKBitmap image;
+        var image = new SKBitmap(renderWidth, renderHeight, false);
 
         var phrases = track.Phrases!;
 
@@ -115,7 +115,6 @@ internal class DynamicsRendererV1
                     {
                         int frameIdx = idx + f;
 
-                        double v = 0;
                         for (int dim = 0; dim < dimension; ++dim)
                         {
                             int x = frameIdx + dynamics.PhraseBeginFrameIdx - beginFrameIdx;
@@ -123,11 +122,8 @@ internal class DynamicsRendererV1
 
                             double value = ToLinear(editedMgc[(frameIdx * dimension) + dim]);
 
-                            v += value;
-
-                            // byte color = (byte)(baseColor - ((value - min) / (-min) * baseColor));
-                            const byte baseColor = 100;
-                            byte color = (byte)(Math.Min(v - min, -min) / (-min) * baseColor);
+                            const float baseColor = 100;
+                            byte color = (byte)Math.Max(0, Math.Min(baseColor, Math.Min(value - min, -min) / (-min) * baseColor));
 
                             pixels[y + x].SetColor(allColor: color);
                         }
@@ -152,16 +148,20 @@ internal class DynamicsRendererV1
                 }
             }
 
-            image = spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.None);
-        }
-
-
-        using (var g = new SKCanvas(image))
-        {
-            foreach (var (origPoints, editedPoints) in list)
+            using (var g = new SKCanvas(image))
             {
-                g.DrawPoints(SKPointMode.Polygon, origPoints, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
-                g.DrawPoints(SKPointMode.Polygon, editedPoints, new SKPaint { IsStroke = true, Color = SKColors.Blue, StrokeWidth = 1.5f });
+                int offsetX = renderLayout.GetRenderPosXFromTime(offsetMs);
+                g.DrawBitmap(spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.None), offsetX, 0);
+
+
+                var origBrush = new SKPaint { IsStroke = true, Color = SKColors.SkyBlue.WithAlpha(100), StrokeWidth = 1.5f };
+                var editedBrush = new SKPaint { IsStroke = true, Color = SKColors.DeepSkyBlue, StrokeWidth = 1.5f };
+
+                foreach (var (origPoints, editedPoints) in list)
+                {
+                    g.DrawPoints(SKPointMode.Polygon, origPoints, origBrush);
+                    g.DrawPoints(SKPointMode.Polygon, editedPoints, editedBrush);
+                }
             }
         }
 

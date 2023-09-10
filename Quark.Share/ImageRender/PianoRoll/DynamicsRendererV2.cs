@@ -51,7 +51,7 @@ internal class DynamicsRendererV2
         if (ri.Track is not NeutrinoV2Track track || rangeScoreInfo == null)
             return new(renderWidth, renderHeight, SKColorType.Rgb888x, SKAlphaType.Unknown);
 
-        SKBitmap image;
+        var image = new SKBitmap(renderWidth, renderHeight, false);
 
         var phrases = track.Phrases!;
 
@@ -133,9 +133,8 @@ internal class DynamicsRendererV2
 
                             float value = ToLinear(editedMspec[(frameIdx * dimension) + dim] + padding);
 
-                            // byte color = (byte)(baseColor - ((value - min) / (-min) * baseColor));
-                            const byte baseColor = 255;
-                            byte color = (byte)((value - linearLower) / linearDelta * baseColor);
+                            const float baseColor = 100f;
+                            byte color = (byte)Math.Max(0, Math.Min(baseColor, (value - linearLower) / linearDelta * baseColor));
 
                             pixels[y + x].SetColor(allColor: color);
                         }
@@ -167,21 +166,26 @@ internal class DynamicsRendererV2
                 }
             }
 
-            image = spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.None);
-        }
-
-        using (var g = new SKCanvas(image))
-        {
-            foreach (var (origPoints, editedPoints, minPoints, maxPoints) in list)
+            using (var g = new SKCanvas(image))
             {
-                // 最小値を描画
-                g.DrawPoints(SKPointMode.Polygon, minPoints, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
-                // 最大値の描画
-                g.DrawPoints(SKPointMode.Polygon, maxPoints, new SKPaint { IsStroke = true, Color = SKColors.SkyBlue, StrokeWidth = 1.5f });
-                // 変更前の値を描画
-                g.DrawPoints(SKPointMode.Polygon, origPoints, new SKPaint { IsStroke = true, Color = SKColors.LightBlue, StrokeWidth = 1.5f });
-                // 変更後の値を描画
-                g.DrawPoints(SKPointMode.Polygon, editedPoints, new SKPaint { IsStroke = true, Color = SKColors.Blue, StrokeWidth = 1.5f });
+                int offsetX = renderLayout.GetRenderPosXFromTime(offsetMs);
+                g.DrawBitmap(spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.None), offsetX, 0);
+
+                var rangeBrush = new SKPaint { IsStroke = true, Color = SKColors.SkyBlue.WithAlpha(100), StrokeWidth = 1.5f };
+                var origBrush = new SKPaint { IsStroke = true, Color = SKColors.SkyBlue.WithAlpha(100), StrokeWidth = 1.5f };
+                var editedBrush = new SKPaint { IsStroke = true, Color = SKColors.DeepSkyBlue, StrokeWidth = 1.5f };
+
+                foreach (var (origPoints, editedPoints, minPoints, maxPoints) in list)
+                {
+                    // 最小値を描画
+                    g.DrawPoints(SKPointMode.Polygon, minPoints, rangeBrush);
+                    // 最大値の描画
+                    g.DrawPoints(SKPointMode.Polygon, maxPoints, rangeBrush);
+                    // 変更前の値を描画
+                    g.DrawPoints(SKPointMode.Polygon, origPoints, origBrush);
+                    // 変更後の値を描画
+                    g.DrawPoints(SKPointMode.Polygon, editedPoints, editedBrush);
+                }
             }
         }
 
