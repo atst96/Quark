@@ -9,7 +9,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Quark.Constants;
@@ -60,6 +59,7 @@ public partial class PlotEditor : UserControl
     private RulerRenderer _rulerRenderer;
     private DynamicsRendererV2 _dynamicsRenderer;
     private TimingRenderer _timingRenderer;
+    private RangeSelectionRenderer _selectingRenderer;
 
     /// <summary>スコア編集可否フラグ</summary>
     private bool _isScoreEditable = true;
@@ -292,7 +292,7 @@ public partial class PlotEditor : UserControl
         var editMode = this.EditMode;
 
         // 編集操作をキャンセルする
-        this.CancelEdit();
+        this.CancelEditInternal();
 
         this._isTimingEditable = this._isScoreEditable = editMode == EditMode.ScoreAndTiming;
         this._isFeatureEditable = this._isF0Editable = editMode == EditMode.AudioFeatures;
@@ -547,6 +547,7 @@ public partial class PlotEditor : UserControl
             RenderRange = this._renderCommon.RenderRange,
             ColorInfo = this.ColorInfo,
             ScreenLayout = renderLayout,
+            SelectionRange = this._rangeSelection,
         });
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
@@ -789,6 +790,7 @@ public partial class PlotEditor : UserControl
             RenderRange = rangeInfo,
             ColorInfo = this.ColorInfo,
             ScreenLayout = renderLayout,
+            SelectionRange = this._rangeSelection,
         });
 
         var trackScore = this._trackScoreInfo;
@@ -821,6 +823,7 @@ public partial class PlotEditor : UserControl
         this._rulerRenderer = new RulerRenderer(renderInfoCommon);
         this._dynamicsRenderer = new DynamicsRendererV2(renderInfoCommon);
         this._timingRenderer = new TimingRenderer(renderInfoCommon);
+        this._selectingRenderer = new RangeSelectionRenderer(renderInfoCommon);
     }
 
     /// <summary>
@@ -946,6 +949,8 @@ public partial class PlotEditor : UserControl
             var area = renderLayout.DynamicsArea;
             g.DrawBitmap(this._dynamicImage, area.X, area.Y);
         }
+
+        this._selectingRenderer.Render(g);
 
         //double renderedY = scaledRulerHeight + scaledScoreHeight;
         //if (renderedY < h)
@@ -1180,7 +1185,7 @@ public partial class PlotEditor : UserControl
     /// <param name="mode"></param>
     private void ChangeMouseMode(MouseControlMode mode)
     {
-        this.CancelEdit();
+        this.CancelEditInternal(nextMode: mode);
         (this._mouseMode, this._editingInfo) = (mode, null);
     }
 
@@ -1193,7 +1198,7 @@ public partial class PlotEditor : UserControl
     /// <param name="value"></param>
     private void ChangeMouseMode<T>(MouseControlMode mode, T value) where T : IEditInfo
     {
-        this.CancelEdit();
+        this.CancelEditInternal(nextMode: mode);
         (this._mouseMode, this._editingInfo) = (mode, value);
     }
 
@@ -1238,6 +1243,8 @@ public partial class PlotEditor : UserControl
         var scaling = renderLayout.Scaling;
         var element = (UIElement)sender;
 
+        var cursor = this._cursor;
+
         if (e.LeftButton == MouseButtonState.Pressed)
         {
             Debug.WriteLine("Mouse captured.");
@@ -1251,6 +1258,7 @@ public partial class PlotEditor : UserControl
                 {
                     this.ChangeMouseMode(MouseControlMode.Seek);
                     this.RelocateSeekBarForSeeking(e);
+                    e.Handled = true;
                 }
             }
             else if (IsWithinEditArea(renderLayout, mousePos))
@@ -1277,6 +1285,7 @@ public partial class PlotEditor : UserControl
                                     OffsetX = x - handle.X,
                                 });
 
+                                e.Handled = true;
                                 return;
                             }
                         }
@@ -1291,41 +1300,107 @@ public partial class PlotEditor : UserControl
                     this._putNoteKeyIndex = this.GetKeyIndex(renderLayout, mousePosition);
 
                     this.RelocateNoteRectangle(e);
+                    e.Handled = true;
                 }
-                else if (this.EditMode == EditMode.AudioFeatures)
+                else if (this._mouseMode == MouseControlMode.None)
                 {
-                    // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
-                    var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
-
-                    var scoreArea = renderLayout.ScoreArea;
-                    var dynamicsArea = renderLayout.DynamicsArea;
-
-                    int beginTime = this.GetRenderBeginTimeMs();
-                    int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
-                    this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
-
-                    if (scoreArea.IsContains(mousePosition))
+                    if (this.EditMode == EditMode.AudioFeatures)
                     {
-                        double pitch = this.GetPitchFromMousePosition(renderLayout, mousePosition);
+                        // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
+                        var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-                        this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
+                        var scoreArea = renderLayout.ScoreArea;
+                        var dynamicsArea = renderLayout.DynamicsArea;
 
-                        this.EditF0(adjustedTime, EnumerableUtil.ToEnumerable(pitch));
-                    }
-                    else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
-                    {
-                        double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
-                        double frequency = DynamicsCoeToFrequency(this.Track!, coe);
+                        int beginTime = this.GetRenderBeginTimeMs();
+                        int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
+                        this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
 
-                        this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
+                        var keyboard = Keyboard.PrimaryDevice;
+                        if (keyboard.Modifiers == ModifierKeys.Shift)
+                        {
+                            // Shiftキーが押されている場合は範囲選択モードにする
+                            if (renderLayout.IsContainsEditArea(mousePosition))
+                            {
+                                cursor = Cursors.SizeWE;
+                                var editingInfo = new RangeSelectingInfo(
+                                    renderLayout.ScoreArea.IsContainsY(mousePos.Y),
+                                    adjustedTime, adjustedTime);
+                                this.ChangeMouseMode(MouseControlMode.RangeSelect, editingInfo);
+                                this._rangeSelection = editingInfo;
+                            }
 
-                        this.EditDynamics(adjustedTime, EnumerableUtil.ToEnumerable(frequency));
+                            this.UpdateRenderContent();
+                            e.Handled = true;
+                        }
+                        else if (keyboard.Modifiers == ModifierKeys.Control)
+                        {
+                            // Ctrlキーが押されている場合は一括編集モードにする
+                            if (this._rangeSelection is { } select)
+                            {
+                                if (select.IsScoreArea)
+                                {
+                                    if (renderLayout.ScoreArea.IsContainsY(mousePos.Y))
+                                    {
+                                        double pitch = this.GetPitch12FromMousePosition(renderLayout, mousePosition);
+
+                                        (int a1, int a2) = select.GetOrdererRange();
+                                        this.ChangeMouseMode(MouseControlMode.EditPitchBulkSeek, new PitchSeekingInfo(a1, a2, pitch));
+
+                                        this.UpdateRenderContent();
+                                        e.Handled = true;
+                                    }
+                                }
+                                else
+                                {
+                                    if (renderLayout.HasDynamicsArea && renderLayout.DynamicsArea.IsContainsY(mousePos.Y))
+                                    {
+                                        (int a1, int a2) = select.GetOrdererRange();
+                                        double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
+                                        this.ChangeMouseMode(MouseControlMode.EditDynamicsBulkSeek, new DynamicsSeekingInfo(a1, a2, coe));
+
+                                        this.UpdateRenderContent();
+                                        e.Handled = true;
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (scoreArea.IsContains(mousePosition))
+                            {
+                                double pitch = this.GetPitchFromMousePosition(renderLayout, mousePosition);
+
+                                this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
+
+                                this.EditF0(adjustedTime, EnumerableUtil.ToEnumerable(pitch));
+                            }
+                            else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
+                            {
+                                double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
+                                double frequency = DynamicsCoeToFrequency(this.Track!, coe);
+
+                                this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
+
+                                this.EditDynamics(adjustedTime, EnumerableUtil.ToEnumerable(frequency));
+                            }
+
+                            this.UpdateRenderContent();
+                            e.Handled = true;
+                        }
                     }
                 }
             }
         }
+
+        this.SetCursor(cursor);
     }
 
+    /// <summary>
+    /// マウス移動時の処理
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
         // カーソル
@@ -1341,9 +1416,15 @@ public partial class PlotEditor : UserControl
         //}
 
         if (this._mouseMode == MouseControlMode.Seek)
+        {
             this.RelocateSeekBarForSeeking(e);
+            e.Handled = true;
+        }
         else if (this._mouseMode == MouseControlMode.PutNote)
+        {
             this.RelocateNoteRectangle(e);
+            e.Handled = true;
+        }
         else if (this._mouseMode == MouseControlMode.EditTiming)
         {
             var renderLayout = this._renderLayout;
@@ -1374,6 +1455,7 @@ public partial class PlotEditor : UserControl
 
                     // 再描画
                     this.Redraw();
+                    e.Handled = true;
                 }
             }
         }
@@ -1390,7 +1472,8 @@ public partial class PlotEditor : UserControl
                 int beginTime = this.GetRenderBeginTimeMs();
                 int frameAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
-                this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
+                // this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
+
 
                 var editingInfo = this._editingInfo;
                 if (editingInfo is PitchEditingInfo pitchEditing)
@@ -1456,8 +1539,62 @@ public partial class PlotEditor : UserControl
                     // 直前の編集情報を更新
                     dynamicsEditingInfo.SetPrevious(currentTime, currentFrequency);
                 }
+                else if (editingInfo is RangeSelectingInfo rangeSelection)
+                {
+                    // 範囲選択モード
+                    cursor = Cursors.SizeWE;
+                    rangeSelection.UpdateEndTime(frameAdjustedTime);
+                }
+                else if (editingInfo is PitchSeekingInfo pitchSeeking)
+                {
+                    // ピッチ編集中
+                    double currentPitch = this.GetPitch12FromMousePosition(renderLayout, mousePosition);
+
+                    int beginTime2 = pitchSeeking.EndTime < pitchSeeking.EndTime ? pitchSeeking.EndTime : pitchSeeking.BeginTime;
+                    int length = NeutrinoUtil.MsToFrameIndex(Math.Abs(pitchSeeking.EndTime - pitchSeeking.BeginTime) + 1);
+
+                    this.AddPitch12(beginTime2, Enumerable.Repeat(currentPitch - pitchSeeking.Pitch, length));
+
+                    pitchSeeking.SetPitch(currentPitch);
+                }
+                else if (editingInfo is DynamicsSeekingInfo dynamicsSeeking)
+                {
+                    // ダイナミクス一括編集中
+                    double currentCoe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
+
+                    int beginTime2 = dynamicsSeeking.EndTime < dynamicsSeeking.EndTime ? dynamicsSeeking.EndTime : dynamicsSeeking.BeginTime;
+                    int length = NeutrinoUtil.MsToFrameIndex(Math.Abs(dynamicsSeeking.EndTime - dynamicsSeeking.BeginTime) + 1);
+
+                    this.AddDynamicsCoe(beginTime2, Enumerable.Repeat(currentCoe - dynamicsSeeking.Coe, length));
+
+                    dynamicsSeeking.SetCoe(currentCoe);
+                }
 
                 this.UpdateRenderContent();
+                e.Handled = true;
+            }
+            else if (e.LeftButton == MouseButtonState.Released)
+            {
+                if (this._mouseMode == MouseControlMode.None)
+                {
+                    var rangeSelection = this._rangeSelection;
+                    if (rangeSelection != null)
+                    {
+                        var keyboard = Keyboard.PrimaryDevice;
+                        if (keyboard.Modifiers == ModifierKeys.Control)
+                        {
+                            // Ctrlキーが押されている場合は一括編集モードにする
+                            if (renderLayout.ScoreArea.IsContainsY(mousePosition.Y))
+                            {
+                                cursor = Cursors.SizeNS;
+                            }
+                            else if (renderLayout.HasDynamicsArea && renderLayout.DynamicsArea.IsContainsY(mousePosition.Y))
+                            {
+                                cursor = Cursors.SizeNS;
+                            }
+                        }
+                    }
+                }
             }
         }
         else
@@ -1495,22 +1632,155 @@ public partial class PlotEditor : UserControl
 
                         // 再描画
                         this.Redraw();
+                        e.Handled = true;
                     }
                 }
             }
         }
 
         this.SetCursor(cursor);
+
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// マウスを離した時の処理
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        //Debug.WriteLine("Mouse up.");
+
+        if (e.LeftButton == MouseButtonState.Released)
+        {
+            this.SKElement.ReleaseMouseCapture();
+            Debug.WriteLine("Mouse released.");
+
+            switch (this._mouseMode)
+            {
+                case MouseControlMode.Seek:
+                    // その他
+                    this._mouseTimer.Stop();
+                    this.SelectionTime = this._tempSelectionTime;
+                    this.ClearMouseMode();
+                    e.Handled = true;
+                    return;
+
+                case MouseControlMode.PutNote:
+                    // ノート配置中
+                    this.ClearMouseMode();
+                    e.Handled = true;
+                    return;
+
+                case MouseControlMode.EditTiming:
+                    // タイミング編集中
+                    this.DetermineTimingEdit();
+                    e.Handled = true;
+                    return;
+
+                case MouseControlMode.EditPitch:
+                    // ピッチ編集中
+                    this.DeterminePitchEdit();
+                    e.Handled = true;
+                    return;
+
+                case MouseControlMode.EditDynamics:
+                    // ダイナミクス編集中
+                    this.DetermineDynamicsEdit();
+                    e.Handled = true;
+                    return;
+
+                case MouseControlMode.RangeSelect:
+                    // 範囲選択完了
+                    this.DetermineRangeSelect();
+                    e.Handled = true;
+                    return;
+
+                case MouseControlMode.EditPitchBulkSeek:
+                    // ピッチの一括シーク終了
+                    this.DeterminePitchSeeking();
+                    e.Handled = true;
+                    return;
+
+                case MouseControlMode.EditDynamicsBulkSeek:
+                    // ダイナミクスの一括シーク終了
+                    this.DetermineDynamicsSeeking();
+                    e.Handled = true;
+                    return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// キー押下時の処理
+    /// </summary>
+    /// <param name="e"></param>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        Debug.WriteLine(e);
+    }
+
+    /// <summary>
+    /// キーを離した時の処理
+    /// </summary>
+    /// <param name="e"></param>
+    protected override void OnPreviewKeyUp(KeyEventArgs e)
+    {
+        var keyboard = e.KeyboardDevice;
+
+        if (this.EditMode == EditMode.AudioFeatures)
+        {
+            if (this._rangeSelection is { } select)
+            {
+                if (select.IsScoreArea)
+                {
+                    // ピッチ編集エリアを選択中
+
+                    if (keyboard.Modifiers == ModifierKeys.None)
+                    {
+                        (int beginTime, int endTime) = select.GetOrdererRange();
+                        int lenggth = NeutrinoUtil.MsToFrameIndex(endTime - beginTime + 1);
+
+                        if (e.Key is (Key.Up or Key.Down))
+                        {
+                            // 上下キーのみの場合は1音分上下させる
+                            this.AddPitch12(beginTime, Enumerable.Repeat(e.Key == Key.Up ? 1.0d : -1.0d, lenggth));
+
+                            this.Resync();
+                            this.UpdateRenderContent();
+                            e.Handled = true;
+                        }
+                    }
+                    else if (keyboard.Modifiers == ModifierKeys.Shift)
+                    {
+                        (int beginTime, int endTime) = select.GetOrdererRange();
+                        int lenggth = NeutrinoUtil.MsToFrameIndex(endTime - beginTime + 1);
+
+                        if (e.Key is (Key.Up or Key.Down))
+                        {
+                            // Shift+上下キーの場合は1オクターブ分上下させる
+
+                            this.AddPitch12(beginTime, Enumerable.Repeat(e.Key == Key.Up ? 12.0d : -12.0d, lenggth));
+
+                            this.Resync();
+                            this.UpdateRenderContent();
+                            e.Handled = true;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private Cursor _cursor = Cursors.Arrow;
+    private RangeSelectingInfo? _rangeSelection;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void SetCursor(Cursor cursor)
     {
-        if (this._cursor != null)
-        {
+        if (this._cursor != cursor)
             this.Cursor = this._cursor = cursor;
-        }
     }
 
     private void RelocateSeekBarForSeeking(MouseEventArgs e)
@@ -1694,8 +1964,6 @@ public partial class PlotEditor : UserControl
     {
         double pitch = this.GetPitch12FromMousePosition(renderLayout, mousePosition);
         return AudioDataConverter.Pitch12ToFrequency(pitch);
-            }
-        }
     }
 
     /// <summary>
@@ -1765,7 +2033,7 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>
-    /// F0値を編集する。
+    /// F0値を編集する
     /// </summary>
     /// <param name="time">開始時間</param>
     /// <param name="pitches">F0値</param>
@@ -1777,8 +2045,21 @@ public partial class PlotEditor : UserControl
             v1Track.EditF0(time, pitches.ToArray());
         else if (track is NeutrinoV2Track v2Track)
             v2Track.EditF0(time, pitches.Select(i => (float)i).ToArray());
+    }
 
-        this.UpdateRenderContent();
+    /// <summary>
+    /// F0値を編集する。
+    /// </summary>
+    /// <param name="time">開始時間</param>
+    /// <param name="pitches">F0値</param>
+    private void AddPitch12(int time, IEnumerable<double> pitches)
+    {
+        var track = this.Track;
+
+        if (track is NeutrinoV1Track v1Track)
+            v1Track.AddPitch12(time, pitches.ToArray());
+        else if (track is NeutrinoV2Track v2Track)
+            v2Track.AddPitch12(time, pitches.Select(i => (float)i).ToArray());
     }
 
     /// <summary>
@@ -1786,12 +2067,17 @@ public partial class PlotEditor : UserControl
     /// </summary>
     public void DeterminePitchEdit()
     {
+        this.Resync();
+
+        this.ClearMouseMode();
+    }
+
+    private void Resync()
+    {
         if (this.Track is { } track)
         {
             track.ReSynseEditing();
         }
-
-        this.ClearMouseMode();
     }
 
     /// <summary>
@@ -1814,7 +2100,7 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>
-    /// ダイナミクス値を編集する。
+    /// ダイナミクス値を編集する
     /// </summary>
     /// <param name="time">開始時間</param>
     /// <param name="dynamics">ダイナミクス値</param>
@@ -1828,6 +2114,21 @@ public partial class PlotEditor : UserControl
             v2Track.EditDynamics(time, dynamics.Select(i => (float)i).ToArray());
 
         this.UpdateRenderContent();
+    }
+
+    /// <summary>
+    /// ダイナミクス値に加算する
+    /// </summary>
+    /// <param name="time">開始時間</param>
+    /// <param name="coeDelta">F0値</param>
+    private void AddDynamicsCoe(int time, IEnumerable<double> coeDelta)
+    {
+        var track = this.Track;
+
+        if (track is NeutrinoV1Track v1Track)
+            v1Track.AddDynamicsCoe(time, coeDelta.ToArray());
+        else if (track is NeutrinoV2Track v2Track)
+            v2Track.AddDynamicsCoe(time, coeDelta.Select(i => (float)i).ToArray());
     }
 
     /// <summary>
@@ -1863,14 +2164,93 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>
+    /// ピッチ編集をキャンセルする
+    /// </summary>
+    public void CancelSeekingPitch()
+    {
+        if (this.Track is { } track && this._editingInfo is PitchSeekingInfo editing)
+        {
+            foreach (var phrase in track.Phrases.Where(p => p.IsF0Editing()))
+            {
+                phrase.CancelEditingF0();
+            }
+
+            // 再描画
+            this.UpdateRenderContent();
+        }
+
+        this.ClearMouseMode();
+    }
+
+    /// <summary>
+    /// ピッチ編集をキャンセルする
+    /// </summary>
+    public void CancelSeekingDynamics()
+    {
+        if (this.Track is { } track && this._editingInfo is DynamicsSeekingInfo editing)
+        {
+            foreach (var phrase in track.Phrases.Where(p => p.IsDynamicsEditing()))
+            {
+                phrase.CancelEditingDynamics();
+            }
+
+            // 再描画
+            this.UpdateRenderContent();
+        }
+
+        this.ClearMouseMode();
+    }
+
+    /// <summary>
+    /// 範囲選択を完了する。
+    /// </summary>
+    private void DetermineRangeSelect()
+    {
+        this.ClearMouseMode();
+    }
+
+    private void DeterminePitchSeeking()
+    {
+        if (this.Track is { } track)
+        {
+            track.ReSynseEditing();
+        }
+
+        this.ClearMouseMode();
+    }
+
+    private void DetermineDynamicsSeeking()
+    {
+        if (this.Track is { } track)
+        {
+            track.ReSynseEditing();
+        }
+
+        this.ClearMouseMode();
+    }
+
+    /// <summary>
+    /// 範囲選択をキャンセルする。
+    /// </summary>
+    public void CancelRangeSelect()
+    {
+        this.ClearMouseMode();
+    }
+
+    /// <summary>
     /// 編集操作をキャンセルする(Esc押下時)
     /// </summary>
-    public void CancelEdit()
+    private void CancelEditInternal(MouseControlMode nextMode = MouseControlMode.None)
     {
         // エスケープキーが押下された場合
         // マウス操作の作業をキャンセルする
         switch (this._mouseMode)
         {
+            case MouseControlMode.None:
+                if (nextMode == MouseControlMode.None)
+                    break; // 次のモードがない場合は後続処理に進む
+                return; // 次のモードが指定されている場合は何もしない
+
             case MouseControlMode.EditTiming:
                 this.CancelTimingEdit();
                 return;
@@ -1882,7 +2262,28 @@ public partial class PlotEditor : UserControl
             case MouseControlMode.EditDynamics:
                 this.CancelDynamicsEdit();
                 return;
+
+            case MouseControlMode.RangeSelect:
+                this.CancelRangeSelect();
+                return;
+
+            case MouseControlMode.EditPitchBulkSeek:
+                this.CancelSeekingPitch();
+                return;
+
+            case MouseControlMode.EditDynamicsBulkSeek:
+                this.CancelSeekingDynamics();
+                return;
         }
+
+        if (this._rangeSelection != null)
+            this._rangeSelection = null;
+    }
+
+    public void CancelEdit()
+    {
+        this.CancelEditInternal();
+        this.UpdateRenderContent(redraw: true);
     }
 
     /// <summary>

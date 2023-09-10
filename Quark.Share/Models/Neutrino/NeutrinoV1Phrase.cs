@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Quark.Constants;
+using Quark.Converters;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 
@@ -183,6 +184,36 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
 
         return destMgc;
     }
+    /// <summary>
+    /// 編集内容を反映したMGCを取得する。
+    /// </summary>
+    /// <returns></returns>
+    [return: NotNullIfNotNull(nameof(this.Mgc))]
+    public double[]? GetEditingMgc()
+    {
+        double[]? srcMgc = this.Mgc;
+        double[]? editedDynamics = this.EditingDynamics ?? this.EditedDynamics;
+
+        // 編集対象が未設定(null)であればnullを返す
+        // 未編集であれば、編集前の値を返す
+        if (srcMgc == null)
+            return null;
+        else if (ArrayUtil.IsNullOrEmpty(editedDynamics))
+            return srcMgc;
+
+        // MGCをコピーし、フレーム毎の先頭の値を編集後の値に置き換える
+        double[] destMgc = ArrayUtil.Clone(srcMgc);
+        int frameLength = Math.Min(editedDynamics.Length, srcMgc.Length / MgcDimension);
+        for (int frameIdx = 0; frameIdx < frameLength; ++frameIdx)
+        {
+            double value = editedDynamics[frameIdx];
+
+            if (!double.IsNaN(value))
+                destMgc[frameIdx * MgcDimension] = value;
+        }
+
+        return destMgc;
+    }
 
     /// <summary>
     /// 編集中のF0値を取得する。編集情報がなければ編集後情報から生成する。
@@ -225,6 +256,48 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     }
 
     /// <summary>
+    /// ピッチに12音階の値を加算する
+    /// </summary>
+    /// <param name="editBeginTime"></param>
+    /// <param name="pitches"></param>
+    public void AddPitch12(int editBeginTime, Span<double> pitches)
+    {
+        Span<double> f0 = this.GetEditedF0();
+        Span<double> f02 = this.GetEditingF0();
+        if (pitches.Length < 1 || f0.Length < 1)
+            return;
+
+        int editBeginFrameIdx = NeutrinoUtil.MsToFrameIndex(editBeginTime);
+        int editEndFrameIdx = editBeginFrameIdx + pitches.Length;
+
+        int phraseBeginIdx = NeutrinoUtil.MsToFrameIndex(this.BeginTime);
+
+        // 編集データ全体の開始時間(beginFrameIdx)とフレーズの開始時間(phraseBeginIdx)の差異
+        int relativeFrequencyIdx = editBeginFrameIdx - phraseBeginIdx;
+
+        // フレーズにおけるデータの編集範囲
+        int startIdx = Math.Max(0, relativeFrequencyIdx);
+        int endIdx = Math.Min(f0.Length, editEndFrameIdx - phraseBeginIdx);
+
+        int framesCount = endIdx - startIdx;
+        if (framesCount < 1)
+            return; // 編集対象がなければ処理を抜ける
+
+        // 編集内容を反映する
+        for (int idx = 0; idx < framesCount; ++idx)
+        {
+            double previousPitch = f0[startIdx + idx];
+            if (double.IsNaN(previousPitch))
+                previousPitch = f02[startIdx + idx];
+
+            f0[startIdx + idx] = AudioDataConverter.Pitch12ToFrequency(
+                AudioDataConverter.FrequencyToPitch12(previousPitch) + pitches[startIdx - relativeFrequencyIdx + idx]);
+        }
+
+        this.OnUpdated();
+    }
+
+    /// <summary>
     /// 編集中のダイナミクス値を取得する。編集情報がなければ編集後情報から生成する。
     /// </summary>
     /// <returns></returns>
@@ -232,7 +305,7 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
         => this.EditingDynamics ??= ArrayUtil.Clone(this.EditedDynamics);
 
     /// <summary>
-    /// ダイナミクス値を編集情報に追加する。
+    /// ダイナミクス値を編集情報に追加する
     /// </summary>
     /// <param name="editBeginTime">編集開始時間</param>
     /// <param name="dynamicsValues">編集データ</param>
@@ -265,23 +338,43 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     }
 
     /// <summary>
-    /// 音の強さを編集する。
+    /// ダイナミクスの編集値に加算する(編集値の範囲は0.0～1.0)
     /// </summary>
-    /// <param name="time">編集時点</param>
-    /// <param name="value">値</param>
-    [Obsolete]
-    public void EditDynamics(int time, double value)
+    /// <param name="editBeginTime"></param>
+    /// <param name="dynamicsCoeDelta"></param>
+    public void AddDynamicsCoe(int editBeginTime, double[] dynamicsCoeDelta)
     {
-        var dynamics = this.GetEditedMgc();
-        if (ArrayUtil.IsNullOrEmpty(dynamics) || !(this.BeginTime <= time && time < this.EndTime))
+        Span<double> editingDynamics = this.GetDynamicsForEdit();
+        Span<double> editedMgc = this.GetEditingMgc();
+        if (dynamicsCoeDelta.Length < 1 || editingDynamics.Length < 1)
             return;
 
-        int index = (time - this.BeginTime) / FramePeriod;
+        int editBeginFrameIdx = NeutrinoUtil.MsToFrameIndex(editBeginTime);
+        int editEndFrameIdx = editBeginFrameIdx + dynamicsCoeDelta.Length;
 
-        if (dynamics.Length < index)
-            return;
+        int phraseBeginIdx = NeutrinoUtil.MsToFrameIndex(this.BeginTime);
 
-        dynamics[index] = value;
+        // 編集データ全体の開始時間(beginFrameIdx)とフレーズの開始時間(phraseBeginIdx)の差異
+        int relativeFrequencyIdx = editBeginFrameIdx - phraseBeginIdx;
+
+        // フレーズにおけるデータの編集範囲
+        int startIdx = Math.Max(0, relativeFrequencyIdx);
+        int endIdx = Math.Min(editingDynamics.Length, editEndFrameIdx - phraseBeginIdx);
+
+        int framesCount = endIdx - startIdx;
+        if (framesCount < 1)
+            return; // 編集対象がなければ処理を抜ける
+
+        // 編集内容を反映する
+        for (int idx = 0; idx < framesCount; ++idx)
+        {
+            double previousDynamics = editingDynamics[startIdx + idx];
+            if (double.IsNaN(previousDynamics))
+                previousDynamics = editedMgc[(startIdx + idx) * NeutrinoConfig.MgcDimension];
+
+            editingDynamics[startIdx + idx] = NeutrinoUtil.LinearMgcCoeToLogValue(
+                NeutrinoUtil.MgcToCoe(previousDynamics) + dynamicsCoeDelta[startIdx - relativeFrequencyIdx + idx]);
+        }
 
         this.OnUpdated();
     }
@@ -317,7 +410,10 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     public void DetermineEditingF0()
     {
         if (this.EditingF0 is { } editing)
+        {
             (this.EditedF0, this.EditingF0) = (editing, null);
+            this.OnAudioFetureDetermined();
+        }
     }
 
     /// <summary>
@@ -339,7 +435,10 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     public void DetermineEditingDynamics()
     {
         if (this.EditingDynamics is { } editing)
+        {
             (this.EditedDynamics, this.EditingDynamics) = (editing, null);
+            this.OnAudioFetureDetermined();
+        }
     }
 
     /// <summary>
@@ -347,6 +446,18 @@ public class NeutrinoV1Phrase : INeutrinoPhrase
     /// </summary>
     public void CancelEditingDynamics()
         => this.EditingDynamics = null;
+    private void OnAudioFetureDetermined()
+    {
+        switch (this.Status)
+        {
+            case PhraseStatus.WaitEstimate:
+            case PhraseStatus.EstimateError:
+            case PhraseStatus.EstimateProcessing:
+                return;
+        }
+
+        this.Status = PhraseStatus.WaitAudioRender;
+    }
 
     /// <summary>
     /// 音響情報が編集中かどうかを取得する。

@@ -22,4 +22,13 @@ public enum MouseControlMode
 
     /// <summary>ダイナミクス編集</summary>
     EditDynamics,
+
+    /// <summary範囲選択</summary>
+    RangeSelect,
+
+    /// <summary>ピッチの一括編集</summary>
+    EditPitchBulkSeek,
+
+    /// <summary>ダイナミクスの一括編集</summary>
+    EditDynamicsBulkSeek,
 }

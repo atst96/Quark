@@ -399,6 +399,19 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     }
 
     /// <summary>
+    /// ピッチに12音階の値を加算する
+    /// </summary>
+    /// <param name="beginTime"></param>
+    /// <param name="pitches"></param>
+    public void AddPitch12(int beginTime, double[] pitches)
+    {
+        int endTime = beginTime + NeutrinoUtil.FrameIndexToMs(pitches.Length);
+
+        foreach (var phrase in this.GetPhrases(beginTime, endTime))
+            phrase.AddPitch12(beginTime, pitches);
+    }
+
+    /// <summary>
     /// ダイナミクス値を編集する。
     /// </summary>
     /// <param name="beginTime">開始時間</param>
@@ -409,5 +422,18 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
 
         foreach (var phrase in this.GetPhrases(beginTime, endTime))
             phrase.EditDynamics(beginTime, dynamics);
+    }
+
+    /// <summary>
+    /// ダイナミクスの編集値に加算する(編集値の範囲は0.0～1.0)
+    /// </summary>
+    /// <param name="beginTime"></param>
+    /// <param name="coeDelta"></param>
+    public void AddDynamicsCoe(int beginTime, double[] coeDelta)
+    {
+        int endTime = beginTime + NeutrinoUtil.FrameIndexToMs(coeDelta.Length);
+
+        foreach (var phrase in this.GetPhrases(beginTime, endTime))
+            phrase.AddDynamicsCoe(beginTime, coeDelta);
     }
 }

@@ -13,4 +13,13 @@ public enum EditInfoType
 
     /// <summary>ダイナミクス編集</summary>
     Dynamics,
+
+    /// <summary>範囲選択</summary>
+    RangeSelect,
+
+    /// <summary>ピッチの一括編集</summary>
+    SeekPitch,
+
+    /// <summary>ダイナミクスの一括編集</summary>
+    SeekDynamics,
 }

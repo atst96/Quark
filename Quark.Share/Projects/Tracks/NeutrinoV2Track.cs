@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using Quark.Audio;
+﻿using Quark.Audio;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Models.Neutrino;
@@ -388,7 +387,7 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
     /// <param name="endTime">終了時間</param>
     /// <returns></returns>
     private IEnumerable<NeutrinoV2Phrase> GetPhrases(int beginTime, int endTime)
-        => this.Phrases.Where(p => p.BeginTime <= beginTime && endTime < p.EndTime);
+        => this.Phrases.Where(p => beginTime <= p.EndTime && p.BeginTime < endTime);
 
     /// <summary>
     /// F0値を編集する。
@@ -404,6 +403,20 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
     }
 
     /// <summary>
+    /// ピッチに12音階の値を加算する
+    /// </summary>
+    /// <param name="beginTime"></param>
+    /// <param name="pitches"></param>
+    public void AddPitch12(int beginTime, Span<float> pitches)
+    {
+        int endTime = beginTime + NeutrinoUtil.FrameIndexToMs(pitches.Length);
+
+        var phrases = this.GetPhrases(beginTime, endTime);
+        foreach (var phrase in phrases)
+            phrase.AddPitch12(beginTime, pitches);
+    }
+
+    /// <summary>
     /// ダイナミクス値を編集する。
     /// </summary>
     /// <param name="beginTime">開始時間</param>
@@ -414,5 +427,19 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
 
         foreach (var phrase in this.GetPhrases(beginTime, endTime))
             phrase.EditDynamics(beginTime, dynamics);
+    }
+
+    /// <summary>
+    /// ダイナミクスの編集値に加算する(編集値の範囲は0.0～1.0)
+    /// </summary>
+    /// <param name="beginTime"></param>
+    /// <param name="coeDelta"></param>
+    public void AddDynamicsCoe(int beginTime, float[] coeDelta)
+    {
+        int endTime = beginTime + NeutrinoUtil.FrameIndexToMs(coeDelta.Length);
+
+        var phrases = this.GetPhrases(beginTime, endTime);
+        foreach (var phrase in phrases)
+            phrase.AddDynamicsCoe(beginTime, coeDelta);
     }
 }

@@ -373,6 +373,13 @@ public static partial class NeutrinoUtil
         => SignalUtil.ToLogScale((coe * range.Range) + range.Lower) + lower;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static T LogValueToCoe<T>((T Upper, T Lower, T Range) range, T value, T lower)
+        where T : IBinaryFloatingPointIeee754<T>
+        => (SignalUtil.ToLinearScale(value - lower) - range.Lower) / range.Range;
+
+
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float LinearMgcCoeToLogValue(float coe)
         => LinearCoeToLogValue(MgcLinearValueF, coe, MgcValueF.Lower);
 
@@ -383,6 +390,18 @@ public static partial class NeutrinoUtil
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float LinearMspecCoeToLogValue(float coe)
         => LinearCoeToLogValue(MspecLinearValueF, coe, MspecValueF.Lower);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static double MgcToCoe(double value)
+        => LogValueToCoe(MgcLinearValue, value, MgcValue.Lower);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float MgcToCoe(float value)
+        => LogValueToCoe(MgcLinearValueF, value, MgcValueF.Lower);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float MspecToCoe(float value)
+        => LogValueToCoe(MspecLinearValueF, value, MspecValueF.Lower);
 
     /// <summary>
     /// MGC(対数スケール)の値をリニアスケールに変換する。
