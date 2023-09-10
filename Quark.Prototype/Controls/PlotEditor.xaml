@@ -20,8 +20,8 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <skia:SKElement Focusable="True" x:Name="SKElement" PaintSurface="OnPaintSurface" MouseWheel="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
-                            MouseDown="OnMouseDown" MouseMove="OnMouseMove" MouseUp="OnMouseUp"/>
+            <skia:SKElement x:Name="SKElement" PaintSurface="OnPaintSurface" MouseWheel="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
+                            MouseDown="OnMouseDown" MouseMove="OnMouseMove" MouseUp="OnMouseUp" />
 
             <!--再生用シークバー-->
             <local:IsolatedSeekBar

@@ -17,7 +17,9 @@
     lb:ViewModelBehavior.Type="{x:Type vm:MainWindowViewModel}"
     lb:ViewModelBehavior.DisposeDataContextOnWindowClosed="True"
     d:DataContext="{d:DesignInstance Type={x:Type vm:MainWindowViewModel}}"
-    FontFamily="{StaticResource UIFont}">
+    FontFamily="{StaticResource UIFont}"
+    KeyboardNavigation.DirectionalNavigation="Once"
+    FocusManager.FocusedElement="{Binding ElementName=PloatEditor1, Mode=OneTime}">
     <Window.InputBindings>
         <!-- Ctrl+Shift+M: MusicXMLをインポート -->
         <KeyBinding Modifiers="Ctrl+Shift" Key="M" Command="{Binding SelectMusicXmlForNewProjectCommand, Mode=OneTime}" />
@@ -93,7 +95,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Menu Grid.Column="0" FontFamily="{StaticResource UIFont}">
+        <Menu Grid.Column="0" FontFamily="{StaticResource UIFont}" TabIndex="1">
             <MenuItem Header="ファイル(_F)">
                 <MenuItem Header="新しいプロジェクト">
                     <!--<MenuItem Header="新規作成(_N)" Command="{Binding NewProjectCommand, Mode=OneTime}" />-->
@@ -136,8 +138,11 @@
             </MenuItem>
         </Menu>
 
-        <ToolBarTray Grid.Row="1">
-            <ToolBar Band="1" BandIndex="1">
+        <ToolBarTray Grid.Row="1" Focusable="False" FocusManager.IsFocusScope="False">
+            <ToolBar Band="1" BandIndex="1" Focusable="False" IsTabStop="False"
+                     KeyboardNavigation.TabNavigation="None"
+                     KeyboardNavigation.ControlTabNavigation="None"
+                     KeyboardNavigation.DirectionalNavigation="None">
                 <!--  歌声 -->
                 <Label Content="歌声:" />
                 <TextBlock VerticalAlignment="Center" Width="140"
@@ -184,6 +189,7 @@
             <Grid Grid.Column="2">
 
                 <ctr:PlotEditor
+                    Focusable="True" IsTabStop="True" TabIndex="0"
                     x:Name="PloatEditor1"
                     Track="{Binding CurrentTrack, Mode=OneWay}"
                     IsPlayMode="{Binding IsPlaying, Mode=OneWay}"
@@ -198,7 +204,11 @@
             </Grid>
         </Grid>
 
-        <StatusBar Grid.Row="3" FontFamily="{DynamicResource UIFont}">
+        <StatusBar Grid.Row="3" FontFamily="{DynamicResource UIFont}"
+                   Focusable="False" IsTabStop="False"
+                   KeyboardNavigation.TabNavigation="None"
+                   KeyboardNavigation.ControlTabNavigation="None"
+                   KeyboardNavigation.DirectionalNavigation="None" Grid.ColumnSpan="2">
             <StatusBarItem DockPanel.Dock="Right">
                 <StackPanel Orientation="Horizontal">
 

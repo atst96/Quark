@@ -113,7 +113,15 @@ public partial class PlotEditor : UserControl
         };
     }
 
-    private nint _ownerHandle = IntPtr.Zero;
+    static PlotEditor()
+    {
+        FocusableProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(true));
+        FocusManager.IsFocusScopeProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(true));
+        IsTabStopProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(true));
+        KeyboardNavigation.TabNavigationProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(KeyboardNavigationMode.Once));
+        KeyboardNavigation.ControlTabNavigationProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(KeyboardNavigationMode.Once));
+        KeyboardNavigation.DirectionalNavigationProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(KeyboardNavigationMode.None));
+    }
 
     /// <summary>
     /// コントロール読み込み完了時
@@ -1209,6 +1217,22 @@ public partial class PlotEditor : UserControl
     private int _putNoteBeginTime = 0;
     private int _putNoteKeyIndex = 0;
 
+    protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseDown(e);
+
+        if (!this.IsFocused)
+        {
+            this.Focus();
+            Keyboard.Focus(this);
+        }
+    }
+
+    /// <summary>
+    /// マウス押下時の処理
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
         Debug.WriteLine("Mouse down.");
