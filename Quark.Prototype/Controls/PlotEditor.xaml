@@ -7,7 +7,7 @@
              xmlns:local="clr-namespace:Quark.Controls"
              mc:Ignorable="d"
              d:DesignHeight="450" d:DesignWidth="800"
-             Loaded="OnLoaded" Unloaded="OnUnload" Focusable="True">
+             Loaded="OnLoaded" Unloaded="OnUnload">
     <Grid>
         <Grid>
             <Grid.ColumnDefinitions>
@@ -43,7 +43,7 @@
                        Width="120" Height="40"
                        IsHitTestVisible="False" />
 
-            <TextBox x:Name="PART_LyricsTextBox" Grid.Column="0" Grid.Row="1" Height="40"
+            <TextBox x:Name="PART_LyricsTextBox" Visibility="Collapsed" Grid.Column="0" Grid.Row="1" Height="40"
                          Padding="2,4" BorderThickness="0,1,0,0" BorderBrush="#666"
                          AcceptsReturn="False" AcceptsTab="False" TextWrapping="NoWrap"
                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Hidden"

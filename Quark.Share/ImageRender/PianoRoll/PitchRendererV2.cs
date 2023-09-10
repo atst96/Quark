@@ -91,10 +91,10 @@ internal class PitchRendererV2
                     int x = renderLayout.GetRenderPosXFromTime(offsetMs + NeutrinoUtil.FrameIndexToMs(frameIdx + pitch.PhraseBeginFrameIdx) - beginTime);
 
                     origPoints[pointsIdx] = new SKPoint(x,
-                        height - pitchOffset - ((float)AudioDataConverter.FrequencyToScale(f0[frameIdx]) * keyHeight));
+                        height - pitchOffset - ((float)AudioDataConverter.FrequencyToPitch12(f0[frameIdx]) * keyHeight));
 
                     editedPoints[pointsIdx] = new SKPoint(x,
-                        height - pitchOffset - ((float)AudioDataConverter.FrequencyToScale(editedF0[frameIdx]) * keyHeight));
+                        height - pitchOffset - ((float)AudioDataConverter.FrequencyToPitch12(editedF0[frameIdx]) * keyHeight));
 
                     ++pointsIdx;
                 }

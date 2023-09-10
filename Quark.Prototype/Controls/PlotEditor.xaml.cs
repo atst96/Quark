@@ -133,8 +133,6 @@ public partial class PlotEditor : UserControl
         var window = Window.GetWindow(this);
         window.DpiChanged += this.OnDpiChanged;
         window.LocationChanged += this.OnParentWindowLocationChanged;
-
-        nint handle = this._ownerHandle = new WindowInteropHelper(window).Handle;
     }
 
     /// <summary>
@@ -144,7 +142,6 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnUnload(object sender, RoutedEventArgs e)
     {
-        this._ownerHandle = IntPtr.Zero;
     }
 
     /// <summary>
@@ -1686,43 +1683,17 @@ public partial class PlotEditor : UserControl
         return (int)Math.Round(GetConditionTime(renderLayout, timeMs, mousePosition) / (double)unit) * unit;
     }
 
-    private void OnMouseUp(object sender, MouseButtonEventArgs e)
+    /// <summary>
+    /// マウス位置からピッチを取得する。
+    /// </summary>
+    /// <param name="renderLayout">レイアウト情報</param>
+    /// <param name="mousePosition">マウス位置</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private double GetPitchFromMousePosition(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
     {
-        //Debug.WriteLine("Mouse up.");
-
-        if (e.LeftButton == MouseButtonState.Released)
-        {
-            this.SKElement.ReleaseMouseCapture();
-            Debug.WriteLine("Mouse released.");
-
-            switch (this._mouseMode)
-            {
-                case MouseControlMode.Seek:
-                    // その他
-                    this._mouseTimer.Stop();
-                    this.SelectionTime = this._tempSelectionTime;
-                    this.ClearMouseMode();
-                    return;
-
-                case MouseControlMode.PutNote:
-                    // ノート配置中
-                    this.ClearMouseMode();
-                    return;
-
-                case MouseControlMode.EditTiming:
-                    // タイミング編集中
-                    this.DetermineTimingEdit();
-                    return;
-
-                case MouseControlMode.EditPitch:
-                    // ピッチ編集中
-                    this.DeterminePitchEdit();
-                    return;
-
-                case MouseControlMode.EditDynamics:
-                    // ダイナミクス編集中
-                    this.DetermineDynamicsEdit();
-                    return;
+        double pitch = this.GetPitch12FromMousePosition(renderLayout, mousePosition);
+        return AudioDataConverter.Pitch12ToFrequency(pitch);
             }
         }
     }
@@ -1734,14 +1705,13 @@ public partial class PlotEditor : UserControl
     /// <param name="mousePosition">マウス位置</param>
     /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private double GetPitchFromMousePosition(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
+    private double GetPitch12FromMousePosition(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
     {
         int scrollPosition = this.GetVScrollPosition();
         var scoreArea = renderLayout.ScoreArea;
         int keyHeight = renderLayout.PhysicalKeyHeight;
 
-        double pitch = (double)(renderLayout.ScoreImage.Height - (scrollPosition + scoreArea.RelativeY(mousePosition.Y)) - (keyHeight / 2)) / keyHeight;
-        return AudioDataConverter.ScaleToFrequency(pitch);
+        return (double)(renderLayout.ScoreImage.Height - (scrollPosition + scoreArea.RelativeY(mousePosition.Y)) - (keyHeight / 2)) / keyHeight;
     }
 
     /// <summary>
