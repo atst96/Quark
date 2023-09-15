@@ -44,15 +44,16 @@ internal class PianoRollNoteRenderer
                 height - (score.Pitch * keyHeight),
                 renderLayout.GetRenderPosXFromTime(score.EndTime - score.BeginTime),
                 keyHeight);
+            var roundRect = new SKRoundRect(rect, 2);
 
-            g.DrawRect(rect, new SKPaint
+            g.DrawRoundRect(roundRect, new SKPaint
             {
-                Color = SKColors.LightSkyBlue,
+                Color = new(164, 197, 245),
                 Style = SKPaintStyle.Fill,
             });
-            g.DrawRect(rect, new SKPaint
+            g.DrawRoundRect(roundRect, new SKPaint
             {
-                Color = SKColors.DarkBlue,
+                Color = new SKColor(74, 126, 187),
                 Style = SKPaintStyle.Stroke,
                 StrokeWidth = 1.0f,
                 IsStroke = true,
@@ -65,7 +66,7 @@ internal class PianoRollNoteRenderer
                 const float bressMarkHeight = 16f;
                 g.DrawPath(
                     CreateBreathMark(rect.Left + rect.Width, rect.Top, bressMarkWidth, bressMarkHeight),
-                    new SKPaint() { Color = SKColors.Blue, IsStroke = true, StrokeWidth = 1.6f, IsAntialias = true });
+                    new SKPaint() { Color = new(44, 96, 157), IsStroke = true, StrokeWidth = 2f, IsAntialias = true });
             }
 
             // 歌詞
