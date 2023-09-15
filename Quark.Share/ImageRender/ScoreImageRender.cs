@@ -72,25 +72,4 @@ public class ScoreImageRender
 
         return (image, width, height);
     }
-
-    // TODO: 本対応でprivateにする
-    internal static SKPath CreateBreathMark(float top, float left, float width, float height)
-    {
-        float halfWidth = (width - 1) / 2;
-
-        SKPoint[] points =
-        {
-            // 左上
-            new(left - halfWidth, top),
-            // 下
-            new(left, top + height),
-            // 右上
-            new(left + halfWidth, top),
-        };
-
-        var path = new SKPath();
-        path.AddPoly(points, close: false);
-
-        return path;
-    }
 }

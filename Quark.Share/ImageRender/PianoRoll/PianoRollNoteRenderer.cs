@@ -60,14 +60,46 @@ internal class PianoRollNoteRenderer
 
             if (score.Breath)
             {
+                // TOD: ブレスマークのサイズを可変にする
+                const float bressMarkWidth = 11f;
+                const float bressMarkHeight = 16f;
                 g.DrawPath(
-                    ScoreImageRender.CreateBreathMark(rect.Top - height - 1, rect.Left + rect.Width, 9, 14),
+                    CreateBreathMark(rect.Left + rect.Width, rect.Top, bressMarkWidth, bressMarkHeight),
                     new SKPaint() { Color = SKColors.Blue, IsStroke = true, StrokeWidth = 1.6f, IsAntialias = true });
             }
 
             // 歌詞
-            g.DrawText(score.Lyrics, new SKPoint(rect.Left, rect.Top), lyricsTypography);
+            g.DrawText(score.Lyrics, new(rect.Left, rect.Top), lyricsTypography);
 
         }
+    }
+
+    /// <summary>
+    /// ブレスマークのパスを生成する
+    /// </summary>
+    /// <param name="x"></param>
+    /// <param name="y"></param>
+    /// <param name="width">描画幅</param>
+    /// <param name="height">描画高</param>
+    /// <returns></returns>
+    private static SKPath CreateBreathMark(float x, float y, float width, float height)
+    {
+        float halfWidth = (width - 1) / 2;
+        float offsetX = y - height;
+
+        SKPoint[] points =
+        {
+            // 左上
+            new(x - halfWidth, offsetX),
+            // 下
+            new(x, offsetX + height),
+            // 右上
+            new(x + halfWidth, offsetX),
+        };
+
+        var path = new SKPath();
+        path.AddPoly(points, close: false);
+
+        return path;
     }
 }
