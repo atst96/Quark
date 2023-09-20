@@ -172,7 +172,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
         var path = paths.First();
 
-        (PartList.ScorePartElement Info, Part Part)[] parts;
+        (PartList.ScorePartElement Info, Models.MusicXML.Part Part)[] parts;
         using (var fs = File.OpenRead(path))
         {
             parts = MusicXmlUtil.EnumerateParts(fs).ToArray();
