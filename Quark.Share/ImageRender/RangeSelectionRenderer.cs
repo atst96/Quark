@@ -1,22 +1,15 @@
-﻿using Quark.Controls;
-using SkiaSharp;
-using static System.Formats.Asn1.AsnWriter;
+﻿using SkiaSharp;
 
 namespace Quark.ImageRender;
 
 public class RangeSelectionRenderer
 {
-    private RenderInfoCommon _renderInfo;
-
-    public RangeSelectionRenderer(RenderInfoCommon renderInfo)
+    public RangeSelectionRenderer()
     {
-        this._renderInfo = renderInfo;
     }
 
-    public void Render(SKCanvas g)
+    public void Render(SKCanvas g, RenderInfoCommon renderInfo)
     {
-        var renderInfo = this._renderInfo;
-
         var selectionRange = renderInfo.SelectionRange;
         if (selectionRange == null)
             return;

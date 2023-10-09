@@ -8,11 +8,8 @@ namespace Quark.ImageRender;
 
 internal class PianoRollBackgroundRenderer
 {
-    private readonly RenderInfoCommon _renderInfo;
-
-    public PianoRollBackgroundRenderer(RenderInfoCommon renderInfo)
+    public PianoRollBackgroundRenderer()
     {
-        this._renderInfo = renderInfo;
     }
 
     /// <summary>
@@ -22,12 +19,10 @@ internal class PianoRollBackgroundRenderer
     /// <param name="keyHeight">1音あたりの高さ</param>
     /// <param name="scaling">スケーリング情報</param>
     /// <returns></returns>
-    private SKBitmap CreatePianoOctaveBmp()
+    private static SKBitmap CreatePianoOctaveBmp(RenderInfoCommon ri)
     {
         const int KeyCount = 12;
         const int DefaultWidth = 100;
-
-        var ri = this._renderInfo;
 
         var renderLayout = ri.ScreenLayout;
         var scaling = ri.ScreenLayout.Scaling;
@@ -36,7 +31,7 @@ internal class PianoRollBackgroundRenderer
         int width = scaling.ToDisplayScaling(DefaultWidth);
         int height = renderKeyHeight * KeyCount;
 
-        var colorInfo = this._renderInfo.ColorInfo;
+        var colorInfo = ri.ColorInfo;
         var whiteKeyBrush = colorInfo.WhiteKeyPaint;
         var whiteGridPen = colorInfo.WhiteKeyGridPaint;
         var blackKeyBrush = colorInfo.BlackKeyPaint;
@@ -77,17 +72,17 @@ internal class PianoRollBackgroundRenderer
         return image;
     }
 
-    public void Render(SKCanvas g)
+    public void Render(SKCanvas g, RenderInfoCommon ri)
     {
-        var _renderInfo = this._renderInfo.ScreenLayout;
-        var rangeInfo = this._renderInfo.RenderRange;
+        var _renderInfo = ri.ScreenLayout;
+        var rangeInfo = ri.RenderRange;
         var scaling = _renderInfo.Scaling;
 
         // 描画領域
         (int renderWidth, int renderHeight) = _renderInfo.ScoreImage.Size;
         (int width, int height) = _renderInfo.ScoreImage.Size;
 
-        var partImage = this.CreatePianoOctaveBmp();
+        var partImage = CreatePianoOctaveBmp(ri);
         int partImageWidth = partImage.Width;
         int partImageHeight = partImage.Height;
 
@@ -113,10 +108,10 @@ internal class PianoRollBackgroundRenderer
             }
         }
 
-        var rangeScoreInfo = this._renderInfo.RangeScoreRenderInfo;
+        var rangeScoreInfo = ri.RangeScoreRenderInfo;
         if (rangeScoreInfo != null)
         {
-            var track = this._renderInfo.Track;
+            var track = ri.Track;
 
             long totalFrameCount = track.GetTotalFramesCount();
 
@@ -129,7 +124,7 @@ internal class PianoRollBackgroundRenderer
             int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
 
             // 描画対象のフレーズ情報
-            var targetPhrases = this._renderInfo.Track.Phrases
+            var targetPhrases = ri.Track.Phrases
                 .Where(p => beginTime <= p.EndTime && p.BeginTime <= endTime);
 
             // フレーズ枠の描画

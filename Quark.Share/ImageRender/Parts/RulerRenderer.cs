@@ -5,16 +5,12 @@ using SkiaSharp;
 namespace Quark.ImageRender.Parts;
 internal class RulerRenderer
 {
-    private readonly RenderInfoCommon _renderInfo;
-
-    public RulerRenderer(RenderInfoCommon renderInfo)
+    public RulerRenderer()
     {
-        this._renderInfo = renderInfo;
     }
 
-    public SKBitmap CreateImage()
+    public SKBitmap CreateImage(RenderInfoCommon ri)
     {
-        var ri = this._renderInfo;
 
         var renderLayout = ri.ScreenLayout;
         var renderArea = renderLayout.RulerArea;
@@ -22,16 +18,14 @@ internal class RulerRenderer
 
         using (var g = new SKCanvas(image))
         {
-            this.Draw(g, renderArea);
+            this.Draw(g, renderArea, ri);
         }
 
         return image;
     }
 
-    public void Draw(SKCanvas g, LayoutRect renderArea)
+    public void Draw(SKCanvas g, LayoutRect renderArea, RenderInfoCommon ri)
     {
-        var ri = this._renderInfo;
-
         var rangeScoreInfo = ri.RangeScoreRenderInfo;
         var renderLayout = ri.ScreenLayout;
         var renderRange = ri.RenderRange;

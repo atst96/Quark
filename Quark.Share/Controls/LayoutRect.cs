@@ -41,4 +41,18 @@ public record class LayoutRect(int X, int Y, int Width, int Height)
     public SKSize ToSKSize() => new(this.Width, this.Height);
 
     public SKRect ToSKRect() => SKRect.Create(this.X, this.Y, this.Width, this.Height);
+
+    public LayoutRect Extent(LayoutRect? extentArea)
+    {
+        if (extentArea == null)
+            return this;
+
+        int x = Math.Min(this.X, extentArea.X);
+        int y = Math.Min(this.Y, extentArea.Y);
+
+        int r = Math.Max(this.X + this.Width, extentArea.X + extentArea.Width);
+        int b = Math.Max(this.Y + this.Height, extentArea.Y + extentArea.Height);
+
+        return new LayoutRect(x, y, r - x, b - y);
+    }
 }

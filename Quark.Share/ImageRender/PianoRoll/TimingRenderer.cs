@@ -4,9 +4,7 @@ namespace Quark.ImageRender.PianoRoll;
 
 public class TimingRenderer
 {
-    // TODO: 変数で変更できるようにする
-    /// <summary>フォント</summary>
-    private static SKFont _font = new(SKTypeface.FromFamilyName("Segoe UI"), 18);
+    private EditorPartsLayoutResolver _partLayout;
 
     // TODO: 変数で変更できるようにする
     /// <summary>非選択時の色</summary>
@@ -16,55 +14,46 @@ public class TimingRenderer
     /// <summary>選択時の色</summary>
     private static SKColor _selectedColor = SKColors.Red;
 
-    /// <summary>描画情報</summary>
-    private readonly RenderInfoCommon _renderInfo;
-
     /// <summary>非選択時の縦線</summary>
-    private SKPaint _foregroundLineBrush = new() { Color = _foregroundColor };
+    private SKPaint _foregroundLineBrush = null!;
 
     /// <summary非選択時の文字</summary>
-    private SKPaint _foregroundTextBrush = new(_font)
-    {
-        Color = _foregroundColor,
-        SubpixelText = true,
-        IsAntialias = true,
-    };
+    private SKPaint _foregroundTextBrush = null!;
 
     /// <summary>選択時の縦線</summary>
-    private SKPaint _selectedLineBrush = new() { Color = _selectedColor };
+    private SKPaint _selectedLineBrush = null!;
 
     /// <summary>選択時の文字</summary>
-    private SKPaint _selectedTextBrush = new(_font)
-    {
-        Color = _selectedColor,
-        SubpixelText = true,
-        IsAntialias = true,
-    };
+    private SKPaint _selectedTextBrush = null!;
 
     /// <summary>フォントの高さのキャッシュ</summary>
     private int? _textHeight;
 
-
-    public TimingRenderer(RenderInfoCommon renderInfo)
+    public TimingRenderer(EditorPartsLayoutResolver partsLayout)
     {
-        this._renderInfo = renderInfo;
+        this._partLayout = partsLayout;
+        this.OnRenderParamterUpdated();
     }
 
-    /// <summary>
-    /// フォントの高さを取得する
-    /// </summary>
-    /// <returns></returns>
-    public int GetTextHeight()
-        => this._textHeight ??= ((int)Math.Ceiling(this._foregroundTextBrush.FontMetrics.CapHeight) + 4);
-
-    /// <summary>文字列描画時の幅を取得</summary>
-    public int MeasureTextWidth(string content)
-        => (int)Math.Ceiling(this._foregroundTextBrush.MeasureText(content));
-
-    public void Render(SKCanvas g)
+    private void OnRenderParamterUpdated()
     {
-        var ri = this._renderInfo;
+        var font = this._partLayout.TimingLabelFont;
 
+        this._foregroundLineBrush = LineBrush(_foregroundColor);
+        this._foregroundTextBrush = FontToBrush(font, _foregroundColor);
+
+        this._selectedLineBrush = LineBrush(_selectedColor);
+        this._selectedTextBrush = FontToBrush(font, _selectedColor);
+    }
+
+    private static SKPaint LineBrush(SKColor color)
+        => new() { Color = color };
+
+    private static SKPaint FontToBrush(SKFont font, SKColor color)
+        => new(font) { Color = color, SubpixelText = true, IsAntialias = true };
+
+    public void Render(SKCanvas g, RenderInfoCommon ri)
+    {
         var rangeScoreInfo = ri.RangeScoreRenderInfo;
         if (rangeScoreInfo == null)
             return;

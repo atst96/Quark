@@ -50,7 +50,7 @@ public class ScoreLayoutHelper
         return list;
     }
 
-    public static IList<TimingHandle> GetRenderTargets(TimingRenderer renderer, RenderInfoCommon renderCommon, IList<TimingHandle>? handles, TimingHandle? editingTiming)
+    public static IList<TimingHandle> GetRenderTargets(RenderInfoCommon renderCommon, EditorPartsLayoutResolver partsLayout, IList<TimingHandle>? handles, TimingHandle? editingTiming)
     {
         if (handles == null || handles.Count == 0)
             return Array.Empty<TimingHandle>();
@@ -67,7 +67,7 @@ public class ScoreLayoutHelper
         long tEnd = NeutrinoUtil.GetTimingTimeFromMs(endTime);
 
         // 1行辺りの高さ
-        int fontHeight = renderer.GetTextHeight();
+        int fontHeight = partsLayout.GetTextHeight();
 
         // 行レベル毎の最後の使用された領域(X位置)
         // 必ず1件以上は存在するので、1件仮の値で登録しておく
@@ -77,7 +77,6 @@ public class ScoreLayoutHelper
 
         int y = renderLayout.ScoreArea.Y;
         int h = renderLayout.ScoreArea.Height;
-
 
         foreach (var handle in handles)
         {
@@ -104,8 +103,8 @@ public class ScoreLayoutHelper
             // 横線を描画
             int textX = x + 4;
             int textY = lineEndY - (level * fontHeight) - 4;
-            int textW = renderer.MeasureTextWidth(t.Phoneme) + 2;
-            int textH = renderer.GetTextHeight();
+            int textW = partsLayout.MeasureTextWidth(t.Phoneme) + 2;
+            int textH = partsLayout.GetTextHeight();
 
             handle.X = x;
             handle.PhonemeLocation = new SKPoint(textX, textY);

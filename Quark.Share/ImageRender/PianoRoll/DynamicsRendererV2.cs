@@ -13,20 +13,15 @@ namespace Quark.ImageRender.Score;
 /// </summary>
 internal class DynamicsRendererV2
 {
-    private readonly RenderInfoCommon _renderInfo;
-
-    public DynamicsRendererV2(RenderInfoCommon renderInfo)
+    public DynamicsRendererV2()
     {
-        this._renderInfo = renderInfo;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static float ToLinear(float value) => NeutrinoUtil.MspecToLinear(value);
 
-    public SKBitmap CreateImage()
+    public void Render(SKCanvas g, RenderInfoCommon ri)
     {
-        var ri = this._renderInfo;
-
         var rangeScoreInfo = ri.RangeScoreRenderInfo;
         var rangeInfo = ri.RenderRange;
 
@@ -43,15 +38,10 @@ internal class DynamicsRendererV2
         int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
         int frames = endFrameIdx - beginFrameIdx;
 
-        if (!renderLayout.HasDynamicsArea)
-            return new(1, 1, SKColorType.Rgb888x, SKAlphaType.Unknown);
+        if (!renderLayout.HasDynamicsArea || ri.Track is not NeutrinoV2Track track || rangeScoreInfo == null)
+            return;
 
         (int renderWidth, int renderHeight) = renderLayout.DynamicsArea.Size;
-
-        if (ri.Track is not NeutrinoV2Track track || rangeScoreInfo == null)
-            return new(renderWidth, renderHeight, SKColorType.Rgb888x, SKAlphaType.Unknown);
-
-        var image = new SKBitmap(renderWidth, renderHeight, false);
 
         var phrases = track.Phrases!;
 
@@ -166,7 +156,6 @@ internal class DynamicsRendererV2
                 }
             }
 
-            using (var g = new SKCanvas(image))
             {
                 int offsetX = renderLayout.GetRenderPosXFromTime(offsetMs);
                 g.DrawBitmap(spectrumImage.Resize(new SKImageInfo(renderWidth, renderHeight), SKFilterQuality.None), offsetX, 0);
@@ -188,7 +177,5 @@ internal class DynamicsRendererV2
                 }
             }
         }
-
-        return image;
     }
 }

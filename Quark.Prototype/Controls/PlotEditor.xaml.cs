@@ -45,21 +45,14 @@ public partial class PlotEditor : UserControl
 
     private ColorInfo ColorInfo { get; } = new ColorInfo();
 
-    private SKBitmap? _renderImage;
-    private SKBitmap? _rulerImage;
-    private SKBitmap? _dynamicImage;
-
     private bool _isLoaded = false;
     private long _framesCount = 0;
     private IList<TimingHandle> _timings = Array.Empty<TimingHandle>();
     private TrackScoreInfo _trackScoreInfo;
     private EditorRenderLayout _renderLayout;
     private RenderInfoCommon _renderCommon;
-    private PianoRollRenderer _pianoRollRenderer;
-    private RulerRenderer _rulerRenderer;
-    private DynamicsRendererV2 _dynamicsRenderer;
-    private TimingRenderer _timingRenderer;
-    private RangeSelectionRenderer _selectingRenderer;
+    private EditorPartsLayoutResolver _partsLayout = null!;
+    private EditorRendererBase _editorRenderer = null!;
 
     /// <summary>スコア編集可否フラグ</summary>
     private bool _isScoreEditable = true;
@@ -89,7 +82,7 @@ public partial class PlotEditor : UserControl
     /// <summary>キー高のリスト</summary>
     public static readonly int[] KeySizes =
     {
-        5, 7, 12, 15, 19, 25
+        5, 7, 12, 15, 19, 25, 31, 37,
     };
 
     /// <summary>自動スクロール用の内側領域の幅</summary>
@@ -111,6 +104,18 @@ public partial class PlotEditor : UserControl
         {
             IsEnabled = false,
         };
+
+        this.InitializeRenderer(null);
+    }
+
+    /// <summary>
+    /// レンダラを初期化する
+    /// </summary>
+    /// <param name="track"></param>
+    private void InitializeRenderer(INeutrinoTrack? track)
+    {
+        this._partsLayout = new();
+        this._editorRenderer = EditorRendererHelper.GetRenderer(track, this._partsLayout);
     }
 
     static PlotEditor()
@@ -192,7 +197,9 @@ public partial class PlotEditor : UserControl
             oldTrack.TimingEstimated -= @this.OnTrackTimingEstimated;
         }
 
-        if (e.NewValue is INeutrinoTrack newTrack)
+        var newTrack = (INeutrinoTrack?)e.NewValue;
+        @this.InitializeRenderer(newTrack);
+        if (newTrack != null)
         {
             newTrack.FeatureChanged += @this.OnTrackFeatureChanged;
             newTrack.TimingEstimated += @this.OnTrackTimingEstimated;
@@ -541,14 +548,7 @@ public partial class PlotEditor : UserControl
     public void OnLayoutChanged()
     {
         var renderLayout = this._renderLayout = this.CreateRenderLayout();
-        this.UpdateRenderInfo(new RenderInfoCommon
-        {
-            Track = this.Track,
-            RenderRange = this._renderCommon.RenderRange,
-            ColorInfo = this.ColorInfo,
-            ScreenLayout = renderLayout,
-            SelectionRange = this._rangeSelection,
-        });
+        this.UpdateRenderInfo(this._renderCommon.RenderRange, renderLayout);
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
         this.RelocateSeekBars();
@@ -783,15 +783,7 @@ public partial class PlotEditor : UserControl
         int endTime = beginTime + (framesCount * RenderConfig.FramePeriod);
 
         var rangeInfo = new RenderRangeInfo(beginTime, endTime, offsetFrames, framesCount);
-
-        this.UpdateRenderInfo(new RenderInfoCommon
-        {
-            Track = this.Track,
-            RenderRange = rangeInfo,
-            ColorInfo = this.ColorInfo,
-            ScreenLayout = renderLayout,
-            SelectionRange = this._rangeSelection,
-        });
+        this.UpdateRenderInfo(rangeInfo, renderLayout);
 
         var trackScore = this._trackScoreInfo;
         if (trackScore != null)
@@ -802,28 +794,27 @@ public partial class PlotEditor : UserControl
             this._renderCommon.RangeScoreRenderInfo = new RangeScoreRenderInfo
             {
                 Score = trackScore.Score.GetRangeInfo(beginTime, endTime),
-                Timings = ScoreLayoutHelper.GetRenderTargets(this._timingRenderer, this._renderCommon!, timings, timingEditingTarget),
+                Timings = ScoreLayoutHelper.GetRenderTargets(this._renderCommon, this._partsLayout, timings, timingEditingTarget),
                 NoteLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, this.Quantize),
                 RulerLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, LineType.Note8th),
             };
         }
 
-        DisposableUtil.ExchangeDisposable(ref this._renderImage, this._pianoRollRenderer.CreateImage());
-        DisposableUtil.ExchangeDisposable(ref this._rulerImage, this._rulerRenderer.CreateImage());
-        DisposableUtil.ExchangeDisposable(ref this._dynamicImage, this._dynamicsRenderer.CreateImage());
-
         if (redraw)
             this.Redraw();
     }
 
-    private void UpdateRenderInfo(RenderInfoCommon renderInfoCommon)
+    private void UpdateRenderInfo(RenderRangeInfo render, EditorRenderLayout renerLayout)
     {
-        this._renderCommon = renderInfoCommon;
-        this._pianoRollRenderer = new PianoRollRenderer(renderInfoCommon);
-        this._rulerRenderer = new RulerRenderer(renderInfoCommon);
-        this._dynamicsRenderer = new DynamicsRendererV2(renderInfoCommon);
-        this._timingRenderer = new TimingRenderer(renderInfoCommon);
-        this._selectingRenderer = new RangeSelectionRenderer(renderInfoCommon);
+        this._renderCommon = new RenderInfoCommon
+        {
+            Track = this.Track,
+            RenderRange = render,
+            ColorInfo = this.ColorInfo,
+            ScreenLayout = renerLayout,
+            SelectionRange = this._rangeSelection,
+            VScrollPosition = this.GetVScrollPosition(),
+        };
     }
 
     /// <summary>
@@ -925,38 +916,8 @@ public partial class PlotEditor : UserControl
             return;
         }
 
-        var renderLayout = this._renderLayout;
-        if (renderLayout is null)
-            return;
-
-        var rulerRect = renderLayout.RulerArea.ToSKRect();
-        var scoreArea = renderLayout.ScoreArea;
-        int h = renderLayout.ScreenHeight;
-
-        // 描画領域の更新
-
-        // スクロール位置から描画位置(y)を計算
-        int scaledScoreY = this.GetVScrollPosition();
-        g.DrawBitmap(this._rulerImage, SKRect.Create(rulerRect.Size), rulerRect);
-        g.DrawBitmap(this._renderImage,
-            SKRect.Create(0, scaledScoreY, scoreArea.Width, scoreArea.Height),
-            scoreArea.ToSKRect());
-
-        this._timingRenderer.Render(g);
-
-        if (renderLayout.HasDynamicsArea)
-        {
-            var area = renderLayout.DynamicsArea;
-            g.DrawBitmap(this._dynamicImage, area.X, area.Y);
-        }
-
-        this._selectingRenderer.Render(g);
-
-        //double renderedY = scaledRulerHeight + scaledScoreHeight;
-        //if (renderedY < h)
-        //{
-        //    g.DrawRect(SKRect.Create(0, (float)renderedY, scaledWidth, (float)(h - renderedY)), this._whiteKeyPaint);
-        //}
+        if (this._editorRenderer is { } renderer && this._renderCommon is { } renderInfo)
+            renderer.Render(g, renderInfo);
     }
 
     /// <summary>
@@ -966,6 +927,7 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnVScroll(object sender, ScrollEventArgs e)
     {
+        this._renderCommon?.OnVerticalScrollChanged(this.GetVScrollPosition());
         this.Redraw();
     }
 
@@ -1320,7 +1282,7 @@ public partial class PlotEditor : UserControl
                         if (keyboard.Modifiers == ModifierKeys.Shift)
                         {
                             // Shiftキーが押されている場合は範囲選択モードにする
-                            if (renderLayout.IsContainsEditArea(mousePosition))
+                            if (renderLayout.EditArea.IsContains(mousePosition))
                             {
                                 cursor = Cursors.SizeWE;
                                 var editingInfo = new RangeSelectingInfo(
@@ -1464,7 +1426,7 @@ public partial class PlotEditor : UserControl
             var renderLayout = this._renderLayout;
             var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
-            if (renderLayout.IsContainsEditArea(mousePosition))
+            if (renderLayout.EditArea.IsContains(mousePosition))
                 cursor = Cursors.Pen;
 
             if (e.LeftButton == MouseButtonState.Pressed)
@@ -2347,7 +2309,7 @@ public partial class PlotEditor : UserControl
     /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsWithinEditArea(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
-        => renderLayout.IsContainsEditAreaY(mousePosition.Y);
+        => renderLayout.EditArea.IsContainsY(mousePosition.Y);
 
     private static string GetLyrics(PartScore score)
         => string.Concat(score.Phrases.Select(i => i.Lyrics.Length > 1 ? $"({i.Lyrics})" : i.Lyrics));

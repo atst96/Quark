@@ -18,4 +18,11 @@ public class RenderInfoCommon
     public required RangeSelectingInfo? SelectionRange { get; set; }
 
     public RangeScoreRenderInfo? RangeScoreRenderInfo { get; set; }
+
+    public int VScrollPosition { get; set; }
+
+    internal void OnVerticalScrollChanged(int v)
+    {
+        this.VScrollPosition = v;
+    }
 }

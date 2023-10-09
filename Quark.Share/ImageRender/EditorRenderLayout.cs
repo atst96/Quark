@@ -43,6 +43,9 @@ public class EditorRenderLayout
     /// <summary>ダイナミクスの描画領域</summary>
     public LayoutRect? DynamicsArea { get; } = null;
 
+    /// <summary>編集エリア</summary>
+    public LayoutRect EditArea { get; }
+
     /// <summary>譜面の描画サイズ(キャッシュ画像のサイズ)</summary>
     public LayoutRect ScoreImage { get; }
 
@@ -119,6 +122,7 @@ public class EditorRenderLayout
         this.ScoreArea = new(mainAreaX, mainAreaY, mainAreaWidth, mainAreaHeight);
 
         this.HasDynamicsArea = this.DynamicsArea != null;
+        this.EditArea = this.ScoreArea.Extent(this.DynamicsArea);
 
         var physicalKeyHeight = this.PhysicalKeyHeight = scaling.ToUnscaled(keyHeight);
         this.ScoreImage = new(-1, -1, this.ScoreArea.Width, physicalKeyHeight * RenderConfig.KeyCount);
@@ -166,22 +170,4 @@ public class EditorRenderLayout
     /// <returns>描画幅(ms)</returns>
     public int GetRenderPosXFromTime(int durationMs)
         => (int)this.Scaling.ToUnscaled(durationMs * this.WidthStretch);
-
-    /// <summary>
-    /// 指定された座標が編集エリアに含まれるかどうかを取得する。
-    /// </summary>
-    /// <param name="point"></param>
-    /// <returns></returns>
-    public bool IsContainsEditArea(LayoutPoint point)
-        => this.ScoreArea.IsContains(point)
-            || (this.HasDynamicsArea && this.DynamicsArea.IsContains(point));
-
-    /// <summary>
-    /// 指定された座標(Y)が編集エリアに含まれるかどうかを取得する。
-    /// </summary>
-    /// <param name="point"></param>
-    /// <returns></returns>
-    public bool IsContainsEditAreaY(int y)
-        => this.ScoreArea.IsContainsY(y)
-            || (this.HasDynamicsArea && this.DynamicsArea.IsContainsY(y));
 }

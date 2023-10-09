@@ -12,17 +12,12 @@ namespace Quark.ImageRender.Score;
 /// </summary>
 internal class PitchRendererV2
 {
-    private readonly RenderInfoCommon _renderInfo;
-
-    public PitchRendererV2(RenderInfoCommon renderInfo)
+    public PitchRendererV2()
     {
-        this._renderInfo = renderInfo;
     }
 
-    public void Render(SKCanvas g)
+    public void Render(SKCanvas g, RenderInfoCommon ri)
     {
-        var ri = this._renderInfo;
-
         var rangeScoreInfo = ri.RangeScoreRenderInfo;
         if (rangeScoreInfo == null)
             return;
@@ -30,7 +25,7 @@ internal class PitchRendererV2
         var rangeInfo = ri.RenderRange;
         var renderLayout = ri.ScreenLayout;
 
-        if (this._renderInfo.Track is not NeutrinoV2Track track)
+        if (ri.Track is not NeutrinoV2Track track)
             return;
 
         // 描画領域

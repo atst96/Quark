@@ -9,16 +9,12 @@ internal class PianoRollNoteRenderer
 {
     private SKPaint lyricsTypography = new(new SKFont(SKTypeface.FromFamilyName("MS UI Gothic"), 12));
 
-    private readonly RenderInfoCommon _renderInfo;
-
-    public PianoRollNoteRenderer(RenderInfoCommon renderInfo)
+    public PianoRollNoteRenderer()
     {
-        this._renderInfo = renderInfo;
     }
-    public void Render(SKCanvas g)
-    {
-        var ri = this._renderInfo;
 
+    public void Render(SKCanvas g, RenderInfoCommon ri)
+    {
         var rangeScoreInfo = ri.RangeScoreRenderInfo;
         if (rangeScoreInfo == null)
             return;
