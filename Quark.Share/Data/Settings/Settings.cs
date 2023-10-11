@@ -22,4 +22,10 @@ internal partial class Settings
 
     [MemoryPackIgnore]
     public LinkedList<RecentProject> RecentProjects => this._recentProjects ??= new();
+
+    [MemoryPackInclude]
+    private Recents? _recents;
+
+    [MemoryPackIgnore]
+    public Recents Recents => this._recents ??= new();
 }

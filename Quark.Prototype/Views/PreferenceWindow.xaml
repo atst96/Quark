@@ -65,7 +65,11 @@
             Style="{StaticResource LeftHeaderTabControlStyle}">
 
             <TabItem Header="全般">
-
+                
+                <StackPanel Margin="8">
+                    <Label Margin="2" Content="ダイアログ" Padding="0" FontWeight="Bold"/>
+                    <CheckBox Margin="2" Content="ファイル選択時のフォルダを記憶する" IsChecked="{Binding UseRecentDirectories, Mode=TwoWay}" />
+                </StackPanel>
             </TabItem>
 
             <TabItem Header="NEUTRINO v1" DataContext="{Binding NeutrinoV1ViewModel, Mode=OneTime}">

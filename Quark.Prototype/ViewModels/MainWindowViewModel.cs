@@ -26,6 +26,7 @@ using Quark.Services;
 using Quark.Utils;
 using Quark.Models.MusicXML;
 using Quark.Data;
+using Quark.Data.Settings;
 
 namespace Quark.ViewModels;
 
@@ -40,6 +41,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
     private NeutrinoV1Service _neutrinoV1;
     private NeutrinoV2Service _neutrinoV2;
+    private Settings _settings;
 
     public bool HasProject => this._currentProject is not null;
 
@@ -123,11 +125,14 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     public NewProjectWindowViewModel NewProjectViewModel
         => this._newProjectViewModel ??= this.AddDisposable(new NewProjectWindowViewModel());
 
-    public MainWindowViewModel(ProjectService projects, NeutrinoV1Service v1Service, NeutrinoV2Service v2Service, NeutrinoV1Service neutrinoV1) : base()
+    public MainWindowViewModel(
+        SettingService settings,
+        ProjectService projects, NeutrinoV1Service v1Service, NeutrinoV2Service v2Service, NeutrinoV1Service neutrinoV1) : base()
     {
         this._neutrinoV1 = v1Service;
         this._neutrinoV2 = v2Service;
 
+        this._settings = settings.Settings;
         this._projects = projects;
 
         this._playerTimer = new(
@@ -139,6 +144,22 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             IsEnabled = false,
         };
     }
+
+    /// <summary>
+    /// 直近で使用したフォルダを取得する
+    /// </summary>
+    /// <param name="type"></param>
+    /// <returns></returns>
+    private string? GetRecentDirectory(RecentDirectoryType type)
+        => this._settings.Recents.UseRecentDirectories ? this._settings.Recents.GetRecentDirectory(type) : null;
+
+    /// <summary>
+    /// 直近で使用したフォルダの設定を更新する。
+    /// </summary>
+    /// <param name="type"></param>
+    /// <param name="path"></param>
+    private void SetRecentDirectory(RecentDirectoryType type, string path)
+        => this._settings.Recents.SetRecentDirectory(type, path);
 
     private ICommand? _openSettingWindowCommand;
     public ICommand OpenSettingWindowCommand
@@ -156,21 +177,22 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     {
         // TODO: 未保存の場合は確認ダイアログを表示する
 
-        this.Messenger.Raise(new("SelectNewProjectMusicXml"));
-    });
+        var message = new OpeningFileSelectionMessage("SelectNewProjectMusicXml")
+        {
+            Title = "インポートするMusicXMLを選択",
+            Filter = "MusicXMLファイル|*.musicxml;*.xml;*.mxl",
+            InitialDirectory = this.GetRecentDirectory(RecentDirectoryType.ImportMusicXml),
+        };
 
-    /// <summary>
-    /// MusicXML選択時
-    /// </summary>
-    /// <param name="msg"></param>
-    public void OnNewProjectMusicXmlFileSelected(OpeningFileSelectionMessage msg)
-    {
-        var paths = msg.Response;
+        this.Messenger.Raise(message);
+
+        var paths = message.Response;
         if (paths is not { Length: > 0 })
             // キャンセルされたら何も入っていないので処理を終わる
             return;
 
         var path = paths.First();
+        this.SetRecentDirectory(RecentDirectoryType.ImportMusicXml, Path.GetDirectoryName(path)!);
 
         (PartList.ScorePartElement Info, Models.MusicXML.Part Part)[] parts;
         using (var fs = File.OpenRead(path))
@@ -204,27 +226,33 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         }
 
         this.SetProject(project);
-    }
+    });
 
     private Command? _selectProjectFileCommand;
 
     /// <summary>プロジェクトファイル選択コマンド</summary>
     public Command SelectProjectFileCommand => this._selectProjectFileCommand ??= this.AddCommand(
-        () => this.Messenger.Raise(new("OpenProjectFileDialog")));
+        () =>
+        {
+            var message = new OpeningFileSelectionMessage("OpenProjectFileDialog")
+            {
+                InitialDirectory = GetRecentDirectory(RecentDirectoryType.OpenProjectFile),
+                Title = "プロジェクトファイルを開く",
+                Filter = "Quarkプロジェクト(*.qprj)|*.qprj",
+            };
 
-    /// <summary>
-    /// プロジェクトファイル選択時
-    /// </summary>
-    /// <param name="msg"></param>
-    public void OnOpenProjectFileSelected(OpeningFileSelectionMessage msg)
-    {
-        if (msg is not { Response.Length: > 0 })
-            // 未選択(キャンセル)の場合は処理しない
-            return;
+            this.Messenger.Raise(message);
 
-        var project = this._projects.Open(msg.Response[0]);
-        this.SetProject(project);
-    }
+            var paths = message.Response;
+            if (paths is not { Length: > 0 })
+                return; // 未選択の場合は処理しない
+
+            var path = paths.First();
+            this.SetRecentDirectory(RecentDirectoryType.OpenProjectFile, Path.GetDirectoryName(path)!);
+
+            var project = this._projects.Open(paths[0]);
+            this.SetProject(project);
+        });
 
     private Command? _saveProjectFileCommand;
 
@@ -235,7 +263,23 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         {
             if (this.CurrentProject!.ProjectFilePath is null)
             {
-                this.Messenger.Raise(new("SaveProjectDialog"));
+                var message = new SavingFileSelectionMessage("SaveProjectDialog")
+                {
+                    InitialDirectory = this.GetRecentDirectory(RecentDirectoryType.SaveProjectFile),
+                    Title = "プロジェクトファイルを保存",
+                    Filter = "Quarkプロジェクト(*.qprj)|*.qprj",
+                };
+
+                this.Messenger.Raise(message);
+
+                var paths = message.Response;
+                if (paths is not { Length: > 0 })
+                    return; // 未選択の場合は処理しない
+
+                var path = paths.First();
+                this.SetRecentDirectory(RecentDirectoryType.SaveProjectFile, Path.GetDirectoryName(path)!);
+
+                this.SaveProject(path);
             }
             else
             {
@@ -243,35 +287,29 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             }
         });
 
-    /// <summary>
-    /// 保存ファイル選択時
-    /// </summary>
-    /// <param name="msg"></param>
-    public void OnSaveProjectFileSelected(SavingFileSelectionMessage msg)
+    private Command _exportWaveCommand;
+    public Command ExportWaveCommand => this._exportWaveCommand ??= this.AddCommand(async () =>
     {
-        if (msg is not { Response.Length: > 0 })
-            // 未選択(キャンセル)の場合は処理しない
-            return;
+        if (!this.HasProject)
+            return; // プロジェクトを開いていない場合は処理しない
 
-        this.SaveProject(msg.Response[0]);
-    }
-
-    /// <summary>
-    /// 音声合成後WAVファイルの出力先選択時
-    /// </summary>
-    /// <param name="msg"></param>
-    /// <exception cref="NotSupportedException"></exception>
-    public async void OnWaveExportFileSelected(SavingFileSelectionMessage msg)
-    {
-        if (!this.HasProject || msg is not { Response.Length: > 0 })
+        var message = new SavingFileSelectionMessage("ShowExportWavDialog")
         {
-            // 未選択(キャンセル)の場合は処理しない
-            return;
-        }
+            Title = "WAVEファイルをエクスポート",
+            Filter = "WAVEファイル(*.wav)|*.wav",
+            InitialDirectory = this.GetRecentDirectory(RecentDirectoryType.ExportWav),
+        };
+
+        this.Messenger.Raise(message);
+
+        var paths = message.Response;
+        if (paths is not { Length: > 0 })
+            return; // 未選択の場合は処理しない
+
+        var path = paths.First();
+        this.SetRecentDirectory(RecentDirectoryType.ExportWav, Path.GetDirectoryName(path)!);
 
         var track = this.CurrentTrack;
-        var path = msg.Response[0];
-
         var progress = this.ProgressWindowViewModel;
         progress.Clear();
 
@@ -320,6 +358,20 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         catch (Exception)
         {
             // TODO: 
+        }
+    });
+
+    /// <summary>
+    /// 音声合成後WAVファイルの出力先選択時
+    /// </summary>
+    /// <param name="message"></param>
+    /// <exception cref="NotSupportedException"></exception>
+    public void OnWaveExportFileSelected(SavingFileSelectionMessage message)
+    {
+        if (!this.HasProject || message is not { Response.Length: > 0 })
+        {
+            // 未選択(キャンセル)の場合は処理しない
+            return;
         }
     }
 

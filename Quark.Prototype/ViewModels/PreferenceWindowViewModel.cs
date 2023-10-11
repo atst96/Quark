@@ -27,8 +27,6 @@ internal class PreferenceWindowViewModel : ViewModelBase
         this._settingService = settingService;
         this._settings = settingService.Settings;
 
-        this.NeutrinoDirectory = this._settings.NeutrinoV1.Directory;
-
         this.NeutrinoV1ViewModel = this.AddDisposable(new PreferenceNeutrinoV1ViewModel());
         this.NeutrinoV2ViewModel = this.AddDisposable(new PreferenceNeutrinoV2ViewModel());
 
@@ -42,6 +40,8 @@ internal class PreferenceWindowViewModel : ViewModelBase
     {
         var settings = this._settings;
 
+        this._useRecentDirectories = settings.Recents.UseRecentDirectories;
+
         this.NeutrinoV1ViewModel.ApplyToViewModel(settings);
         this.NeutrinoV2ViewModel.ApplyToViewModel(settings);
     }
@@ -53,11 +53,20 @@ internal class PreferenceWindowViewModel : ViewModelBase
     {
         var settings = this._settings;
 
+        settings.Recents.UseRecentDirectories = this._useRecentDirectories;
+
         this.NeutrinoV1ViewModel.ApplyToSettings(settings);
         this.NeutrinoV2ViewModel.ApplyToSettings(settings);
     }
 
-    public string? NeutrinoDirectory { get; private set; }
+    private bool _useRecentDirectories;
+
+    /// <summary>直近に選択したフォルダ使用フラグ</summary>
+    public bool UseRecentDirectories
+    {
+        get => this._useRecentDirectories;
+        set => this.RaisePropertyChangedIfSet(ref this._useRecentDirectories, value);
+    }
 
     private ICommand? _closeCommand;
     public ICommand CloseCommand => this._closeCommand ??= this.AddCommand<CancelEventArgs>(a =>

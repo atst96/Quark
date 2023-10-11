@@ -46,29 +46,23 @@
         </l:InteractionMessageTrigger>
 
         <!-- 開くプロジェクトファイルを選択 -->
-        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenProjectFileDialog">
-            <l:OpenFileDialogInteractionMessageAction>
-                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnOpenProjectFileSelected">
-                    <l:OpeningFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
-                </l:DirectInteractionMessage>
-            </l:OpenFileDialogInteractionMessageAction>
+        <l:InteractionMessageTrigger MessageKey="OpenProjectFileDialog" Messenger="{Binding Messenger, Mode=OneTime}">
+            <l:OpenFileDialogInteractionMessageAction />
         </l:InteractionMessageTrigger>
 
         <!-- ファイル保存 -->
-        <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="SaveProjectDialog">
-            <l:SaveFileDialogInteractionMessageAction InvokeActionOnlyWhenWindowIsActive="False">
-                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnSaveProjectFileSelected">
-                    <l:SavingFileSelectionMessage Filter="Quarkプロジェクト|*.qprj" />
-                </l:DirectInteractionMessage>
-            </l:SaveFileDialogInteractionMessageAction>
+        <l:InteractionMessageTrigger MessageKey="SaveProjectDialog" Messenger="{Binding Messenger, Mode=OneTime}">
+            <l:SaveFileDialogInteractionMessageAction />
         </l:InteractionMessageTrigger>
 
+        <!-- MusicXMLの選択ダイアログ -->
         <l:InteractionMessageTrigger MessageKey="SelectNewProjectMusicXml" Messenger="{Binding Messenger, Mode=OneTime}">
-            <l:OpenFileDialogInteractionMessageAction>
-                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnNewProjectMusicXmlFileSelected">
-                    <l:OpeningFileSelectionMessage Filter="MusicXML|*.musicxml;*.xml;*.mxl" />
-                </l:DirectInteractionMessage>
-            </l:OpenFileDialogInteractionMessageAction>
+            <l:OpenFileDialogInteractionMessageAction />
+        </l:InteractionMessageTrigger>
+
+        <!-- ファイル保存 -->
+        <l:InteractionMessageTrigger MessageKey="ShowExportWavDialog" Messenger="{Binding Messenger, Mode=OneTime}">
+            <l:SaveFileDialogInteractionMessageAction />
         </l:InteractionMessageTrigger>
 
         <!--Message: SelectImportMusicXmlPart-->
@@ -120,17 +114,7 @@
             </MenuItem>
 
             <MenuItem Header="プロジェクト(_P)" IsEnabled="{Binding IsProjectCreated, Mode=OneWay}">
-                <MenuItem Header="トラックの音声を出力">
-                    <i:Interaction.Triggers>
-                        <i:EventTrigger EventName="Click">
-                            <l:SaveFileDialogInteractionMessageAction>
-                                <l:DirectInteractionMessage CallbackMethodTarget="{Binding Mode=OneTime}" CallbackMethodName="OnWaveExportFileSelected">
-                                    <l:SavingFileSelectionMessage Filter="WAV音声ファイル|*.wav" />
-                                </l:DirectInteractionMessage>
-                            </l:SaveFileDialogInteractionMessageAction>
-                        </i:EventTrigger>
-                    </i:Interaction.Triggers>
-                </MenuItem>
+                <MenuItem Header="トラックの音声を出力" Command="{Binding ExportWaveCommand, Mode=OneTime}" />
             </MenuItem>
 
             <MenuItem Header="ツール(_T)">
