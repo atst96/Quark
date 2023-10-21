@@ -6,7 +6,7 @@ namespace Quark.Services;
 /// <summary>
 /// 推論キュー情報
 /// </summary>
-public class EstimateQueueInfo
+public class EstimateQueueInfo : ITaskQueueElement
 {
     /// <summary>トラック</summary>
     public INeutrinoTrack Track { get; }
@@ -18,7 +18,10 @@ public class EstimateQueueInfo
     public EstimatePriority Priority { get; }
 
     /// <summary>実行中のタスク</summary>
-    internal Task? RunningTask { get; private set; }
+    private Task? _task;
+
+    /// <summary>実行中のタスク</summary>
+    Task? ITaskQueueElement.Task => this._task;
 
     /// <summary>キャンセル用トークン</summary>
     private readonly CancellationTokenSource _tokenSource = new();
@@ -34,6 +37,10 @@ public class EstimateQueueInfo
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public CancellationToken GetCancellationToken() => this._tokenSource.Token;
 
+    public bool IsRunningOrRunnable
+        => this._task == null || this._task.Status is not (
+        TaskStatus.WaitingForChildrenToComplete or TaskStatus.RanToCompletion or TaskStatus.Canceled or TaskStatus.Faulted);
+
     /// <summary>現在のタスクをキャンセルする</summary>
     public void Cancel()
         => this._tokenSource.Cancel();
@@ -42,10 +49,6 @@ public class EstimateQueueInfo
     /// 実行中のタスクを設定する。
     /// </summary>
     /// <param name="task">実行中のタスク</param>
-    internal void SetRunningTask(Task task) => this.RunningTask = task;
-
-    /// <summary>
-    /// 実行中のタスクをクリアする。
-    /// </summary>
-    internal void ClearRunningTask() => this.RunningTask = null;
+    internal void SetTask(Task task)
+        => this._task = task;
 }

@@ -7,6 +7,7 @@ using Quark.Projects;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Quark.Services;
 
@@ -59,82 +60,43 @@ internal class ProjectSession
     }
 
     /// <summary>
-    /// キューに登録したタスクを現在実行中のものを含めて列挙する
+    /// 指定トラック、指定フレーズの推論処理をすべてキャンセルする
     /// </summary>
-    /// <typeparam name="TElement">型情報</typeparam>
-    /// <param name="queue">取得対象のキュー</param>
-    /// <returns>タスク情報</returns>
-    private IEnumerable<TElement> EnumerateQueue<TElement, TPriority>(TaskQueue<TElement, TPriority> queue)
-        => queue.Runnings.Concat(queue);
-
-    /// <summary>
-    /// 推論用のタスクキューを現在実行中のものも含めて列挙する
-    /// </summary>
-    /// <returns>タスク情報</returns>
-    private IEnumerable<EstimateQueueInfo> EnumerateEstimateQueue()
-        => this.EnumerateQueue(this._estimateQueue).Concat(this.EnumerateAudioQueue());
-
-    /// <summary>
-    /// 音声合成用のタスクキューを現在実行中のものも含めて列挙する
-    /// </summary>
-    /// <returns>タスク情報</returns>
-    private IEnumerable<EstimateQueueInfo> EnumerateAudioQueue()
-        => this.EnumerateQueue(this._audioRenderQueue);
+    /// <param name="track">トラック</param>
+    /// <param name="phrase">フレーズ</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Task CancelForEstimate(Func<EstimateQueueInfo, bool> func)
+        => Task.WhenAll(this._estimateQueue.Cancel(func), this._audioRenderQueue.Cancel(func));
 
     /// <summary>
     /// 指定トラック、指定フレーズの推論処理をすべてキャンセルする
     /// </summary>
     /// <param name="track">トラック</param>
     /// <param name="phrase">フレーズ</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void CancelForEstimate(INeutrinoTrack track, INeutrinoPhrase phrase)
-    {
-        var queues = this.EnumerateEstimateQueue()
-            .Where(t => t.Track == track && t.Phrase == phrase);
-
-        foreach (var queue in queues)
-            queue.Cancel();
-    }
+        => this.CancelForEstimate(t => t.Track == track && t.Phrase == phrase);
 
     /// <summary>
     /// 指定トラック、指定フレーズの推論処理をすべてキャンセルする
     /// </summary>
     /// <param name="track">トラック</param>
-    /// <param name="phrase">フレーズ</param>
-    public void CancelForEstimate(INeutrinoTrack track, IEnumerable<INeutrinoPhrase> phrase)
-    {
-        var queues = this.EnumerateEstimateQueue()
-            .Where(t => t.Track == track && phrase.Contains(t.Phrase));
-
-        foreach (var queue in queues)
-            queue.Cancel();
-    }
+    /// <param name="phrasees">フレーズ</param>
+    public void CancelForEstimate(INeutrinoTrack track, IEnumerable<INeutrinoPhrase> phrasees)
+        => this.CancelForEstimate(t => t.Track == track && phrasees.Contains(t.Phrase));
 
     /// <summary>
     /// プロジェクトのすべての推論処理をキャンセルする。
     /// </summary>
     public Task CancelAll()
-    {
-        var queues = this.EnumerateEstimateQueue();
-        return CancelAndWaitRunningQueues(queues);
-    }
+        => this.CancelForEstimate(i => true);
 
     /// <summary>
     /// 指定トラックの推論処理をすべてキャンセルする
     /// </summary>
     /// <param name="track">トラック</param>
     public Task CancelAll(INeutrinoTrack track)
-    {
-        var queues = this.EnumerateEstimateQueue().Where(t => t.Track == track);
-        return CancelAndWaitRunningQueues(queues);
-    }
-
-    private static Task CancelAndWaitRunningQueues(IEnumerable<EstimateQueueInfo> queues)
-    {
-        foreach (var queue in queues)
-            queue.Cancel();
-
-        return Task.WhenAll(queues.Select(i => i.RunningTask).Where(t => t != null).Distinct()!);
-    }
+        => this.CancelForEstimate(t => t.Track == track);
 
     public void AddEstimateQueue(INeutrinoTrack track, INeutrinoPhrase? phrase, EstimatePriority priority = EstimatePriority.Sequence)
     {
@@ -149,14 +111,16 @@ internal class ProjectSession
         phrase.SetStatus(PhraseStatus.WaitEstimate);
         track.RaiseFeatureChanged();
     }
+
     private int GetEstimatePriority<TElement>(Dictionary<EstimatePriority, int> dict, TaskQueue<TElement, int> queue, EstimatePriority priority)
+        where TElement : ITaskQueueElement
     {
         int offset = (int)priority;
         if (dict.ContainsKey(priority))
         {
             // 該当のキーが存在する場合
 
-            if (queue.Count == 0)
+            if (queue.QueueCount == 0)
             {
                 // キューが空の場合はカウントをリセットする
                 dict[priority] = 0;
@@ -268,7 +232,7 @@ internal class ProjectSession
                 try
                 {
                     var task = this.NeutrinoV1.EstimateFeatures(v1Track, cancellationToken: queueInfo.GetCancellationToken());
-                    queueInfo.SetRunningTask(task);
+                    queueInfo.SetTask(task);
                     result = await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -328,7 +292,7 @@ internal class ProjectSession
                 try
                 {
                     var task = this.NeutrinoV1.EstimateFeatures(v1Track, phrase, cancellationToken: queueInfo.GetCancellationToken());
-                    queueInfo.SetRunningTask(task);
+                    queueInfo.SetTask(task);
                     result = await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -349,7 +313,6 @@ internal class ProjectSession
                 }
                 finally
                 {
-                    queueInfo.ClearRunningTask();
                 }
 
                 var (_, f0, mgc, bap, phrases) = result;
@@ -374,7 +337,7 @@ internal class ProjectSession
                 try
                 {
                     var task = this.NeutrinoV2.EstimateFeatures(v2Track, cancellationToken: queueInfo.GetCancellationToken());
-                    queueInfo.SetRunningTask(task);
+                    queueInfo.SetTask(task);
                     result = await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -434,7 +397,7 @@ internal class ProjectSession
                 try
                 {
                     var task = this.NeutrinoV2.EstimateFeatures(v2Track, phrase, cancellationToken: queueInfo.GetCancellationToken());
-                    queueInfo.SetRunningTask(task);
+                    queueInfo.SetTask(task);
                     result = await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -494,7 +457,7 @@ internal class ProjectSession
                 {
                     var task = this.NeutrinoV1.SynthesisWorld(v1Track, cancellationToken: queueInfo.GetCancellationToken());
                     // var task = this.NeutrinoV1.SynthesisNSF(v1Track, cancellationToken: info.GetCancellationToken());
-                    queueInfo.SetRunningTask(task);
+                    queueInfo.SetTask(task);
                     data = await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -540,7 +503,7 @@ internal class ProjectSession
                 {
                     var task = this.NeutrinoV1.SynthesisWorld(phrase, cancellationToken: queueInfo.GetCancellationToken());
                     // var task = this.NeutrinoV1.SynthesisNSF(phrase, v1Track.Singer, cancellationToken: info.GetCancellationToken());
-                    queueInfo.SetRunningTask(task);
+                    queueInfo.SetTask(task);
                     data = await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -588,7 +551,7 @@ internal class ProjectSession
                 {
                     //var task = this.NeutrinoV2.SynthesisWorld(v2Track, cancellationToken: info.GetCancellationToken());
                     var task = this.NeutrinoV2.SynthesisNSF(v2Track, cancellationToken: queueInfo.GetCancellationToken());
-                    queueInfo.SetRunningTask(task);
+                    queueInfo.SetTask(task);
                     data = await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -634,7 +597,7 @@ internal class ProjectSession
                 {
                     //var task = this.NeutrinoV2.SynthesisWorld(phrase, cancellationToken: info.GetCancellationToken());
                     var task = this.NeutrinoV2.SynthesisNSF(v2Track, phrase, cancellationToken: queueInfo.GetCancellationToken());
-                    queueInfo.SetRunningTask(task);
+                    queueInfo.SetTask(task);
                     data = await task.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -654,7 +617,6 @@ internal class ProjectSession
                 }
                 finally
                 {
-                    queueInfo.ClearRunningTask();
                 }
 
                 // 出力した音声データをキャッシュに書き込む

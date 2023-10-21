@@ -1,11 +1,12 @@
-﻿using System.Collections;
+﻿using Quark.Services;
 
 namespace Quark.Components;
 
 /// <summary>非同期でタスクを実行するクラス</summary>
 /// <typeparam name="TElement">データ要素の型</typeparam>
 /// <typeparam name="TPriority">優先度を示す情報</typeparam>
-public class TaskQueue<TElement, TPriority> : IReadOnlyCollection<TElement>
+public class TaskQueue<TElement, TPriority>
+    where TElement : ITaskQueueElement
 {
     /// <summary>排他ロック用オブジェクト</summary>
     private readonly object @_lock = new();
@@ -26,10 +27,10 @@ public class TaskQueue<TElement, TPriority> : IReadOnlyCollection<TElement>
     private readonly int _maxTaskCount;
 
     /// <summary>現在実行中のタスク</summary>
-    public LinkedList<TElement> Runnings { get; } = new();
+    private readonly LinkedList<TElement> _runnings = new();
 
     /// <summary>キューの件数</summary>
-    public int Count => this._queue.Count;
+    public int QueueCount => this._queue.Count;
 
     /// <summary>インスタンスを生成する</summary>
     /// <param name="maxTaskCount">同時に実行できるタスク数</param>
@@ -67,59 +68,96 @@ public class TaskQueue<TElement, TPriority> : IReadOnlyCollection<TElement>
     /// <param name="item">処理対象のデータ</param>
     public void Enqueue(TElement item, TPriority priority)
     {
-        lock (this._lock)
+        lock (this.@_lock)
+        {
             this._queue.Enqueue(item, priority);
+        }
 
         this.ExecuteNext();
     }
 
     /// <summary>次の実行待ちがない事を取得する</summary>
-    private bool CanNext()
-        => this._isEnabled && this._currentTaskCount < this._maxTaskCount;
+    private bool GetNext(out TElement element)
+    {
+        lock (this.@_lock)
+        {
+            if (this._isEnabled && this._currentTaskCount < this._maxTaskCount)
+            {
+                if (this._queue.TryDequeue(out var item, out _))
+                {
+                    element = item;
+                    return true;
+                }
+            }
+        }
+
+        element = default!;
+        return false;
+    }
 
     /// <summary>次の実行を要求する</summary>
     private void ExecuteNext()
     {
-        lock (this.@_lock)
+        // 次の実行が可能かつキューから取得できればキューから削除する
+        while (this.GetNext(out var item))
         {
-            // 次の実行が可能かつキューから取得できればキューから削除する
-            while (this.CanNext() && this._queue.TryDequeue(out var item, out _))
+            // キャンセル済みなら現在要素の処理をスキップする
+            if (item is ITaskCancellable cancellable && cancellable.IsCancelled)
+                continue;
+
+            //　実行中のタスク数をインクリメントする
+            lock (this.@_lock)
             {
-                // キャンセル済みなら現在要素の処理をスキップする
-                if (item is ITaskCancellable cancellable && cancellable.IsCancelled)
-                    continue;
-
-                //　実行中のタスク数をインクリメントする
-                lock (this.@_lock)
-                {
-                    ++this._currentTaskCount;
-                    this.Runnings.AddLast(item);
-                }
-
-                this._task(item)
-                    .ContinueWith(_ =>
-                    {
-                        // タスク終了時
-
-                        // 実行中のタスク数をデクリメントする
-                        lock (this.@_lock)
-                        {
-                            --this._currentTaskCount;
-                            this.Runnings.Remove(item);
-                        }
-
-                        // 次の処理
-                        this.ExecuteNext();
-                    });
+                ++this._currentTaskCount;
+                this._runnings.AddLast(item);
             }
+
+            this._task(item)
+                .ContinueWith(static (_, obj) =>
+                {
+                    // タスク終了時
+                    var (@this, item) = (ValueTuple<TaskQueue<TElement, TPriority>, TElement>)obj!;
+
+                    // 実行中のタスク数をデクリメントする
+                    lock (@this.@_lock)
+                    {
+                        --@this._currentTaskCount;
+                        @this._runnings.Remove(item);
+                    }
+
+                    // 次の処理
+                    @this.ExecuteNext();
+                },
+                state: (this, item));
         }
     }
 
-    public IEnumerator<TElement> GetEnumerator()
+    /// <summary>
+    /// 実行前または実行中のタスクをキャンセルする
+    /// </summary>
+    /// <param name="func"></param>
+    /// <returns></returns>
+    public Task Cancel(Func<TElement, bool> func)
     {
-        lock (this.@_lock)
-            return ((IEnumerable<TElement>)this._queue.UnorderedItems.Select(i => i.Element).ToArray()).GetEnumerator();
-    }
+        var canceleldTasks = new List<Task>();
 
-    IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
+        lock (this.@_lock)
+        {
+            var queueItems = this._runnings
+                .Concat(this._queue.UnorderedItems.Select(i => i.Element))
+                .Where(i => i.IsRunningOrRunnable)
+                .Where(func);
+
+            foreach (var item in queueItems)
+            {
+                item.Cancel();
+
+                var task = item.Task;
+                if (task != null)
+                    canceleldTasks.Add(task);
+            }
+        }
+
+        return Task.WhenAll(canceleldTasks);
+    }
 }
