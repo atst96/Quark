@@ -11,6 +11,7 @@
     xmlns:v="clr-namespace:Quark.Views"
     xmlns:vm="clr-namespace:Quark.ViewModels"
     xmlns:ctr="clr-namespace:Quark.Controls"
+    xmlns:conv="clr-namespace:Quark.Converters"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     mc:Ignorable="d"
     Title="{Binding Title, Mode=OneWay}" Height="450" Width="800"
@@ -32,6 +33,9 @@
         <!-- Shift+Space: 前の再生開始時点から再生 -->
         <KeyBinding Modifiers="Shift" Key="Space" Command="{Binding TogglePlayResumeCommand, Mode=OneTime}" />
     </Window.InputBindings>
+    <Window.Resources>
+        <conv:TimeSpanFormatConverter x:Key="TimeSpanConverter" />
+    </Window.Resources>
     <i:Interaction.Triggers>
         <l:InteractionMessageTrigger Messenger="{Binding Messenger, Mode=OneTime}" MessageKey="OpenSettingWindow">
             <l:TransitionInteractionMessageAction WindowType="{x:Type v:PreferenceWindow}" Mode="Modal" IsOwned="True" InvokeActionOnlyWhenWindowIsActive="False" />
@@ -148,8 +152,8 @@
                 <Button Content="Stop(Back)" Command="{Binding StopRestoreCommand, Mode=OneTime}" />
                 <ToggleButton Content="Scroll" IsChecked="{Binding Path=IsAutoScroll, ElementName=PloatEditor1, Mode=TwoWay}" />
                 <Separator />
-                <Label Content="{Binding SelectionTime, Mode=OneWay}" />
-                <Label Content="{Binding PlayingTime, Mode=OneWay}" />
+                <Label Content="{Binding SelectionTime, Mode=OneWay, Converter={StaticResource TimeSpanConverter}}" />
+                <Label Content="{Binding PlayingTime, Mode=OneWay, Converter={StaticResource TimeSpanConverter}}" />
                 <Separator />
                 <Label Content="編集モード：" />
                 <ComboBox Width="130"
