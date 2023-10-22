@@ -1,5 +1,5 @@
-﻿using System.Runtime.InteropServices;
-using System.Text;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Quark.Structs;
 
@@ -39,29 +39,21 @@ public struct WaveHeader
     /// <summary>
     /// ヘッダの構造体(4バイト)
     /// </summary>
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [InlineArray(4)]
     public struct Header
     {
-        public byte data0;
-        public byte data1;
-        public byte data2;
-        public byte data3;
+        public byte value;
 
-        public Header(string value)
+        /// <summary>
+        /// バイナリデータからヘッダに変換する
+        /// </summary>
+        /// <param name="data"></param>
+        public static implicit operator Header(ReadOnlySpan<byte> data)
         {
-            if (value is null || value.Length < 4)
-                throw new ArgumentException(nameof(value));
+            if (data.Length != Marshal.SizeOf<Header>())
+                throw new ArgumentOutOfRangeException(nameof(data));
 
-            var data = Encoding.ASCII.GetBytes(value);
-            (this.data0, this.data1, this.data2, this.data3) = (data[0], data[1], data[2], data[3]);
+            return MemoryMarshal.Read<Header>(data);
         }
-
-        public Header(byte data0, byte data1, byte data2, byte data3)
-            => (this.data0, this.data1, this.data2, this.data3) = (data0, data1, data2, data3);
-
-        public override readonly string ToString()
-            => Encoding.ASCII.GetString(new byte[] {
-                this.data0, this.data1, this.data2, this.data3
-            });
     }
 }

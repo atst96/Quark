@@ -1,12 +1,8 @@
-﻿using System.Diagnostics;
-using System.IO;
-using System.Reflection;
-
-namespace Quark.Utils;
+﻿namespace Quark.Utils;
 
 internal static class PathUtil
 {
-    private static readonly string _workDirectory = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule!.FileName)!;
+    private static readonly string _workDirectory = Path.GetDirectoryName(Environment.ProcessPath)!;
 
     public static string GetAbsolutePath(string relativePath)
         => Path.Combine(_workDirectory, relativePath);

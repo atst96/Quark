@@ -1,6 +1,8 @@
-﻿using Quark.Audio;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Quark.Audio;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
+using Quark.Data.Settings;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
 using Quark.Services;
@@ -10,6 +12,8 @@ namespace Quark.Projects.Tracks;
 
 internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
 {
+    private readonly Settings _settings = ServiceLocator.GetService<SettingService>().Settings;
+
     public event EventHandler TimingEstimated;
 
     public event EventHandler FeatureChanged;
@@ -105,8 +109,7 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
     private async Task Load()
     {
         var session = this.Project.Session;
-        // TODO: 設定から取得する
-        bool isBulkEstimation = true;
+        bool isBulkEstimation = this._settings.Synthesis.UseBulkEstimate;
 
         // Label
         if (!this.HasScoreTiming())

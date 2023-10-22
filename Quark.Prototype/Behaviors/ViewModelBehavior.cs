@@ -1,12 +1,13 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Windows;
+using Quark.Services;
 
 namespace Quark.Behaviors;
 
 public static class ViewModelBehavior
 {
-    public static IServiceProvider GetServiceProvider() => App.Instance.ServiceProvider!;
+    private static IServiceProvider GetServiceProvider() => ServiceLocator.ServiceProvider;
 
     public static bool GetDisposeDataContextOnWindowClosed(DependencyObject obj)
         => (bool)obj.GetValue(DisposeDataContextOnWindowClosedProperty);

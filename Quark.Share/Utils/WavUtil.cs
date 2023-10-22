@@ -1,7 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using Quark.Structs;
 using System.Runtime.InteropServices;
-using System.Threading.Channels;
 
 namespace Quark.Utils;
 
@@ -55,10 +54,10 @@ public static class WavUtil
         ref var header = ref MemoryMarshal.AsRef<WaveHeader>(headerData);
 
         // ヘッダ情報を生成する
-        header.RiffHeader = new("RIFF");
+        header.RiffHeader = "RIFF"u8;
         header.WavSize = dataSize + WaveHeaderSize - 8;
-        header.WavHeader = new("WAVE");
-        header.FmtHeader = new("fmt ");
+        header.WavHeader = "WAVE"u8;
+        header.FmtHeader = "fmt "u8;
         header.FmtChunkSize = 16;
         header.AudioFormat = 1; // PCM
         header.Channels = (short)channels;
@@ -66,7 +65,7 @@ public static class WavUtil
         header.ByteRate = samplingRate * channels * bytesPerElement;
         header.SampleAlignment = (short)(channels * bytesPerElement);
         header.BitDepth = (short)bitDepth;
-        header.DataHeader = new("data");
+        header.DataHeader = "data"u8;
         header.DataBytes = dataSize;
 
         // ストリームに書き込み
