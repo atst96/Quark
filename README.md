@@ -1,7 +1,6 @@
 # Quark
 NEUTRINOで出力した音響データを調整する非公式ツール
-
-![image](https://user-images.githubusercontent.com/6949910/230702495-5c5b265f-131f-45f9-b310-caf27316f050.png)
+![image](https://github.com/atst1996/Quark/assets/6949910/fc5a6fd6-cea9-4528-952f-f43a48b3027d)
 
 ## 実装・動作について
 仮実装段階ですので、動作が不安定な点ご了承ください。  
