@@ -3,7 +3,7 @@
 namespace Quark.Data.Settings;
 
 [MemoryPackable]
-internal partial class NeutrinoV2Settings
+public partial class NeutrinoV2Settings
 {
     public string? Directory { get; set; }
 

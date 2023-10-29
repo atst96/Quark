@@ -5,27 +5,24 @@ namespace Quark.Data.Settings;
 [MemoryPackable]
 internal partial class Settings
 {
-    [MemoryPackInclude]
-    private NeutrinoV1Settings? _neutrinoV1;
+    [MemoryPackOrder(0)]
+    public NeutrinoV1Settings NeutrinoV1 { get; private set; } = new();
 
-    [MemoryPackIgnore]
-    public NeutrinoV1Settings NeutrinoV1 => this._neutrinoV1 ??= new();
+    [MemoryPackOrder(1)]
+    public NeutrinoV2Settings NeutrinoV2 { get; private set; } = new();
 
-    [MemoryPackInclude]
-    private NeutrinoV2Settings? _neutrinoV2;
+    [MemoryPackOrder(2)]
+    public LinkedList<RecentProject> RecentProjects { get; private set; } = new();
 
-    [MemoryPackInclude]
-    public NeutrinoV2Settings NeutrinoV2 => this._neutrinoV2 ??= new();
+    [MemoryPackOrder(3)]
+    public Recents Recents { get; private set; } = new();
 
-    [MemoryPackInclude]
-    private LinkedList<RecentProject>? _recentProjects;
-
-    [MemoryPackIgnore]
-    public LinkedList<RecentProject> RecentProjects => this._recentProjects ??= new();
-
-    [MemoryPackInclude]
-    private Recents? _recents;
-
-    [MemoryPackIgnore]
-    public Recents Recents => this._recents ??= new();
+    [MemoryPackOnDeserialized]
+    private void OnDeserialized()
+    {
+        this.NeutrinoV1 ??= new();
+        this.NeutrinoV2 ??= new();
+        this.RecentProjects ??= new();
+        this.Recents ??= new();
+    }
 }
