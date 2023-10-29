@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Quark.Components;
 using Quark.Constants;
@@ -57,6 +58,20 @@ internal class NeutrinoV2Service
 
     private string GetModelPath(string modelId)
         => Path.Combine(this.GetModelDir(), modelId) + Path.DirectorySeparatorChar.ToString();
+
+    /// <summary>
+    /// CPUスレッド数を取得する
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int? GetCpuThreads()
+        => this._setting.Synthesis.CpuThreads;
+
+    /// <summary>
+    /// GPUを使用するかどうかを取得する
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool GetUseGpu()
+        => this._setting.Synthesis.UseGpu;
 
     /// <summary>
     /// モデル情報を取得する
@@ -307,8 +322,8 @@ internal class NeutrinoV2Service
             ModelInfo = track.Singer,
             IsSkipAcousticFeaturesPrediction = true,
             IsTracePhraseInformation = true,
-            NumberOfParallel = setting.CpuThreads,
-            UseMultipleGpus = setting.UseGpu,
+            NumberOfParallel = this.GetCpuThreads(),
+            UseMultipleGpus = this.GetUseGpu(),
             IsViewInformation = true,
         };
 
@@ -341,8 +356,8 @@ internal class NeutrinoV2Service
             IsSkipTimingPrediction = true,
             IsTracePhraseInformation = true,
             WorldFeaturesPrediction = true,
-            UseMultipleGpus = setting.UseGpu,
-            NumberOfParallel = setting.CpuThreads,
+            UseMultipleGpus = this.GetUseGpu(),
+            NumberOfParallel = this.GetCpuThreads(),
             IsViewInformation = true,
         }
         , progress, cancellationToken);
@@ -370,8 +385,8 @@ internal class NeutrinoV2Service
             IsTracePhraseInformation = true,
             SinglePhrasePrediction = phrase.No,
             WorldFeaturesPrediction = true,
-            UseMultipleGpus = setting.UseGpu,
-            NumberOfParallel = setting.CpuThreads,
+            UseMultipleGpus = this.GetUseGpu(),
+            NumberOfParallel = this.GetCpuThreads(),
             IsViewInformation = true,
         }
         , progress, cancellationToken);
@@ -460,8 +475,6 @@ internal class NeutrinoV2Service
     /// <returns>WAVファイルデータ</returns>
     public Task<byte[]> SynthesisWorld(NeutrinoV2Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        var setting = this._setting.NeutrinoV2;
-
         (float[] f0, float[] mgc, float[] bap) = GetAudioFeaturesForWorld(track);
 
         return this.SynthesisWorld(new WorldV2Option
@@ -469,7 +482,7 @@ internal class NeutrinoV2Service
             F0 = f0,
             Mgc = mgc,
             Bap = bap,
-            NumberOfParallel = setting.CpuThreads,
+            NumberOfParallel = this.GetCpuThreads(),
             IsViewInformation = true,
         }
         , progress, cancellationToken);
@@ -484,14 +497,12 @@ internal class NeutrinoV2Service
     /// <returns>WAVファイルデータ</returns>
     public Task<byte[]> SynthesisWorld(NeutrinoV2Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        var setting = this._setting.NeutrinoV2;
-
         return this.SynthesisWorld(new WorldV2Option
         {
             F0 = phrase.F0!,
             Mgc = phrase.Mgc!,
             Bap = phrase.Bap!,
-            NumberOfParallel = setting.CpuThreads,
+            NumberOfParallel = this.GetCpuThreads(),
             IsViewInformation = true,
         }
         , progress, cancellationToken);
@@ -507,8 +518,6 @@ internal class NeutrinoV2Service
     /// <returns>WAVファイルデータ</returns>
     public async Task SynthesisWorld(NeutrinoV2Track track, string path, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        var setting = this._setting.NeutrinoV2;
-
         var timings = track.Timings;
         var phrases = track.Phrases;
 
@@ -523,7 +532,7 @@ internal class NeutrinoV2Service
             F0 = f0,
             Mgc = mgc,
             Bap = bap,
-            NumberOfParallel = setting.CpuThreads,
+            NumberOfParallel = this.GetCpuThreads(),
             IsViewInformation = true,
         }
         , progress, cancellationToken).ConfigureAwait(false);
@@ -661,8 +670,6 @@ internal class NeutrinoV2Service
     /// <returns>WAVファイルデータ</returns>
     public Task<byte[]> SynthesisNSF(NeutrinoV2Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        var setting = this._setting.NeutrinoV2;
-
         (float[] f0, float[] mspec) = GetAudioFeatures(track);
 
         return this.SynthesisNSF(new NSFV2Option
@@ -673,8 +680,8 @@ internal class NeutrinoV2Service
             ModelType = NSFV2Model.VA,
             SamplingRate = 48,
             MultiPhrasePrediction = track.Timings,
-            NumberOfParallel = setting.CpuThreads,
-            UseMultiGpus = setting.UseGpu,
+            NumberOfParallel = this.GetCpuThreads(),
+            UseMultiGpus = this.GetUseGpu(),
             IsViewInformation = true,
         }
         , progress, cancellationToken);
@@ -690,8 +697,6 @@ internal class NeutrinoV2Service
     /// <returns>WAVファイルデータ</returns>
     public Task<byte[]> SynthesisNSF(NeutrinoV2Track track, NeutrinoV2Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        var setting = this._setting.NeutrinoV2;
-
         return this.SynthesisNSF(new NSFV2Option
         {
             F0 = phrase.GetEditedF0()!,
@@ -699,8 +704,8 @@ internal class NeutrinoV2Service
             Model = track.Singer,
             ModelType = NSFV2Model.VA,
             SamplingRate = 48,
-            NumberOfParallel = setting.CpuThreads,
-            UseMultiGpus = setting.UseGpu,
+            NumberOfParallel = this.GetCpuThreads(),
+            UseMultiGpus = this.GetUseGpu(),
             IsViewInformation = true,
         }
         , progress, cancellationToken);
@@ -716,8 +721,6 @@ internal class NeutrinoV2Service
     /// <returns></returns>
     public async Task SynthesisNSF(NeutrinoV2Track track, string path, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        var setting = this._setting.NeutrinoV2;
-
         var timings = track.Timings;
         var phrases = track.Phrases;
 
@@ -734,8 +737,8 @@ internal class NeutrinoV2Service
             Model = track.Singer,
             ModelType = NSFV2Model.VA,
             SamplingRate = 48,
-            NumberOfParallel = setting.CpuThreads,
-            UseMultiGpus = setting.UseGpu,
+            NumberOfParallel = this.GetCpuThreads(),
+            UseMultiGpus = this.GetUseGpu(),
             MultiPhrasePrediction = track.Timings,
             IsViewInformation = true,
         }

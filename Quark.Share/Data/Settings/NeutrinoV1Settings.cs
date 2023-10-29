@@ -11,7 +11,15 @@ public partial class NeutrinoV1Settings
     [MemoryPackOrder(1)]
     public bool? UseLegacyExe { get; set; }
 
-    public bool UseGpu { get; set; } = true;
+    [MemoryPackOrder(2), MemoryPackInclude]
+    private bool __useGpu;
 
-    public int? CpuThreads { get; set; }
+    [MemoryPackOrder(3), MemoryPackInclude]
+    private int? __unused_cpuThreads;
+
+    [MemoryPackOnSerializing]
+    private void OnSerializing()
+    {
+        this.__unused_cpuThreads = null;
+    }
 }

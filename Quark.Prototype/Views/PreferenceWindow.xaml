@@ -72,6 +72,40 @@
                 </StackPanel>
             </TabItem>
 
+            <TabItem Header="音声合成">
+                <StackPanel Margin="8">
+                    <!--推論処理-->
+                    <Label Margin="0,2" Content="推論処理" Padding="0" FontWeight="Bold"/>
+                    <!-- CPUスレッド数 -->
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Text="CPUスレッド数"
+                            VerticalAlignment="Center" />
+                        <TextBox
+                            Grid.Column="1" Width="100"
+                            Text="{Binding CpuThreads, Mode=TwoWay}" />
+                    </Grid>
+                    <!-- GPUを使用する -->
+                    <CheckBox Margin="0,2" Content="GPUを使用する"
+                              IsChecked="{Binding UseGpu, Mode=TwoWay}"/>
+                    <TextBlock Margin="12,2,0,4" Foreground="Gray"
+                               TextWrapping="Wrap" FontSize="11"
+                               Text="GPUを使用できる場合はGPUで処理を行います。&#10;NEUTRINOの動作要件に満たないGPUをお使いの場合はCPUでの処理になる場合があります。"/>
+
+                    <!--一括処理-->
+                    <CheckBox Margin="0,2" Content="一括処理が可能なら実施する"
+                              IsChecked="{Binding UseBulkEstimate, Mode=TwoWay}"/>
+                    <TextBlock Margin="12,2,0,4" Foreground="Gray"
+                               TextWrapping="Wrap" FontSize="11"
+                               Text="このオプションが有効かつ推論時の対象が全フレーズと判定された場合は、個別の推論処理を実施せずに全フレーズを一括で推論処理します。&#10;これにより、トータルの推論処理の時間が短縮できる可能性があります。"/>
+
+                </StackPanel>
+            </TabItem>
+
             <TabItem Header="NEUTRINO v1" DataContext="{Binding NeutrinoV1ViewModel, Mode=OneTime}">
                 <StackPanel Margin="8,4">
                     <Grid Margin="4">

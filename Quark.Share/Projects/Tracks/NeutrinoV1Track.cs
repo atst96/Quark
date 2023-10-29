@@ -115,7 +115,7 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
     private async Task Load()
     {
         var session = this.Project.Session;
-        bool isBulkEstimation = this._settings.Synthesis.UseBulkEstimate;
+        bool isBulkEstimation = false;
 
         // Label
         if (!this.HasScoreTiming())

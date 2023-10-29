@@ -11,16 +11,12 @@ internal class PreferenceNeutrinoV2ViewModel : ViewModelBase
     {
         var v2 = settings.NeutrinoV2;
         this._directory = v2.Directory;
-        this._useGpu = v2.UseGpu;
-        this._cpuThreads = v2.CpuThreads;
     }
 
     public void ApplyToSettings(Settings settings)
     {
         var v2 = settings.NeutrinoV2;
         v2.Directory = this._directory;
-        v2.UseGpu = this._useGpu;
-        v2.CpuThreads = this._cpuThreads;
     }
 
     private string? _directory;

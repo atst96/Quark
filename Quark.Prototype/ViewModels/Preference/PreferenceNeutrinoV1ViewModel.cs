@@ -16,8 +16,6 @@ internal class PreferenceNeutrinoV1ViewModel : ViewModelBase
         var v1 = settings.NeutrinoV1;
         this._directory = v1.Directory;
         this._useLegacyExe = v1.UseLegacyExe;
-        this._useGpu = v1.UseGpu;
-        this._cpuThreads = v1.CpuThreads;
     }
 
     public void ApplyToSettings(Settings settings)
@@ -25,8 +23,6 @@ internal class PreferenceNeutrinoV1ViewModel : ViewModelBase
         var v1 = settings.NeutrinoV1;
         v1.Directory = this._directory;
         v1.UseLegacyExe = this._useLegacyExe;
-        v1.UseGpu = this._useGpu;
-        v1.CpuThreads = this._cpuThreads;
     }
 
     private string? _directory;
@@ -47,20 +43,6 @@ internal class PreferenceNeutrinoV1ViewModel : ViewModelBase
                 this.RaisePropertyChanged(nameof(this.SelectExeLabel));
             }
         }
-    }
-
-    private bool _useGpu;
-    public bool UseGpu
-    {
-        get => this._useGpu;
-        set => this.RaisePropertyChangedIfSet(ref this._useGpu, value);
-    }
-
-    private int? _cpuThreads;
-    public int? CpuThreads
-    {
-        get => this._cpuThreads;
-        set => this.RaisePropertyChangedIfSet(ref this._cpuThreads, value);
     }
 
     public string SelectExeLabel

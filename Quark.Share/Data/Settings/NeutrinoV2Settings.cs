@@ -5,9 +5,18 @@ namespace Quark.Data.Settings;
 [MemoryPackable]
 public partial class NeutrinoV2Settings
 {
+    [MemoryPackOrder(0)]
     public string? Directory { get; set; }
 
-    public bool UseGpu { get; set; } = true;
+    [MemoryPackOrder(1), MemoryPackInclude]
+    private bool __useGpu { get; set; } = true;
 
-    public int? CpuThreads { get; set; }
+    [MemoryPackOrder(2), MemoryPackInclude]
+    private int? __cpuThreads { get; set; }
+
+    [MemoryPackOnDeserializing]
+    private void OnDeserializing()
+    {
+        this.__cpuThreads = null;
+    }
 }

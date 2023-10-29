@@ -27,8 +27,6 @@ public partial class AudioFeaturesV1Config
     [MemoryPackOrder(4)]
     private uint _versionId;
 
-    public PhraseInfo[] RawPhrases { get; set; }
-
     [MemoryPackOnDeserializing]
     private void OnDeserializing()
     {

@@ -17,6 +17,9 @@ internal partial class Settings
     [MemoryPackOrder(3)]
     public Recents Recents { get; private set; } = new();
 
+    [MemoryPackOrder(4)]
+    public SynthesisSettings Synthesis { get; private set; } = new();
+
     [MemoryPackOnDeserialized]
     private void OnDeserialized()
     {
@@ -24,5 +27,6 @@ internal partial class Settings
         this.NeutrinoV2 ??= new();
         this.RecentProjects ??= new();
         this.Recents ??= new();
+        this.Synthesis ??= new();
     }
 }
