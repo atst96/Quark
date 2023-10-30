@@ -1,6 +1,7 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.Generic;
+using System.ComponentModel;
 using System.Windows.Input;
-using Quark.Behaviors;
+using Quark.Components;
 using Quark.Data.Settings;
 using Quark.DependencyInjection;
 using Quark.Mvvm;
@@ -50,6 +51,8 @@ internal class PreferenceWindowViewModel : ViewModelBase
         this._cpuThreads = synthesis.CpuThreads;
         this._useGpu = synthesis.UseGpu;
         this._useBulkEstimate = synthesis.UseBulkEstimate;
+        this._estimateMode = synthesis.EstimateMode;
+        this._synthesisMode = synthesis.SynthesisMode;
     }
 
     /// <summary>
@@ -69,6 +72,8 @@ internal class PreferenceWindowViewModel : ViewModelBase
         synthesis.CpuThreads = this._cpuThreads;
         synthesis.UseGpu = this._useGpu;
         synthesis.UseBulkEstimate = this._useBulkEstimate;
+        synthesis.EstimateMode = this._estimateMode;
+        synthesis.SynthesisMode = this._synthesisMode;
     }
 
     private bool _useRecentDirectories;
@@ -111,5 +116,36 @@ internal class PreferenceWindowViewModel : ViewModelBase
     {
         get => this._useBulkEstimate;
         set => this.RaisePropertyChangedIfSet(ref this._useBulkEstimate, value);
+    }
+
+    /// <summary>推論オプションの選択肢名</summary>
+    public IReadOnlyDictionary<EstimateMode, string> EsimateModeNames { get; } = new Dictionary<EstimateMode, string>
+    {
+        [EstimateMode.Fast] = "速度優先",
+        [EstimateMode.Quality] = "品質優先",
+    };
+
+    private EstimateMode _estimateMode = EstimateMode.Fast;
+    /// <summary>推論品質</summary>
+    public EstimateMode EstimateMode
+    {
+        get => this._estimateMode;
+        set => this.RaisePropertyChangedIfSet(ref this._estimateMode, value);
+    }
+
+    /// <summary>音声品質オプションの項目名</summary>
+    public IReadOnlyDictionary<SynthesisMode, string> SynthesisModeNames { get; } = new Dictionary<SynthesisMode, string>
+    {
+        [SynthesisMode.MostFast] = "速度優先(最速)",
+        [SynthesisMode.Fast] = "速度優先",
+        [SynthesisMode.Quality] = "品質優先",
+    };
+
+    private SynthesisMode _synthesisMode = SynthesisMode.Fast;
+    /// <summary>音声品質</summary>
+    public SynthesisMode SynthesisMode
+    {
+        get => this._synthesisMode;
+        set => this.RaisePropertyChangedIfSet(ref this._synthesisMode, value);
     }
 }

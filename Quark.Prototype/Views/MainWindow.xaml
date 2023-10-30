@@ -157,7 +157,7 @@
                 <Separator />
                 <Label Content="編集モード：" />
                 <ComboBox Width="130"
-                          SelectedValue="{Binding ElementName=PloatEditor1, Path=EditMode, Mode=TwoWay}"
+                          SelectedValue="{Binding SelectedEditMode, Mode=TwoWay}"
                           ItemsSource="{Binding EditModes, Mode=OneTime}" SelectedValuePath="Key" DisplayMemberPath="Value" />
             </ToolBar>
         </ToolBarTray>
@@ -183,7 +183,8 @@
                     IsPlayMode="{Binding IsPlaying, Mode=OneWay}"
                     PlayingTime="{Binding PlayingTime, Mode=OneWay}"
                     SelectionTime="{Binding SelectionTime, Mode=TwoWay}"
-                    Quantize="{Binding SelectedQuantize, Mode=OneWay}" />
+                    Quantize="{Binding SelectedQuantize, Mode=OneWay}"
+                    EditMode="{Binding SelectedEditMode, Mode=OneWay}" />
 
                 <StackPanel
                     Margin="0,0,18,18"

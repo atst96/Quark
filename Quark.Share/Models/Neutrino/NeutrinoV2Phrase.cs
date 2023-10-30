@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Quark.Components;
 using Quark.Constants;
 using Quark.Converters;
 using Quark.Projects.Tracks;
@@ -44,6 +45,9 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
 
     public DateTime LastUpdated { get; private set; }
 
+    /// <summary>推論モード</summary>
+    public EstimateMode? EstimateMode { get; private set; } = null;
+
     public NeutrinoV2Phrase(int no, int beginTime, int endTime, string[][] label, PhraseStatus status)
     {
         this.No = no;
@@ -56,8 +60,9 @@ internal class NeutrinoV2Phrase : INeutrinoPhrase
     public override string ToString()
         => $"{nameof(NeutrinoV1Phrase)} {{ No: {this.No}, BeginTime: {this.BeginTime}, EndTime: {this.EndTime}, Label: {this.Phonemes}, Status: {this.Status} }}";
 
-    public void SetAudioFeatures(float[] f0, float[] mspec, float[] mgc, float[] bap)
+    public void SetAudioFeatures(EstimateMode estiamteMode, float[] f0, float[] mspec, float[] mgc, float[] bap)
     {
+        this.EstimateMode = estiamteMode;
         (this.F0, this.Mspec, this.Mgc, this.Bap) = (f0, mspec, mgc, bap);
 
         this.EditedF0 ??= ArrayUtil.Create(f0.Length, float.NaN);

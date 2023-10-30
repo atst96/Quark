@@ -1,5 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Quark.Audio;
+﻿using Quark.Audio;
+using Quark.Components;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Data.Settings;
@@ -33,7 +33,10 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
     public NeutrinoV2Phrase[] Phrases { get; private set; } = Array.Empty<NeutrinoV2Phrase>();
 
     INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
+
     public WaveData WaveData { get; } = new();
+
+    public EstimateMode EstimateMode { get; private set; } = EstimateMode.Fast;
 
     public NeutrinoV2Track(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
     {
@@ -66,7 +69,7 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
 
             if (p.F0?.Any() ?? false)
             {
-                ph.SetAudioFeatures(p.F0!, p.Mspec!, p.Mgc!, p.Bap!);
+                ph.SetAudioFeatures(features.EstimateMode, p.F0!, p.Mspec!, p.Mgc!, p.Bap!);
                 ph.SetEdited(p.EditedF0, p.EditedDynamics);
                 ph.SetStatus(PhraseStatus.WaitAudioRender);
             }
@@ -74,6 +77,8 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
             return ph;
 
         }).ToArray();
+
+        this.EstimateMode = features.EstimateMode;
 
         _ = this.Load();
     }
@@ -99,6 +104,7 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
                     EditedDynamics = p.EditedDynamics,
                 }
             ).ToArray(),
+            EstimateMode = this.EstimateMode,
         };
 
         return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, features);
@@ -106,10 +112,14 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);
 
+    /// <summary>一括推論をするかどうかを取得する</summary>
+    private bool GetIsBulkMode()
+        => this._settings.Synthesis.UseBulkEstimate;
+
     private async Task Load()
     {
         var session = this.Project.Session;
-        bool isBulkEstimation = false;
+        bool isBulkEstimation = this.GetIsBulkMode();
 
         // Label
         if (!this.HasScoreTiming())
@@ -444,5 +454,21 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
         var phrases = this.GetPhrases(beginTime, endTime);
         foreach (var phrase in phrases)
             phrase.AddDynamicsCoe(beginTime, coeDelta);
+    }
+
+    /// <summary>
+    /// 推論モードを変更する
+    /// </summary>
+    /// <param name="mode"></param>
+    public void ChangeEstimateMode(EstimateMode mode)
+    {
+        this.EstimateMode = mode;
+        bool isBulkMode = this.GetIsBulkMode();
+
+        var pharses = this.Phrases.EnumerateLowerModePhrases(mode);
+        if (isBulkMode && pharses.Count() == this.Phrases.Length)
+            this.Project.Session.AddEstimateQueue(this);
+        else
+            this.Project.Session.AddEstimateQueue(this, pharses);
     }
 }

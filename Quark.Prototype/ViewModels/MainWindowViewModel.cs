@@ -27,6 +27,8 @@ using Quark.Utils;
 using Quark.Models.MusicXML;
 using Quark.Data;
 using Quark.Data.Settings;
+using Quark.Neutrino;
+using Quark.Components;
 
 namespace Quark.ViewModels;
 
@@ -340,7 +342,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
                  // WORLDで合成
                  ? service.SynthesisWorld(v2Track, path, progress)
                  // NSFで合成
-                 : service.SynthesisNSF(v2Track, path, progress);
+                 : service.SynthesisNSF(v2Track, path, NSFV2Model.Get(NeutrinoV2InferenceMode.Standard), progress);
         }
         else
         {
@@ -449,10 +451,16 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         get => this._currentTrack;
         set
         {
-            if (this.RaisePropertyChangedIfSet(ref this._currentTrack, value))
+            var track = value;
+
+            if (this.RaisePropertyChangedIfSet(ref this._currentTrack, track))
             {
                 this.PlayingTime = TimeSpan.Zero;
                 this.SelectionTime = TimeSpan.Zero;
+                if (track.HasTimings())
+                {
+                    track.ApplyEstimaetMode();
+                }
                 // this.MaximumTime = TimeSpan.FromMilliseconds(value.GetFeatures().F0!.Length * 5);
             }
         }
@@ -633,4 +641,26 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
                 this.StopPlayer(true);
         }
     });
+
+    private EditMode _selectedEditMode;
+
+    /// <summary>編集モード</summary>
+    public EditMode SelectedEditMode
+    {
+        get => this._selectedEditMode;
+        set
+        {
+            if (this.RaisePropertyChangedIfSet(ref this._selectedEditMode, value)
+                && this.CurrentTrack is { } track)
+            {
+                var estimateMode = value switch
+                {
+                    EditMode.AudioFeatures => EstimateMode.Quality,
+                    _ => this._settings.Synthesis.EstimateMode,
+                };
+
+                track.ChangeEstimateMode(estimateMode);
+            }
+        }
+    }
 }

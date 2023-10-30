@@ -45,6 +45,9 @@ internal class NeutrinoV2Service
     /// <summary>データ受信タスクをキャンセルするまでの時間</summary>
     private static TimeSpan DataReceiveTaskCancelDuration { get; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>NSFモデルの規定値</summary>
+    private static readonly NSFV2Model DefaultNSFModel = NSFV2Model.VA;
+
     /// <summary>
     /// コンストラクタ
     /// </summary>
@@ -343,15 +346,15 @@ internal class NeutrinoV2Service
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
-    public Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Track track,
+        NeutrinoV2InferenceMode inferenceMode = NeutrinoV2InferenceMode.Standard,
+        IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        var setting = this._setting.NeutrinoV2;
-
         return this.EstimateFeatures(new NeutrinoV2Option()
         {
             FullLabel = track.FullTiming!,
             TimingLabel = NeutrinoUtil.GetTimingContent(track.Timings),
-            InferenceMode = NeutrinoV2InferenceMode.Standard,
+            InferenceMode = inferenceMode,
             ModelInfo = track.Singer,
             IsSkipTimingPrediction = true,
             IsTracePhraseInformation = true,
@@ -371,15 +374,15 @@ internal class NeutrinoV2Service
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
-    public Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Track track, NeutrinoV2Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Track track, NeutrinoV2Phrase phrase,
+        NeutrinoV2InferenceMode inferenceMode = NeutrinoV2InferenceMode.Standard,
+        IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        var setting = this._setting.NeutrinoV2;
-
         return this.EstimateFeatures(new NeutrinoV2Option()
         {
             FullLabel = track.FullTiming!,
             TimingLabel = NeutrinoUtil.GetTimingContent(track.Timings),
-            InferenceMode = NeutrinoV2InferenceMode.Standard,
+            InferenceMode = inferenceMode,
             ModelInfo = track.Singer,
             IsSkipTimingPrediction = true,
             IsTracePhraseInformation = true,
@@ -665,10 +668,14 @@ internal class NeutrinoV2Service
     /// NSFで音声合成を行う
     /// </summary>
     /// <param name="track">トラック情報</param>
+    /// <param name="model">推論モード</param>
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns>WAVファイルデータ</returns>
-    public Task<byte[]> SynthesisNSF(NeutrinoV2Track track, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public Task<byte[]> SynthesisNSF(NeutrinoV2Track track,
+        NSFV2Model? model = null,
+        IProgress<ProgressReport>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         (float[] f0, float[] mspec) = GetAudioFeatures(track);
 
@@ -677,7 +684,7 @@ internal class NeutrinoV2Service
             F0 = f0,
             Melspec = mspec,
             Model = track.Singer,
-            ModelType = NSFV2Model.VA,
+            ModelType = model ?? DefaultNSFModel,
             SamplingRate = 48,
             MultiPhrasePrediction = track.Timings,
             NumberOfParallel = this.GetCpuThreads(),
@@ -692,17 +699,21 @@ internal class NeutrinoV2Service
     /// </summary>
     /// <param name="track">トラック情報</param>
     /// <param name="phrase">フレーズ情報</param>
+    /// <param name="model">推論モード</param>
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns>WAVファイルデータ</returns>
-    public Task<byte[]> SynthesisNSF(NeutrinoV2Track track, NeutrinoV2Phrase phrase, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public Task<byte[]> SynthesisNSF(NeutrinoV2Track track, NeutrinoV2Phrase phrase,
+        NSFV2Model? model = null,
+        IProgress<ProgressReport>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         return this.SynthesisNSF(new NSFV2Option
         {
             F0 = phrase.GetEditedF0()!,
             Melspec = phrase.GetEditedMspec()!,
             Model = track.Singer,
-            ModelType = NSFV2Model.VA,
+            ModelType = model ?? DefaultNSFModel,
             SamplingRate = 48,
             NumberOfParallel = this.GetCpuThreads(),
             UseMultiGpus = this.GetUseGpu(),
@@ -716,10 +727,14 @@ internal class NeutrinoV2Service
     /// </summary>
     /// <param name="track">トラック情報</param>
     /// <param name="path">出力先</param>
+    /// <param name="model">推論モード</param>
     /// <param name="progress">進捗通知</param>
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
-    public async Task SynthesisNSF(NeutrinoV2Track track, string path, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
+    public async Task SynthesisNSF(NeutrinoV2Track track, string path,
+        NSFV2Model? model = null,
+        IProgress<ProgressReport>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var timings = track.Timings;
         var phrases = track.Phrases;
@@ -735,7 +750,7 @@ internal class NeutrinoV2Service
             F0 = f0,
             Melspec = mspec,
             Model = track.Singer,
-            ModelType = NSFV2Model.VA,
+            ModelType = model ?? DefaultNSFModel,
             SamplingRate = 48,
             NumberOfParallel = this.GetCpuThreads(),
             UseMultiGpus = this.GetUseGpu(),

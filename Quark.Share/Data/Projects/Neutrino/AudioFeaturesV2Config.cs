@@ -1,5 +1,5 @@
 ﻿using MemoryPack;
-using Quark.Data.Settings;
+using Quark.Components;
 using Quark.Models.Neutrino;
 
 namespace Quark.Data.Projects.Neutrino;
@@ -27,10 +27,20 @@ public partial class AudioFeaturesV2Config
     [MemoryPackOrder(4)]
     private uint _versionId;
 
+    [MemoryPackOrder(5)]
+    public required EstimateMode EstimateMode { get; set; }
+
+    [MemoryPackOnDeserialized]
+    private void Migrate()
+    {
+        if (this._versionId < 1)
+            this.EstimateMode = EstimateMode.Quality;
+    }
+
     [MemoryPackOnDeserializing]
     private void OnDeserializing()
     {
         // MEMO: 項目の増減時にインクリメントする
-        this._versionId = 0;
+        this._versionId = 1;
     }
 }

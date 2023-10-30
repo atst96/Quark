@@ -1,4 +1,5 @@
 ﻿using MemoryPack;
+using Quark.Components;
 
 namespace Quark.Data.Settings;
 
@@ -19,4 +20,12 @@ public partial class SynthesisSettings
     /// <summary>一括処理フラグ</summary>
     [MemoryPackOrder(2)]
     public bool UseBulkEstimate { get; set; } = false;
+
+    /// <summary>推論モード</summary>
+    [MemoryPackOrder(3)]
+    public EstimateMode EstimateMode { get; set; } = EstimateMode.Fast;
+
+    /// <summary>音声合成モード</summary>
+    [MemoryPackOrder(4)]
+    public SynthesisMode SynthesisMode { get; set; } = SynthesisMode.Fast;
 }

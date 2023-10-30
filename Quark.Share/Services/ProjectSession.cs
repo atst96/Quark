@@ -1,11 +1,13 @@
 ﻿using Quark.Components;
 using Quark.Constants;
+using Quark.Data.Settings;
 using Quark.DependencyInjection;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
 using Quark.Projects;
 using Quark.Projects.Tracks;
 using Quark.Utils;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -14,6 +16,8 @@ namespace Quark.Services;
 [Singleton]
 internal class ProjectSession
 {
+    private Settings _settings;
+
     private bool _isSessionStarted = false;
 
     private readonly Project _project;
@@ -22,19 +26,20 @@ internal class ProjectSession
     private readonly TaskQueue<EstimateQueueInfo, int> _estimateQueue;
 
     private volatile Dictionary<EstimatePriority, int> _audioRenderQueueCount = new();
-    private readonly TaskQueue<EstimateQueueInfo, int> _audioRenderQueue;
+    private readonly TaskQueue<SynthesisQueueInfo, int> _audioRenderQueue;
 
     public NeutrinoV1Service NeutrinoV1 { get; }
 
     public NeutrinoV2Service NeutrinoV2 { get; }
 
-    public ProjectSession(Project project, NeutrinoV1Service neutrinoV1, NeutrinoV2Service neutrinoV2)
+    public ProjectSession(Project project, NeutrinoV1Service neutrinoV1, NeutrinoV2Service neutrinoV2, SettingService settings)
     {
+        this._settings = settings.Settings;
         this._project = project;
         this.NeutrinoV1 = neutrinoV1;
         this.NeutrinoV2 = neutrinoV2;
-        this._estimateQueue = new(1, this.ProcessEstimateQueue);
-        this._audioRenderQueue = new(1, this.ProcessSynthesisQueue);
+        this._estimateQueue = new(2, this.ProcessEstimateQueue);
+        this._audioRenderQueue = new(2, this.ProcessSynthesisQueue);
 
         this.BeginSession();
     }
@@ -59,14 +64,17 @@ internal class ProjectSession
         return Task.CompletedTask;
     }
 
+    private SynthesisMode GetSettingSynthesisMode()
+        => this._settings.Synthesis.SynthesisMode;
+
     /// <summary>
     /// 指定トラック、指定フレーズの推論処理をすべてキャンセルする
     /// </summary>
     /// <param name="track">トラック</param>
     /// <param name="phrase">フレーズ</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Task CancelForEstimate(Func<EstimateQueueInfo, bool> func)
-        => Task.WhenAll(this._estimateQueue.Cancel(func), this._audioRenderQueue.Cancel(func));
+    public Task CancelForEstimate(Func<EstimateQueueInfo, bool> func1, Func<SynthesisQueueInfo, bool> func2)
+        => Task.WhenAll(this._estimateQueue.Cancel(func1), this._audioRenderQueue.Cancel(func2));
 
     /// <summary>
     /// 指定トラック、指定フレーズの推論処理をすべてキャンセルする
@@ -75,7 +83,9 @@ internal class ProjectSession
     /// <param name="phrase">フレーズ</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void CancelForEstimate(INeutrinoTrack track, INeutrinoPhrase phrase)
-        => this.CancelForEstimate(t => t.Track == track && t.Phrase == phrase);
+        => this.CancelForEstimate(
+            t => t.Track == track && t.Phrase == phrase,
+            t => t.Track == track && t.Phrase == phrase);
 
     /// <summary>
     /// 指定トラック、指定フレーズの推論処理をすべてキャンセルする
@@ -83,20 +93,22 @@ internal class ProjectSession
     /// <param name="track">トラック</param>
     /// <param name="phrasees">フレーズ</param>
     public void CancelForEstimate(INeutrinoTrack track, IEnumerable<INeutrinoPhrase> phrasees)
-        => this.CancelForEstimate(t => t.Track == track && phrasees.Contains(t.Phrase));
+        => this.CancelForEstimate(
+            t => t.Track == track && phrasees.Contains(t.Phrase),
+            t => t.Track == track && phrasees.Contains(t.Phrase));
 
     /// <summary>
     /// プロジェクトのすべての推論処理をキャンセルする。
     /// </summary>
     public Task CancelAll()
-        => this.CancelForEstimate(i => true);
+        => this.CancelForEstimate(i => true, i => true);
 
     /// <summary>
     /// 指定トラックの推論処理をすべてキャンセルする
     /// </summary>
     /// <param name="track">トラック</param>
     public Task CancelAll(INeutrinoTrack track)
-        => this.CancelForEstimate(t => t.Track == track);
+        => this.CancelForEstimate(t => t.Track == track, t => t.Track == track);
 
     public void AddEstimateQueue(INeutrinoTrack track, INeutrinoPhrase? phrase, EstimatePriority priority = EstimatePriority.Sequence)
     {
@@ -106,7 +118,7 @@ internal class ProjectSession
         // 既存の処理をキャンセル
         this.CancelForEstimate(track, phrase);
 
-        this._estimateQueue.Enqueue(new(track, phrase, priority), GetEstimatePriority(priority));
+        this._estimateQueue.Enqueue(new(track, phrase, track.EstimateMode, priority), GetEstimatePriority(priority));
 
         phrase.SetStatus(PhraseStatus.WaitEstimate);
         track.RaiseFeatureChanged();
@@ -153,7 +165,7 @@ internal class ProjectSession
             phrase.SetStatus(PhraseStatus.WaitEstimate);
         }
 
-        this._estimateQueue.Enqueue(new(track, null, priority), GetEstimatePriority(priority));
+        this._estimateQueue.Enqueue(new(track, null, track.EstimateMode, priority), GetEstimatePriority(priority));
 
         track.RaiseFeatureChanged();
     }
@@ -162,10 +174,11 @@ internal class ProjectSession
     {
         this.CancelForEstimate(track, phrases);
 
+        var mode = track.EstimateMode;
         foreach (var phrase in phrases)
         {
             phrase.SetStatus(PhraseStatus.WaitEstimate);
-            this._estimateQueue.Enqueue(new(track, phrase, priority), GetEstimatePriority(priority));
+            this._estimateQueue.Enqueue(new(track, phrase, mode, priority), GetEstimatePriority(priority));
         }
 
         track.RaiseFeatureChanged();
@@ -174,7 +187,7 @@ internal class ProjectSession
     public void AddAudioRenderQueue(NeutrinoV1Track track, IEnumerable<NeutrinoV1Phrase> phrases, EstimatePriority priority = EstimatePriority.Sequence)
     {
         foreach (var phrase in phrases)
-            this._audioRenderQueue.Enqueue(new(track, phrase, priority), GetAudioRenderPriority(priority));
+            this._audioRenderQueue.Enqueue(new(track, phrase, this.GetSettingSynthesisMode(), priority), GetAudioRenderPriority(priority));
 
         track.RaiseFeatureChanged();
     }
@@ -185,7 +198,7 @@ internal class ProjectSession
     public void AddAudioRenderQueue(NeutrinoV2Track track, IEnumerable<NeutrinoV2Phrase> phrases, EstimatePriority priority = EstimatePriority.Sequence)
     {
         foreach (var phrase in phrases)
-            this._audioRenderQueue.Enqueue(new(track, phrase, priority), GetAudioRenderPriority(priority));
+            this._audioRenderQueue.Enqueue(new(track, phrase, this.GetSettingSynthesisMode(), priority), GetAudioRenderPriority(priority));
 
         track.RaiseFeatureChanged();
     }
@@ -201,7 +214,7 @@ internal class ProjectSession
             phrase.SetStatus(PhraseStatus.WaitAudioRender);
         }
 
-        this._audioRenderQueue.Enqueue(new(track, null, priority), GetEstimatePriority(priority));
+        this._audioRenderQueue.Enqueue(new(track, null, this.GetSettingSynthesisMode(), priority), GetEstimatePriority(priority));
 
         track.RaiseFeatureChanged();
     }
@@ -214,7 +227,7 @@ internal class ProjectSession
     private async Task ProcessEstimateQueue(EstimateQueueInfo queueInfo)
     {
         // セッションが開始されていなければ処理を抜ける
-        if (!this._isSessionStarted)
+        if (!this._isSessionStarted || queueInfo.GetCancellationToken().IsCancellationRequested)
             return;
 
         if (queueInfo.Track is NeutrinoV1Track v1Track)
@@ -254,7 +267,6 @@ internal class ProjectSession
                 }
                 finally
                 {
-                    queueInfo.ClearRunningTask();
                     v1Track.IsBusy = false;
                 }
 
@@ -270,6 +282,7 @@ internal class ProjectSession
                     int end = Math.Min(framesCount, Math.Max(0, NeutrinoUtil.MsToFrameIndex(phrase.EndTime - 1)));
 
                     phrase.SetAudioFeatures(
+                        queueInfo.EstiamteMode,
                         f0[start..end],
                         mgc[(start * NeutrinoConfig.MgcDimension)..(end * NeutrinoConfig.MgcDimension)],
                         bap[(start * NeutrinoConfig.BapDimension)..(end * NeutrinoConfig.BapDimension)]);
@@ -277,7 +290,7 @@ internal class ProjectSession
                 }
                 v1Track.RaiseFeatureChanged();
 
-                this._audioRenderQueue.Enqueue(new(v1Track, null, queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
+                this._audioRenderQueue.Enqueue(new(v1Track, null, this.GetSettingSynthesisMode(), queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
             }
             else
             {
@@ -317,11 +330,11 @@ internal class ProjectSession
 
                 var (_, f0, mgc, bap, phrases) = result;
 
-                phrase.SetAudioFeatures(f0!, mgc!, bap!);
+                phrase.SetAudioFeatures(queueInfo.EstiamteMode, f0!, mgc!, bap!);
                 phrase.SetStatus(PhraseStatus.WaitAudioRender);
                 v1Track.RaiseFeatureChanged();
 
-                this._audioRenderQueue.Enqueue(new(v1Track, phrase, queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
+                this._audioRenderQueue.Enqueue(new(v1Track, phrase, this.GetSettingSynthesisMode(), queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
             }
         }
         else if (queueInfo.Track is NeutrinoV2Track v2Track)
@@ -336,7 +349,9 @@ internal class ProjectSession
                 EstimateFeaturesResultV2 result;
                 try
                 {
-                    var task = this.NeutrinoV2.EstimateFeatures(v2Track, cancellationToken: queueInfo.GetCancellationToken());
+                    var task = this.NeutrinoV2.EstimateFeatures(v2Track,
+                        inferenceMode: ToInferenceMode(queueInfo.EstiamteMode),
+                        cancellationToken: queueInfo.GetCancellationToken());
                     queueInfo.SetTask(task);
                     result = await task.ConfigureAwait(false);
                 }
@@ -359,7 +374,6 @@ internal class ProjectSession
                 }
                 finally
                 {
-                    queueInfo.ClearRunningTask();
                     v2Track.IsBusy = false;
                 }
 
@@ -376,6 +390,7 @@ internal class ProjectSession
                     int end = Math.Min(framesCount, Math.Max(0, NeutrinoUtil.MsToFrameIndex(phrase.EndTime - 1)));
 
                     phrase.SetAudioFeatures(
+                        queueInfo.EstiamteMode,
                         f0[start..end],
                         mspec[(start * NeutrinoConfig.MspecDimension)..(end * NeutrinoConfig.MspecDimension)],
                         mgc[(start * NeutrinoConfig.MgcDimension)..(end * NeutrinoConfig.MgcDimension)],
@@ -384,7 +399,7 @@ internal class ProjectSession
                 }
                 v2Track.RaiseFeatureChanged();
 
-                this._audioRenderQueue.Enqueue(new(v2Track, null, queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
+                this._audioRenderQueue.Enqueue(new(v2Track, null, this.GetSettingSynthesisMode(), queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
             }
             else
             {
@@ -396,7 +411,9 @@ internal class ProjectSession
                 EstimateFeaturesResultV2 result;
                 try
                 {
-                    var task = this.NeutrinoV2.EstimateFeatures(v2Track, phrase, cancellationToken: queueInfo.GetCancellationToken());
+                    var task = this.NeutrinoV2.EstimateFeatures(v2Track, phrase,
+                        inferenceMode: ToInferenceMode(queueInfo.EstiamteMode),
+                        cancellationToken: queueInfo.GetCancellationToken());
                     queueInfo.SetTask(task);
                     result = await task.ConfigureAwait(false);
                 }
@@ -418,16 +435,15 @@ internal class ProjectSession
                 }
                 finally
                 {
-                    queueInfo.ClearRunningTask();
                 }
 
                 var (_, f0, mspec, mgc, bap, phrases) = result;
 
-                phrase.SetAudioFeatures(f0!, mspec!, mgc!, bap!);
+                phrase.SetAudioFeatures(queueInfo.EstiamteMode, f0!, mspec!, mgc!, bap!);
                 phrase.SetStatus(PhraseStatus.WaitAudioRender);
                 v2Track.RaiseFeatureChanged();
 
-                this._audioRenderQueue.Enqueue(new(v2Track, phrase, queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
+                this._audioRenderQueue.Enqueue(new(v2Track, phrase, this.GetSettingSynthesisMode(), queueInfo.Priority), this.GetAudioRenderPriority(queueInfo.Priority));
             }
         }
     }
@@ -436,7 +452,7 @@ internal class ProjectSession
     /// 音声合成キューを処理する
     /// </summary>
     /// <param name="queueInfo"></param>
-    private async Task ProcessSynthesisQueue(EstimateQueueInfo queueInfo)
+    private async Task ProcessSynthesisQueue(SynthesisQueueInfo queueInfo)
     {
         // セッションが開始されていなければ処理を抜ける
         if (!this._isSessionStarted)
@@ -477,7 +493,6 @@ internal class ProjectSession
                 }
                 finally
                 {
-                    queueInfo.ClearRunningTask();
                     v1Track.IsBusy = false;
                 }
 
@@ -523,7 +538,6 @@ internal class ProjectSession
                 }
                 finally
                 {
-                    queueInfo.ClearRunningTask();
                 }
 
                 // 出力した音声データをキャッシュに書き込む
@@ -550,7 +564,7 @@ internal class ProjectSession
                 try
                 {
                     //var task = this.NeutrinoV2.SynthesisWorld(v2Track, cancellationToken: info.GetCancellationToken());
-                    var task = this.NeutrinoV2.SynthesisNSF(v2Track, cancellationToken: queueInfo.GetCancellationToken());
+                    var task = this.NeutrinoV2.SynthesisNSF(v2Track, model: this.GetInferenceMode(), cancellationToken: queueInfo.GetCancellationToken());
                     queueInfo.SetTask(task);
                     data = await task.ConfigureAwait(false);
                 }
@@ -571,7 +585,6 @@ internal class ProjectSession
                 }
                 finally
                 {
-                    queueInfo.ClearRunningTask();
                     v2Track.IsBusy = false;
                 }
 
@@ -596,7 +609,7 @@ internal class ProjectSession
                 try
                 {
                     //var task = this.NeutrinoV2.SynthesisWorld(phrase, cancellationToken: info.GetCancellationToken());
-                    var task = this.NeutrinoV2.SynthesisNSF(v2Track, phrase, cancellationToken: queueInfo.GetCancellationToken());
+                    var task = this.NeutrinoV2.SynthesisNSF(v2Track, phrase, model: this.GetInferenceMode(), cancellationToken: queueInfo.GetCancellationToken());
                     queueInfo.SetTask(task);
                     data = await task.ConfigureAwait(false);
                 }
@@ -630,6 +643,25 @@ internal class ProjectSession
             }
         }
     }
+
+    private static IReadOnlyDictionary<EstimateMode, NeutrinoV2InferenceMode> _estimateModeV2ConvertMap = new Dictionary<EstimateMode, NeutrinoV2InferenceMode>()
+    {
+        [EstimateMode.Quality] = NeutrinoV2InferenceMode.Standard,
+        [EstimateMode.Fast] = NeutrinoV2InferenceMode.Fast,
+    };
+
+    private NeutrinoV2InferenceMode ToInferenceMode(EstimateMode estiamteMode)
+        => _estimateModeV2ConvertMap[estiamteMode];
+
+    private static IReadOnlyDictionary<SynthesisMode, NSFV2Model> _synthModeConvertMap = new Dictionary<SynthesisMode, NSFV2Model>()
+    {
+        [SynthesisMode.MostFast] = NSFV2Model.VS,
+        [SynthesisMode.Fast] = NSFV2Model.VS,
+        [SynthesisMode.Quality] = NSFV2Model.VA,
+    };
+
+    private NSFV2Model GetInferenceMode()
+        => _synthModeConvertMap[this._settings.Synthesis.SynthesisMode];
 
     /// <summary>
     /// トラック内の全フレーズのステータスを更新する。

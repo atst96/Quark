@@ -113,7 +113,7 @@ internal class MusicXMLImportWindowViewModel : ViewModelBase
         if (parts.Length > 0 || parts.Length < 2)
             this.SelectedPart = parts[0];
 
-        var provider = App.Instance.ServiceProvider!;
+        var provider = ServiceLocator.ServiceProvider;
         this._v1Service = provider.GetService<NeutrinoV1Service>()!;
         this._v2Service = provider.GetService<NeutrinoV2Service>()!;
 

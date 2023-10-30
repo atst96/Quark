@@ -5,9 +5,9 @@ using Quark.Projects.Tracks;
 namespace Quark.Services;
 
 /// <summary>
-/// 推論キュー情報
+/// 音声合成キュー情報
 /// </summary>
-public class EstimateQueueInfo : ITaskQueueElement
+public class SynthesisQueueInfo : ITaskQueueElement
 {
     /// <summary>トラック</summary>
     public INeutrinoTrack Track { get; }
@@ -19,7 +19,7 @@ public class EstimateQueueInfo : ITaskQueueElement
     public EstimatePriority Priority { get; }
 
     /// <summary>推論モード</summary>
-    public EstimateMode EstiamteMode { get; }
+    public SynthesisMode EstiamteMode { get; }
 
     /// <summary>実行中のタスク</summary>
     private Task? _task;
@@ -30,7 +30,7 @@ public class EstimateQueueInfo : ITaskQueueElement
     /// <summary>キャンセル用トークン</summary>
     private readonly CancellationTokenSource _tokenSource = new();
 
-    public EstimateQueueInfo(INeutrinoTrack track, INeutrinoPhrase? phrase, EstimateMode mode, EstimatePriority priority)
+    public SynthesisQueueInfo(INeutrinoTrack track, INeutrinoPhrase? phrase, SynthesisMode mode, EstimatePriority priority)
     {
         this.Track = track;
         this.Phrase = phrase;

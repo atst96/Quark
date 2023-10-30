@@ -1,4 +1,5 @@
-﻿using Quark.Models.Neutrino;
+﻿using Quark.Components;
+using Quark.Models.Neutrino;
 
 namespace Quark.Projects.Tracks;
 
@@ -62,6 +63,9 @@ public interface INeutrinoPhrase
         this.DetermineEditingF0();
         this.DetermineEditingDynamics();
     }
+
+    /// <summary>推論モード</summary>
+    public EstimateMode? EstimateMode { get; }
 
     public DateTime LastUpdated { get; }
 }

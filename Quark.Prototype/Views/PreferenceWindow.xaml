@@ -65,7 +65,7 @@
             Style="{StaticResource LeftHeaderTabControlStyle}">
 
             <TabItem Header="全般">
-                
+
                 <StackPanel Margin="8">
                     <Label Margin="2" Content="ダイアログ" Padding="0" FontWeight="Bold"/>
                     <CheckBox Margin="2" Content="ファイル選択時のフォルダを記憶する" IsChecked="{Binding UseRecentDirectories, Mode=TwoWay}" />
@@ -103,6 +103,37 @@
                                TextWrapping="Wrap" FontSize="11"
                                Text="このオプションが有効かつ推論時の対象が全フレーズと判定された場合は、個別の推論処理を実施せずに全フレーズを一括で推論処理します。&#10;これにより、トータルの推論処理の時間が短縮できる可能性があります。"/>
 
+                    <Separator Margin="0,8" />
+
+                    <!--合成品質-->
+                    <Label Margin="0,2" Content="合成品質" Padding="0" FontWeight="Bold"/>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="推論処理" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" Width="180"
+                            ItemsSource="{Binding EsimateModeNames, Mode=OneTime}"
+                            SelectedValue="{Binding EstimateMode, Mode=TwoWay}"
+                            SelectedValuePath="Key" DisplayMemberPath="Value" />
+                    </Grid>
+
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="音声再生" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" Width="180"
+                                  ItemsSource="{Binding SynthesisModeNames, Mode=OneTime}"
+                                  SelectedValue="{Binding SynthesisMode, Mode=TwoWay}"
+                                  SelectedValuePath="Key" DisplayMemberPath="Value" />
+                    </Grid>
+                    <TextBlock Margin="0,8,0,2" Foreground="Gray" FontSize="11" TextWrapping="Wrap"
+                               Text="推論処理の品質に[速度優先]を選択した場合、編集モード切り替え時に品質優先で再推論が行われます。" />
                 </StackPanel>
             </TabItem>
 
@@ -155,27 +186,6 @@
                      --><Run Text="{Binding SelectExeLabel, Mode=OneWay}" />
                     </TextBlock>
 
-                    <!--GPU使用選択-->
-                    <CheckBox Margin="4" Grid.Row="1" Grid.Column="1"
-                        IsChecked="{Binding UseGpu, Mode=TwoWay}"
-                        Content="GPUを使用する" />
-
-                    <!-- CPUスレッド数 -->
-                    <Grid Margin="4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock
-                            Text="CPUスレッド数"
-                            VerticalAlignment="Center" />
-
-                        <TextBox
-                            Grid.Column="1" Width="100"
-                            Text="{Binding CpuThreads, Mode=TwoWay}" />
-                    </Grid>
-
                 </StackPanel>
             </TabItem>
 
@@ -210,27 +220,6 @@
                                 </i:EventTrigger>
                             </i:Interaction.Triggers>
                         </Button>
-                    </Grid>
-
-                    <!--GPU使用選択-->
-                    <CheckBox Margin="4" Grid.Row="1" Grid.Column="1"
-                        IsChecked="{Binding UseGpu, Mode=TwoWay}"
-                        Content="GPUを使用する" />
-
-                    <!-- CPUスレッド数 -->
-                    <Grid Margin="4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock
-                            Text="CPUスレッド数"
-                            VerticalAlignment="Center" />
-
-                        <TextBox
-                            Grid.Column="1" Width="100"
-                            Text="{Binding CpuThreads, Mode=TwoWay}" />
                     </Grid>
                 </StackPanel>
             </TabItem>
