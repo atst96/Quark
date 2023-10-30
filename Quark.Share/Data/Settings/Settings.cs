@@ -11,13 +11,16 @@ internal partial class Settings
     [MemoryPackOrder(1)]
     public NeutrinoV2Settings NeutrinoV2 { get; private set; } = new();
 
-    [MemoryPackOrder(2)]
-    public LinkedList<RecentProject> RecentProjects { get; private set; } = new();
+    [MemoryPackOrder(2), MemoryPackInclude]
+    private NeutrinoV2Settings? _neutrinoV2 => null;
 
     [MemoryPackOrder(3)]
-    public Recents Recents { get; private set; } = new();
+    public LinkedList<RecentProject> RecentProjects { get; private set; } = new();
 
     [MemoryPackOrder(4)]
+    public Recents Recents { get; private set; } = new();
+
+    [MemoryPackOrder(5)]
     public SynthesisSettings Synthesis { get; private set; } = new();
 
     [MemoryPackOnDeserialized]
