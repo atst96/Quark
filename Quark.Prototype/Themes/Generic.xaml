@@ -42,7 +42,8 @@
     <DropShadowEffect x:Key="InputBox.Static.Shadow" Opacity="0" BlurRadius="0" />
     <DropShadowEffect x:Key="InputBox.MouseOver.Shadow" ShadowDepth="0" BlurRadius="4" Opacity=".5" Color="#AAA" />
     <DropShadowEffect x:Key="InputBox.Focus.Shadow" ShadowDepth="0" BlurRadius="4" Opacity=".5" Color="#07c" />
-    <DropShadowEffect x:Key="InputBox.Disabled.Shadow" Opacity="0" BlurRadius="0" />
+    <DropShadowEffect x:Key="InputBox.Shadow.Effect" Color="#000000" Direction="270" ShadowDepth="6" BlurRadius="14" Opacity="0.2" />
+    <Thickness x:Key="InputBox.Shadow.Margin">7,7,7,14</Thickness>
 
     <SolidColorBrush x:Key="InputBox.Static.InnerButton.Background" Color="Transparent"/>
     <SolidColorBrush x:Key="InputBox.MouseOver.InnerButton.Background" Color="#FFEBF4FC" />
@@ -256,28 +257,27 @@
                 IsOpen="{TemplateBinding IsSubmenuOpen}"
                 AllowsTransparency="True"
                 Focusable="False"
-                PopupAnimation="None">
-                <Themes:SystemDropShadowChrome
-                    Color="#71000000" Margin="0 0 5 5">
-                    <Grid
-                        UseLayoutRounding="True"
-                        SnapsToDevicePixels="True">
-                        <Rectangle Fill="{StaticResource MenuPopup.Static.Background}" />
-                        <ScrollViewer
-                            Margin="0 3"
-                            CanContentScroll="True"
-                            Style="{StaticResource MenuScrollViewer}">
-                            <StackPanel
-                                IsItemsHost="True"
-                                Grid.IsSharedSizeScope="True"
-                                KeyboardNavigation.DirectionalNavigation="Cycle" />
-                        </ScrollViewer>
-                        <Rectangle
-                            IsHitTestVisible="False"
-                            StrokeThickness="1"
-                            Stroke="{StaticResource MenuPopup.Static.BorderBrush}" />
-                    </Grid>
-                </Themes:SystemDropShadowChrome>
+                PopupAnimation="None"
+                HorizontalOffset="-1">
+                <Grid
+                    Margin="{StaticResource InputBox.Shadow.Margin}"
+                    UseLayoutRounding="True"
+                    SnapsToDevicePixels="True">
+                    <Rectangle
+                        Fill="{StaticResource MenuPopup.Static.Background}"
+                               Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
+                        StrokeThickness="1" RadiusX="4" RadiusY="4"
+                        Effect="{StaticResource InputBox.Shadow.Effect}" />
+                    <ScrollViewer
+                        Margin="4"
+                        CanContentScroll="True"
+                        Style="{StaticResource MenuScrollViewer}">
+                        <StackPanel
+                            IsItemsHost="True"
+                            Grid.IsSharedSizeScope="True"
+                            KeyboardNavigation.DirectionalNavigation="Cycle" />
+                    </ScrollViewer>
+                </Grid>
             </Popup>
         </Grid>
         <ControlTemplate.Triggers>
@@ -317,7 +317,7 @@
     <ControlTemplate x:Key="{x:Static MenuItem.SubmenuItemTemplateKey}" TargetType="{x:Type MenuItem}">
         <Border
             x:Name="Border"
-            MinHeight="28"
+            MinHeight="24" CornerRadius="3"
             Padding="{TemplateBinding Padding}"
             Background="Transparent"
             TextElement.Foreground="{TemplateBinding Foreground}">
@@ -331,11 +331,11 @@
                 </Grid.ColumnDefinitions>
                 <Border
                     x:Name="CheckMark"
-                    Margin="6 0 0 0"
+                    Margin="1,0,0,0"
                     Width="18" Height="18"
                     Visibility="Collapsed"
                     VerticalAlignment="Center"
-                    CornerRadius="1"
+                    CornerRadius="2"
                     BorderThickness="1"
                     Background="#FF0077CC">
                     <Path
@@ -364,7 +364,7 @@
                     x:Name="InputGestureText"
                     Grid.Column="3"
                     DockPanel.Dock="Right"
-                    Margin="5 2 0 2"
+                    Margin="5 0 0 0"
                     VerticalAlignment="Center"
                     Opacity=".7"
                     Text="{TemplateBinding InputGestureText}" />
@@ -397,7 +397,7 @@
     <ControlTemplate x:Key="{x:Static MenuItem.SubmenuHeaderTemplateKey}" TargetType="{x:Type MenuItem}">
         <Border
             x:Name="Border"
-            MinHeight="28"
+            MinHeight="24" CornerRadius="3"
             Padding="{TemplateBinding Padding}"
             Background="Transparent"
             TextElement.Foreground="{TemplateBinding Foreground}">
@@ -442,29 +442,28 @@
                     AllowsTransparency="True"
                     Focusable="False"
                     PopupAnimation="None"
-                    HorizontalOffset="-2"
-                    VerticalOffset="-6">
-                    <Themes:SystemDropShadowChrome
-                        Color="#71000000" Margin="0 0 5 5">
-                        <Grid
-                            x:Name="SubmenuBorder"
-                            UseLayoutRounding="True"
-                            SnapsToDevicePixels="True">
-                            <Rectangle Fill="{StaticResource MenuPopup.Static.Background}"/>
-                            <ScrollViewer
-                                Margin="0 3"
-                                CanContentScroll="True"
-                                Style="{StaticResource MenuScrollViewer}">
-                                <StackPanel
-                                    IsItemsHost="True"
-                                    Grid.IsSharedSizeScope="True"
-                                    KeyboardNavigation.DirectionalNavigation="Cycle" />
-                            </ScrollViewer>
-                            <Rectangle
-                                StrokeThickness="1"
-                                Stroke="{StaticResource MenuPopup.Static.BorderBrush}" />
-                        </Grid>
-                    </Themes:SystemDropShadowChrome>
+                    HorizontalOffset="1"
+                    VerticalOffset="-7">
+                    <Grid
+                        x:Name="SubmenuBorder"
+                        Margin="{StaticResource InputBox.Shadow.Margin}"
+                        UseLayoutRounding="True"
+                        SnapsToDevicePixels="True">
+                        <Rectangle
+                            Fill="{StaticResource MenuPopup.Static.Background}"
+                                   Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
+                            StrokeThickness="1" RadiusX="4" RadiusY="4"
+                            Effect="{StaticResource InputBox.Shadow.Effect}"/>
+
+                        <ScrollViewer
+                            Margin="4" CanContentScroll="True"
+                            Style="{StaticResource MenuScrollViewer}">
+                            <StackPanel
+                                IsItemsHost="True"
+                                Grid.IsSharedSizeScope="True"
+                                KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </ScrollViewer>
+                    </Grid>
                 </Popup>
             </Grid>
         </Border>
@@ -524,28 +523,29 @@
         <Setter Property="FontWeight" Value="Normal" />
         <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
         <Setter Property="FontSize" Value="{StaticResource {x:Static SystemFonts.MessageFontSizeKey}}" />
+        <Setter Property="HorizontalOffset" Value="-8" />
+        <Setter Property="VerticalOffset" Value="-8" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ContextMenu}">
-                    <Themes:SystemDropShadowChrome Color="#71000000" Margin="0 0 5 5">
-                        <Grid
-                            UseLayoutRounding="True"
-                            SnapsToDevicePixels="True">
-                            <Rectangle Fill="{StaticResource MenuPopup.Static.Background}"/>
-                            <ScrollViewer
-                                Margin="0 3"
-                                CanContentScroll="True"
-                                Style="{StaticResource MenuScrollViewer}">
-                                <StackPanel
-                                    IsItemsHost="True"
-                                    Grid.IsSharedSizeScope="True"
-                                    KeyboardNavigation.DirectionalNavigation="Cycle" />
-                            </ScrollViewer>
-                            <Rectangle
-                                StrokeThickness="1"
-                                Stroke="{StaticResource MenuPopup.Static.BorderBrush}" />
-                        </Grid>
-                    </Themes:SystemDropShadowChrome>
+                    <Grid
+                        Margin="{StaticResource InputBox.Shadow.Margin}"
+                        UseLayoutRounding="True"
+                        SnapsToDevicePixels="True">
+                        <Rectangle
+                            Fill="{StaticResource MenuPopup.Static.Background}"
+                           Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
+                            StrokeThickness="1" RadiusX="4" RadiusY="4"
+                            Effect="{StaticResource InputBox.Shadow.Effect}" />
+                        <ScrollViewer
+                            Margin="4" CanContentScroll="True"
+                            Style="{StaticResource MenuScrollViewer}">
+                            <StackPanel
+                                IsItemsHost="True"
+                                Grid.IsSharedSizeScope="True"
+                                KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </ScrollViewer>
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
