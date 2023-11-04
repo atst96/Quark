@@ -1,5 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Quark.Structs;
 
@@ -39,21 +40,42 @@ public struct WaveHeader
     /// <summary>
     /// ヘッダの構造体(4バイト)
     /// </summary>
-    [InlineArray(4)]
-    public struct Header
+    [StructLayout(LayoutKind.Sequential)]
+    public readonly struct Header
     {
-        public byte value;
+        private readonly byte _value0;
+        private readonly byte _value1;
+        private readonly byte _value2;
+        private readonly byte _value3;
+
+        /// <summary>RIFFヘッダ</summary>
+        public static readonly Header Riff = "RIFF"u8;
+        /// <summary>WAVEヘッダ</summary>
+
+        public static readonly Header Wave = "WAVE"u8;
+        /// <summary>fmtヘッダ</summary>
+
+        public static readonly Header Fmt = "fmt "u8;
+        /// <summary>dataヘッダ</summary>
+        public static readonly Header Data = "data"u8;
 
         /// <summary>
         /// バイナリデータからヘッダに変換する
         /// </summary>
         /// <param name="data"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Header(ReadOnlySpan<byte> data)
-        {
-            if (data.Length != Marshal.SizeOf<Header>())
-                throw new ArgumentOutOfRangeException(nameof(data));
+            => MemoryMarshal.Read<Header>(data);
 
-            return MemoryMarshal.Read<Header>(data);
-        }
+        /// <summary>
+        /// バイトデータを取得
+        /// </summary>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ReadOnlySpan<byte> GetBytes()
+            => MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in this, 1));
+
+        public override string ToString()
+            => Encoding.ASCII.GetString(this.GetBytes());
     }
 }

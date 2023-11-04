@@ -48,28 +48,26 @@ public static class WavUtil
     {
         int bytesPerElement = bitDepth / 8;
 
-        // 書き込み先データを生成
-        // ストリーム書き込み用のバイナリ配列を用意しておき、それを参照した構造体(ref)を取得する。
-        byte[] headerData = new byte[WaveHeaderSize];
-        ref var header = ref MemoryMarshal.AsRef<WaveHeader>(headerData);
-
-        // ヘッダ情報を生成する
-        header.RiffHeader = "RIFF"u8;
-        header.WavSize = dataSize + WaveHeaderSize - 8;
-        header.WavHeader = "WAVE"u8;
-        header.FmtHeader = "fmt "u8;
-        header.FmtChunkSize = 16;
-        header.AudioFormat = 1; // PCM
-        header.Channels = (short)channels;
-        header.SamplingRate = samplingRate;
-        header.ByteRate = samplingRate * channels * bytesPerElement;
-        header.SampleAlignment = (short)(channels * bytesPerElement);
-        header.BitDepth = (short)bitDepth;
-        header.DataHeader = "data"u8;
-        header.DataBytes = dataSize;
+        // ヘッダ情報を作成
+        var header = new WaveHeader
+        {
+            RiffHeader = WaveHeader.Header.Riff,
+            WavSize = dataSize + WaveHeaderSize - 8,
+            WavHeader = WaveHeader.Header.Wave,
+            FmtHeader = WaveHeader.Header.Fmt,
+            FmtChunkSize = 16,
+            AudioFormat = 1, // PCM
+            Channels = (short)channels, 
+            SamplingRate = samplingRate,
+            ByteRate = samplingRate * channels * bytesPerElement,
+            SampleAlignment = (short)(channels * bytesPerElement),
+            BitDepth = (short)bitDepth,
+            DataHeader = WaveHeader.Header.Data,
+            DataBytes = dataSize,
+        };
 
         // ストリームに書き込み
-        stream.Write(headerData);
+        stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
     }
 
     /// <summary>
