@@ -1,7 +1,6 @@
 ﻿<ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:Themes="clr-namespace:Microsoft.Windows.Themes;assembly=PresentationFramework.Aero">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- TODO: 将来的には日本語環境のみUIフォントを適用する -->
     <FontFamily x:Key="UIFont">Meiryo</FontFamily>
@@ -39,8 +38,6 @@
     <SolidColorBrush x:Key="InputBox.Focus.Background" Color="#FFFFFFFF"/>
     <SolidColorBrush x:Key="InputBox.Disabled.Background" Color="#FFF0F0F0" />
 
-    <DropShadowEffect x:Key="InputBox.Static.Shadow" Opacity="0" BlurRadius="0" />
-    <DropShadowEffect x:Key="InputBox.MouseOver.Shadow" ShadowDepth="0" BlurRadius="4" Opacity=".5" Color="#AAA" />
     <DropShadowEffect x:Key="InputBox.Focus.Shadow" ShadowDepth="0" BlurRadius="4" Opacity=".5" Color="#07c" />
     <DropShadowEffect x:Key="InputBox.Shadow.Effect" Color="#000000" Direction="270" ShadowDepth="6" BlurRadius="14" Opacity="0.2" />
     <Thickness x:Key="InputBox.Shadow.Margin">7,7,7,14</Thickness>
@@ -265,7 +262,7 @@
                     SnapsToDevicePixels="True">
                     <Rectangle
                         Fill="{StaticResource MenuPopup.Static.Background}"
-                               Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
+                        Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
                         StrokeThickness="1" RadiusX="4" RadiusY="4"
                         Effect="{StaticResource InputBox.Shadow.Effect}" />
                     <ScrollViewer
@@ -451,7 +448,7 @@
                         SnapsToDevicePixels="True">
                         <Rectangle
                             Fill="{StaticResource MenuPopup.Static.Background}"
-                                   Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
+                            Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
                             StrokeThickness="1" RadiusX="4" RadiusY="4"
                             Effect="{StaticResource InputBox.Shadow.Effect}"/>
 
@@ -534,7 +531,7 @@
                         SnapsToDevicePixels="True">
                         <Rectangle
                             Fill="{StaticResource MenuPopup.Static.Background}"
-                           Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
+                            Stroke="{StaticResource MenuPopup.Static.BorderBrush}"
                             StrokeThickness="1" RadiusX="4" RadiusY="4"
                             Effect="{StaticResource InputBox.Shadow.Effect}" />
                         <ScrollViewer
@@ -570,24 +567,29 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type TextBox}">
-                    <Border
-                        x:Name="border"
-                        CornerRadius="1"
-                        ClipToBounds="{TemplateBinding ClipToBounds}"
-                        Background="{TemplateBinding Background}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        SnapsToDevicePixels="True"
-                        Effect="{StaticResource InputBox.Static.Shadow}">
-                        <ScrollViewer
-                            x:Name="PART_ContentHost"
-                            Focusable="False"
-                            Padding="{TemplateBinding Padding}"
-                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                            HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
-                            VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}" />
-                    </Border>
+                    <Grid>
+                        <Rectangle
+                            x:Name="focuBorder"
+                            Margin="-3" Visibility="Collapsed" IsHitTestVisible="False"
+                            RadiusX="3" RadiusY="3" Opacity="0.2" StrokeThickness="3" />
+                        <Border
+                            x:Name="border"
+                            CornerRadius="2"
+                            ClipToBounds="{TemplateBinding ClipToBounds}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True">
+                            <ScrollViewer
+                                x:Name="PART_ContentHost"
+                                Focusable="False"
+                                Padding="{TemplateBinding Padding}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                                VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}" />
+                        </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="PART_ContentHost" Property="Opacity" Value="0.56"/>
@@ -596,11 +598,13 @@
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBox.MouseOver.Border}"/>
-                            <Setter TargetName="border" Property="Effect" Value="{StaticResource InputBox.MouseOver.Shadow}"/>
+                            <Setter TargetName="focuBorder" Property="Stroke" Value="{StaticResource InputBox.MouseOver.Border}" />
+                            <Setter TargetName="focuBorder" Property="Visibility" Value="Visible" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBox.Focus.Border}"/>
-                            <Setter TargetName="border" Property="Effect" Value="{StaticResource InputBox.Focus.Shadow}"/>
+                            <Setter TargetName="focuBorder" Property="Stroke" Value="{StaticResource InputBox.Focus.Border}" />
+                            <Setter TargetName="focuBorder" Property="Visibility" Value="Visible" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -640,31 +644,36 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ToggleButton}">
-                    <Border
-                        x:Name="templateRoot"
-                        SnapsToDevicePixels="True"
-                        CornerRadius="1"
-                        Background="{StaticResource InputBox.Static.Background}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        BorderBrush="{StaticResource InputBox.Static.Border}"
-                        Effect="{StaticResource InputBox.Static.Shadow}">
+                    <Grid>
+                        <Rectangle
+                            x:Name="focuBorder"
+                            Margin="-3" Visibility="Collapsed" IsHitTestVisible="False"
+                            RadiusX="3" RadiusY="3" Opacity="0.2" StrokeThickness="3" />
                         <Border
-                            x:Name="splitBorder"
-                            Margin="0"
-                            Width="{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}"
+                            x:Name="templateRoot"
                             SnapsToDevicePixels="True"
-                            HorizontalAlignment="Right"
-                            BorderThickness="0"
-                            BorderBrush="Transparent">
-                            <Path
-                                x:Name="arrow"
+                            CornerRadius="2"
+                            Background="{StaticResource InputBox.Static.Background}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            BorderBrush="{StaticResource InputBox.Static.Border}">
+                            <Border
+                                x:Name="splitBorder"
                                 Margin="0"
-                                VerticalAlignment="Center"
-                                HorizontalAlignment="Center"
-                                Fill="{StaticResource ComboBox.Static.Glyph}"
-                                Data="F1 M 0,0 L 2.667,2.66665 L 5.3334,0 Z"/>
+                                Width="{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}"
+                                SnapsToDevicePixels="True"
+                                HorizontalAlignment="Right"
+                                BorderThickness="0"
+                                BorderBrush="Transparent">
+                                <Path
+                                    x:Name="arrow"
+                                    Margin="0"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Fill="{StaticResource ComboBox.Static.Glyph}"
+                                    Data="F1 M 0,0 L 2.667,2.66665 L 5.3334,0 Z"/>
+                            </Border>
                         </Border>
-                    </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <MultiDataTrigger>
                             <MultiDataTrigger.Conditions>
@@ -682,7 +691,8 @@
                             <Setter Property="Fill" TargetName="arrow" Value="{StaticResource ComboBox.MouseOver.Glyph}"/>
                             <Setter Property="Background" TargetName="templateRoot" Value="{StaticResource InputBox.MouseOver.Background}"/>
                             <Setter Property="BorderBrush" TargetName="templateRoot" Value="{StaticResource InputBox.MouseOver.Border}"/>
-                            <Setter Property="Effect" TargetName="templateRoot" Value="{StaticResource InputBox.MouseOver.Shadow}"/>
+                            <Setter TargetName="focuBorder" Property="Stroke" Value="{StaticResource InputBox.MouseOver.Border}" />
+                            <Setter TargetName="focuBorder" Property="Visibility" Value="Visible" />
                         </DataTrigger>
                         <MultiDataTrigger>
                             <MultiDataTrigger.Conditions>
@@ -696,7 +706,8 @@
                             <Setter Property="Fill" TargetName="arrow" Value="{StaticResource ComboBox.Pressed.Glyph}" />
                             <Setter Property="Background" TargetName="templateRoot" Value="{StaticResource InputBox.Focus.Background}"/>
                             <Setter Property="BorderBrush" TargetName="templateRoot" Value="{StaticResource InputBox.Focus.Border}"/>
-                            <Setter Property="Effect" TargetName="templateRoot" Value="{StaticResource InputBox.Focus.Shadow}"/>
+                            <Setter TargetName="focuBorder" Property="Stroke" Value="{StaticResource InputBox.Focus.Border}" />
+                            <Setter TargetName="focuBorder" Property="Visibility" Value="Visible" />
                         </DataTrigger>
                         <MultiDataTrigger>
                             <MultiDataTrigger.Conditions>
@@ -736,13 +747,12 @@
                 AllowsTransparency="True"
                 Grid.ColumnSpan="2"
                 IsOpen="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                Margin="1"
-                VerticalOffset="-1"
+                Margin="1" VerticalOffset="-1"
                 PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}"
                 Placement="Bottom">
-                <Themes:SystemDropShadowChrome
+                <Grid
                     x:Name="shadow"
-                    Color="Transparent"
+                    Margin="0"
                     MaxHeight="{TemplateBinding MaxDropDownHeight}"
                     MinWidth="{Binding ActualWidth, ElementName=templateRoot}">
                     <Border
@@ -759,7 +769,7 @@
                             </Grid>
                         </ScrollViewer>
                     </Border>
-                </Themes:SystemDropShadowChrome>
+                </Grid>
             </Popup>
 
             <ToggleButton
@@ -785,8 +795,8 @@
         </Grid>
         <ControlTemplate.Triggers>
             <Trigger Property="HasDropShadow" SourceName="PART_Popup" Value="True">
-                <Setter Property="Margin" TargetName="shadow" Value="0,0,5,5"/>
-                <Setter Property="Color" TargetName="shadow" Value="#71000000"/>
+                <Setter TargetName="shadow" Property="Margin" Value="{StaticResource InputBox.Shadow.Margin}"/>
+                <Setter TargetName="shadow" Property="Effect" Value="{StaticResource InputBox.Shadow.Effect}"/>
             </Trigger>
             <Trigger Property="HasItems" Value="False">
                 <Setter Property="Height" TargetName="dropDownBorder" Value="95"/>
@@ -853,9 +863,8 @@
                 IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
                 PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}"
                 Placement="Bottom">
-                <Themes:SystemDropShadowChrome
+                <Grid
                     x:Name="shadow"
-                    Color="Transparent"
                     MaxHeight="{TemplateBinding MaxDropDownHeight}"
                     MinWidth="{Binding ActualWidth, ElementName=templateRoot}">
                     <Border
@@ -872,7 +881,7 @@
                             </Grid>
                         </ScrollViewer>
                     </Border>
-                </Themes:SystemDropShadowChrome>
+                </Grid>
             </Popup>
 
             <ToggleButton
@@ -899,15 +908,9 @@
             </Border>
         </Grid>
         <ControlTemplate.Triggers>
-            <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Opacity" TargetName="border" Value="0.56"/>
-            </Trigger>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="Foreground" Value="Black"/>
-            </Trigger>
             <Trigger Property="HasDropShadow" SourceName="PART_Popup" Value="True">
-                <Setter Property="Margin" TargetName="shadow" Value="0,0,5,5"/>
-                <Setter Property="Color" TargetName="shadow" Value="#71000000"/>
+                <Setter TargetName="shadow" Property="Margin" Value="{StaticResource InputBox.Shadow.Margin}"/>
+                <Setter TargetName="shadow" Property="Effect" Value="{StaticResource InputBox.Shadow.Effect}"/>
             </Trigger>
             <Trigger Property="HasItems" Value="False">
                 <Setter Property="Height" TargetName="dropDownBorder" Value="95"/>
@@ -919,6 +922,12 @@
                 </MultiTrigger.Conditions>
                 <Setter Property="ScrollViewer.CanContentScroll" Value="False"/>
             </MultiTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" TargetName="border" Value="0.56"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="Foreground" Value="Black"/>
+            </Trigger>
 
             <Trigger Property="ScrollViewer.CanContentScroll" SourceName="DropDownScrollViewer" Value="False">
                 <Setter Property="Canvas.Top" TargetName="border" Value="{Binding VerticalOffset, ElementName=DropDownScrollViewer}"/>
@@ -1823,7 +1832,7 @@
                     IsOpen="{Binding IsOverflowOpen, RelativeSource={RelativeSource TemplatedParent}}" PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}"
                     Placement="Bottom"
                     StaysOpen="False">
-                    <Themes:SystemDropShadowChrome x:Name="Shdw" Color="Transparent">
+                    <Grid x:Name="shadow" SnapsToDevicePixels="True" Margin="0" Effect="{x:Null}">
                         <Border
                             x:Name="ToolBarSubMenuBorder"
                             BorderBrush="{StaticResource ToolBar.Menu.Static.Border}"
@@ -1836,7 +1845,7 @@
                                 KeyboardNavigation.TabNavigation="Cycle"
                                 WrapWidth="200" />
                         </Border>
-                    </Themes:SystemDropShadowChrome>
+                    </Grid>
                 </Popup>
             </Grid>
             <Border
@@ -1881,9 +1890,8 @@
                 <Setter Property="Visibility" TargetName="ToolBarThumb" Value="Collapsed"/>
             </Trigger>
             <Trigger Property="HasDropShadow" SourceName="OverflowPopup" Value="True">
-                <Setter Property="Margin" TargetName="Shdw" Value="0 0 5 5"/>
-                <Setter Property="SnapsToDevicePixels" TargetName="Shdw" Value="True"/>
-                <Setter Property="Color" TargetName="Shdw" Value="#71000000"/>
+                <Setter TargetName="shadow" Property="Margin" Value="{StaticResource InputBox.Shadow.Margin}" />
+                <Setter TargetName="shadow" Property="Effect" Value="{StaticResource InputBox.Shadow.Effect}" />
             </Trigger>
             <Trigger Property="Orientation" Value="Vertical">
                 <Setter Property="Style" TargetName="OverflowButton" Value="{StaticResource ToolBarVerticalOverflowButtonStyle}"/>
