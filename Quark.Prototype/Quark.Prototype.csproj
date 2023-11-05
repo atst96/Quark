@@ -24,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\CapriciousUI\CapriciousUI.Wpf\CapriciousUI.Wpf.csproj" />
     <ProjectReference Include="..\Quark.Share\Quark.Share.csproj" />
   </ItemGroup>
 

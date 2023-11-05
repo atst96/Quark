@@ -12,7 +12,7 @@
                     <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityCollapseConverter" />
                     <conv:TimeSpanToMillisecondConverter x:Key="TimeSpanToMillisecondConverter" />
                 </ResourceDictionary>
-                <ResourceDictionary Source="/Themes/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/CapriciousUI.Wpf;component/Themes/Light.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
