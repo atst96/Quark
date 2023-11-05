@@ -1,0 +1,2 @@
+# Update subtree repository
+git subtree pull --prefix=CapriciousUI capriciousui develop --squash
