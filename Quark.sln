@@ -20,8 +20,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Quark.Share.Test", "Quark.S
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Quark.DependencyInjection", "Quark.DependencyInjection\Quark.DependencyInjection.csproj", "{9FDBF8B9-F751-4EE9-AB45-F159D1213649}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CapriciousUI.Wpf", "CapriciousUI\CapriciousUI.Wpf\CapriciousUI.Wpf.csproj", "{3F48AE60-EEC0-4783-B422-44DC4D5A4537}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -92,18 +90,6 @@ Global
 		{9FDBF8B9-F751-4EE9-AB45-F159D1213649}.Release|x64.Build.0 = Release|Any CPU
 		{9FDBF8B9-F751-4EE9-AB45-F159D1213649}.Release|x86.ActiveCfg = Release|Any CPU
 		{9FDBF8B9-F751-4EE9-AB45-F159D1213649}.Release|x86.Build.0 = Release|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Debug|x64.Build.0 = Debug|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Debug|x86.Build.0 = Debug|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Release|x64.ActiveCfg = Release|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Release|x64.Build.0 = Release|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Release|x86.ActiveCfg = Release|Any CPU
-		{3F48AE60-EEC0-4783-B422-44DC4D5A4537}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

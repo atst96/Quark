@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CapriciousUI.Wpf" Version="0.0.1" />
     <PackageReference Include="LivetCask.Behaviors" Version="4.0.2" />
     <PackageReference Include="LivetCask.Collections" Version="4.0.2" />
     <PackageReference Include="LivetCask.Converters" Version="4.0.2" />
@@ -24,7 +25,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CapriciousUI\CapriciousUI.Wpf\CapriciousUI.Wpf.csproj" />
     <ProjectReference Include="..\Quark.Share\Quark.Share.csproj" />
   </ItemGroup>
 
