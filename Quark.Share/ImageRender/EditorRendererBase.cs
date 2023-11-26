@@ -16,6 +16,7 @@ public abstract class EditorRendererBase
 
     private readonly EditorPartsLayoutResolver _partsLayout;
     private readonly PianoRollBackgroundRenderer _backgroundRenderer;
+    private readonly PianoRollKeysRenderer _keysRenderer;
     private readonly PianoRollNoteRenderer _noteRenderer;
     private readonly RulerRenderer _rulerRenderer;
     private readonly TimingRenderer _timingRenderer;
@@ -25,6 +26,7 @@ public abstract class EditorRendererBase
     {
         this._partsLayout = partsLayout;
         this._backgroundRenderer = new();
+        this._keysRenderer = new();
         this._noteRenderer = new();
         this._rulerRenderer = new();
         this._timingRenderer = new(partsLayout);
@@ -52,6 +54,9 @@ public abstract class EditorRendererBase
         var scoreArea = renderLayout.ScoreArea;
 
         // 描画領域の更新
+
+        // 鍵盤を描画
+        this._keysRenderer.Render(g, ri);
 
         // スクロール位置から描画位置(y)を計算
         int scaledScoreY = ri.VScrollPosition;
