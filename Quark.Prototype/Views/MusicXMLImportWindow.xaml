@@ -112,7 +112,7 @@
                 </Grid>
 
                 <StackPanel Margin="4" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Margin="4" Width="120" Content="インポート" Style="{DynamicResource Button.Primary}" Command="{Binding CompleteCommand, Mode=OneTime}" IsDefault="True" />
+                    <Button Margin="4" Width="120" Content="インポート" Style="{DynamicResource PrimaryButtonStyle}" Command="{Binding CompleteCommand, Mode=OneTime}" IsDefault="True" />
                     <Button Margin="4" Width="80" Content="閉じる" IsCancel="True" />
                 </StackPanel>
             </Grid>

@@ -56,7 +56,7 @@
                 BorderThickness="0,1,0,0" BorderBrush="#CCC">
             <StackPanel Margin="4" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Margin="4" Width="100" TabIndex="1" IsEnabled="{Binding IsInvalid, Mode=OneWay}"
-                        Content="OK" Style="{StaticResource Button.Primary}">
+                        Content="OK" Style="{StaticResource PrimaryButtonStyle}">
                     <i:Interaction.Triggers>
                         <i:EventTrigger EventName="Click">
                             <i:ChangePropertyAction TargetObject="{Binding ElementName=window, Mode=OneTime}" TargetName="DialogResult" Value="True" />
