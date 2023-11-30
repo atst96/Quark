@@ -49,7 +49,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
     private ProgressWindowViewModel? _progressWindowViewModel;
     public ProgressWindowViewModel ProgressWindowViewModel
-        => this._progressWindowViewModel ??= new("進捗状況", closeable: false);
+        => this._progressWindowViewModel ??= new("進捗状況", closeable: true);
 
     public Dictionary<LineType, string> Quantizes { get; } = new()
     {
