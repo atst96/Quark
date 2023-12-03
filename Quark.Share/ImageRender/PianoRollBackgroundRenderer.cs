@@ -8,6 +8,8 @@ namespace Quark.ImageRender;
 
 internal class PianoRollBackgroundRenderer
 {
+    private const int KeyCount = 12;
+
     public PianoRollBackgroundRenderer()
     {
     }
@@ -21,7 +23,6 @@ internal class PianoRollBackgroundRenderer
     /// <returns></returns>
     private static SKBitmap CreatePianoOctaveBmp(RenderInfoCommon ri)
     {
-        const int KeyCount = 12;
         const int DefaultWidth = 100;
 
         var renderLayout = ri.ScreenLayout;
@@ -32,9 +33,9 @@ internal class PianoRollBackgroundRenderer
         int height = renderKeyHeight * KeyCount;
 
         var colorInfo = ri.ColorInfo;
-        var whiteKeyBrush = colorInfo.WhiteKeyPaint;
-        var whiteGridPen = colorInfo.WhiteKeyGridPaint;
-        var blackKeyBrush = colorInfo.BlackKeyPaint;
+        var whiteKeyBrush = colorInfo.ScoreWhiteKeyPaint;
+        var whiteGridPen = colorInfo.ScoreWhiteKeyGridPaint;
+        var blackKeyBrush = colorInfo.ScoreBlackKeyPaint;
 
         var image = new SKBitmap(width, height, isOpaque: true);
 
