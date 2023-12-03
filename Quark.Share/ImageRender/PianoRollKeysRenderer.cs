@@ -19,9 +19,9 @@ internal class PianoRollKeysRenderer
 
     private SKBitmap CreatePianoOctaveKeysBmp(RenderInfoCommon ri)
     {
-        var renderLayout = ri.ScreenLayout;
-        int renderKeyHeight = renderLayout.PhysicalKeyHeight;
-        int width = renderLayout.ScoreArea.X;
+        var layout = ri.ScreenLayout;
+        int renderKeyHeight = layout.PhysicalKeyHeight;
+        int width = layout.KeysArea.Width;
         int height = renderKeyHeight * KeyCount;
 
         var colors = ri.ColorInfo;
@@ -59,7 +59,7 @@ internal class PianoRollKeysRenderer
                 g.DrawRect(SKRect.Create(0, y, blackKeyWidth, renderKeyHeight), blackKeyBackgroundBrush);
             }
 
-            // 外部枠線の描画
+            // 外部枠線の描画(逆L字)
             SKPoint[] points = [
                 new(width - 1, 0),
                 new(width - 1, height),
@@ -78,21 +78,18 @@ internal class PianoRollKeysRenderer
         // 描画領域
         var keysImage = this.CreatePianoOctaveKeysBmp(ri);
         int keyImageHeight = keysImage.Height;
-        int scoreY = layout.ScoreArea.Y;
+        int areaY = layout.KeysArea.Y;
         int scoreHeight = layout.ScoreImage.Height;
-        int scoreAreaHeight = layout.ScoreArea.Height;
+        int totalRenderHeight = layout.KeysArea.Height;
 
         // 1オクターブ単位での描画開始位置
         int scrollPosition = ri.VScrollPosition;
-        int beginYOffset = -((scrollPosition % keyImageHeight) - (scoreHeight % keyImageHeight)) + scoreY;
+        int beginYOffset = -((scrollPosition % keyImageHeight) - (scoreHeight % keyImageHeight)) + areaY;
 
-        int renderHeight = Math.Min(scoreHeight - scrollPosition, scoreAreaHeight);
+        int renderHeight = Math.Min(scoreHeight - scrollPosition, totalRenderHeight);
 
-        int tileIdx = 0;
-        int maxTilingPos = (int)Math.Ceiling((double)(renderHeight - (beginYOffset - scoreY)) / keyImageHeight);
-
-        if (scoreY < beginYOffset)
-            tileIdx = -1;
+        int tileIdx = areaY < beginYOffset ? -1 : 0;
+        int maxTilingPos = (int)Math.Ceiling((double)(renderHeight - (beginYOffset - areaY)) / keyImageHeight);
 
         for (; tileIdx < maxTilingPos; ++tileIdx)
         {
@@ -104,16 +101,16 @@ internal class PianoRollKeysRenderer
             int h = keyImageHeight;
 
             // 不要な上辺があるならそれを省いた描画位置と高さに補正する
-            int topUnnecessary = scoreY - dstY;
+            int topUnnecessary = areaY - dstY;
             if (topUnnecessary > 0)
             {
                 h = keyImageHeight - topUnnecessary;
                 srcY = topUnnecessary;
-                dstY = scoreY;
+                dstY = areaY;
             }
 
             // 下辺にはみ出しがあればはみ出しのない高さに補正する
-            int bottomUnnecessary = dstY + h - layout.EditArea.Height;
+            int bottomUnnecessary = dstY + h - (layout.KeysArea.Y + layout.KeysArea.Height);
             if (bottomUnnecessary > 0)
                 h -= bottomUnnecessary;
 
@@ -123,11 +120,11 @@ internal class PianoRollKeysRenderer
         }
 
         // 描画領域内で描画しない部分があれば単色で埋める
-        int remaining = scoreAreaHeight - renderHeight;
+        int remaining = totalRenderHeight - renderHeight;
         if (remaining > 0)
         {
             g.DrawRect(
-                SKRect.Create(0, scoreY + renderHeight, keysImage.Width, remaining),
+                SKRect.Create(0, areaY + renderHeight, keysImage.Width, remaining),
                 ri.ColorInfo.WhiteKeyBackgroundBrush);
         }
     }
