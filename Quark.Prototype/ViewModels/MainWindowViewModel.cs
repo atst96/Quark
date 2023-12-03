@@ -342,7 +342,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
                  // WORLDで合成
                  ? service.SynthesisWorld(v2Track, path, progress)
                  // NSFで合成
-                 : service.SynthesisNSF(v2Track, path, NSFV2Model.Get(NeutrinoV2InferenceMode.Standard), progress);
+                 : service.SynthesisNSF(v2Track, path, NSFV2Model.Get(NeutrinoV2InferenceMode.Advanced), progress);
         }
         else
         {

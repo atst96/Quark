@@ -347,7 +347,7 @@ internal class NeutrinoV2Service
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
     public Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Track track,
-        NeutrinoV2InferenceMode inferenceMode = NeutrinoV2InferenceMode.Standard,
+        NeutrinoV2InferenceMode inferenceMode = NeutrinoV2InferenceMode.Advanced,
         IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
         return this.EstimateFeatures(new NeutrinoV2Option()
@@ -375,7 +375,7 @@ internal class NeutrinoV2Service
     /// <param name="cancellationToken">CancellationToken</param>
     /// <returns></returns>
     public Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Track track, NeutrinoV2Phrase phrase,
-        NeutrinoV2InferenceMode inferenceMode = NeutrinoV2InferenceMode.Standard,
+        NeutrinoV2InferenceMode inferenceMode = NeutrinoV2InferenceMode.Advanced,
         IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
         return this.EstimateFeatures(new NeutrinoV2Option()

@@ -1,8 +1,16 @@
 ﻿namespace Quark.Neutrino;
 
-public enum NeutrinoV2InferenceMode : int
+/// <summary>
+/// 処理速度・品質設定
+/// </summary>
+public enum NeutrinoV2InferenceMode : uint
 {
-    Preview = 2,
-    Fast = 3,
-    Standard = 4,
+    /// <summary>高速</summary>
+    Elements = 2,
+
+    /// <summary>通常版</summary>
+    Standard = 3,
+
+    /// <summary>高品質</summary>
+    Advanced = 4,
 }

@@ -18,9 +18,9 @@ public class NSFV2Model
 
     public static NSFV2Model Get(NeutrinoV2InferenceMode mode) => mode switch
     {
-        NeutrinoV2InferenceMode.Standard => VA,
-        NeutrinoV2InferenceMode.Fast => VS,
-        NeutrinoV2InferenceMode.Preview => VE,
+        NeutrinoV2InferenceMode.Advanced => VA,
+        NeutrinoV2InferenceMode.Standard => VS,
+        NeutrinoV2InferenceMode.Elements => VE,
         _ => throw new NotImplementedException(),
     };
 }

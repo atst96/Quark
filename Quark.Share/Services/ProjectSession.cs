@@ -646,8 +646,8 @@ internal class ProjectSession
 
     private static IReadOnlyDictionary<EstimateMode, NeutrinoV2InferenceMode> _estimateModeV2ConvertMap = new Dictionary<EstimateMode, NeutrinoV2InferenceMode>()
     {
-        [EstimateMode.Quality] = NeutrinoV2InferenceMode.Standard,
-        [EstimateMode.Fast] = NeutrinoV2InferenceMode.Fast,
+        [EstimateMode.Quality] = NeutrinoV2InferenceMode.Advanced,
+        [EstimateMode.Fast] = NeutrinoV2InferenceMode.Standard,
     };
 
     private NeutrinoV2InferenceMode ToInferenceMode(EstimateMode estiamteMode)
