@@ -18,13 +18,9 @@ using Quark.Drawing;
 using Quark.Extensions;
 using Quark.Helpers;
 using Quark.ImageRender;
-using Quark.ImageRender.Parts;
-using Quark.ImageRender.PianoRoll;
-using Quark.ImageRender.Score;
 using Quark.Models.Scores;
 using Quark.Projects.Tracks;
 using Quark.Utils;
-using SkiaSharp;
 using static Quark.Controls.EditorRenderLayout;
 
 namespace Quark.Controls;
@@ -396,6 +392,14 @@ public partial class PlotEditor : UserControl
         set => this.SetValue(PlayingTimeProperty, value);
     }
 
+    private SeekBarMode GetSeekBarMode()
+    {
+        if (!this.IsPlayMode || this._mouseMode == MouseControlMode.Seek)
+            return SeekBarMode.Edit;
+        else
+            return SeekBarMode.Play;
+    }
+
     /// <summary><see cref="PlayingTime"/>の依存関係プロパティ</summary>
     public static readonly DependencyProperty PlayingTimeProperty =
         DependencyProperty.Register(nameof(PlayingTime), typeof(TimeSpan), typeof(PlotEditor), new PropertyMetadata(TimeSpan.Zero, OnPlayingTimePropertyChanged));
@@ -593,24 +597,12 @@ public partial class PlotEditor : UserControl
         => this.PART_SelectionTime;
 
     /// <summary>編集用シークバーを移動する。</summary>
-    private void DisplaySelectionSeekBar(double x)
+    private void DisplaySeekBar(double x)
         => this.MoveSeekBar(this.GetSelectionSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
 
     /// <summary>編集用のシークバーを隠す</summary>
-    private void HideSelectionSeekBar()
+    private void HideSeekBar()
         => HideSeekBar(this.GetSelectionSeekBar());
-
-    /// <summary>編集位置を示すシークバーの画面要素を取得する</summary>
-    private IsolatedSeekBar GetPlayingSeekBar()
-        => this.PART_PlayingTime;
-
-    /// <summary>編集用シークバーを移動する。</summary>
-    private void DisplayPlayingSeekBar(double x)
-        => this.MoveSeekBar(this.GetPlayingSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
-
-    /// <summary>編集用のシークバーを隠す</summary>
-    private void HidePlayingSeekBar()
-        => HideSeekBar(this.GetPlayingSeekBar());
 
 
     /// <summary>
@@ -628,6 +620,9 @@ public partial class PlotEditor : UserControl
     /// <param name="isRecursive">再帰呼び出しフラグ</param>
     private void RelocatePlayingSeekBar(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
     {
+        if (this.GetSeekBarMode() != SeekBarMode.Play)
+            return;
+
         long totalFrameCount = this._framesCount;
 
         var renderLayout = this._renderLayout;
@@ -637,15 +632,11 @@ public partial class PlotEditor : UserControl
         int endTime = beginTime + renderLayout.GetRenderTimes();
         int currentTime = (int)time.TotalMilliseconds;
 
-        if (!this.IsPlayMode)
-        {
-            this.HidePlayingSeekBar();
-        }
-        else if (beginTime <= currentTime && currentTime < endTime)
+        if (beginTime <= currentTime && currentTime < endTime)
         {
             double x = renderLayout.GetRenderPosXFromTime(currentTime - beginTime) + renderLayout.ScoreArea.X;
 
-            this.DisplayPlayingSeekBar(x);
+            this.DisplaySeekBar(x);
             this.RelocateSelectionSeekBar();
         }
         else
@@ -682,15 +673,23 @@ public partial class PlotEditor : UserControl
             }
             else
             {
-                this.HidePlayingSeekBar();
+                this.HideSeekBar();
             }
         }
     }
 
     private void RelocateSeekBars()
     {
-        this.RelocatePlayingSeekBar();
-        this.RelocateSelectionSeekBar();
+        switch (this.GetSeekBarMode())
+        {
+            case SeekBarMode.Play:
+                this.RelocatePlayingSeekBar();
+                break;
+
+            case SeekBarMode.Edit:
+                this.RelocateSelectionSeekBar();
+                break;
+        };
     }
 
     /// <summary>
@@ -708,6 +707,9 @@ public partial class PlotEditor : UserControl
     /// <param name="isRecursive">再帰呼び出しフラグ</param>
     private void RelocateSelectionSeekBar(TimeSpan time, TimeSpan? prevTime = null, bool isRecursive = false)
     {
+        if (this.GetSeekBarMode() != SeekBarMode.Edit)
+            return;
+
         var renderLayout = this._renderLayout;
 
         // 開始フレーム位置
@@ -719,11 +721,11 @@ public partial class PlotEditor : UserControl
         {
             double x = renderLayout.GetRenderPosXFromTime(currentTime - beginTime) + renderLayout.ScoreArea.X;
 
-            this.DisplaySelectionSeekBar(x);
+            this.DisplaySeekBar(x);
         }
         else
         {
-            this.HideSelectionSeekBar();
+            this.HideSeekBar();
         }
     }
 

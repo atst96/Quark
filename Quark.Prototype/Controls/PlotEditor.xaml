@@ -23,13 +23,6 @@
             <skia:SKElement x:Name="SKElement" PaintSurface="OnPaintSurface" MouseWheel="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
                             MouseDown="OnMouseDown" MouseMove="OnMouseMove" MouseUp="OnMouseUp" />
 
-            <!--再生用シークバー-->
-            <local:IsolatedSeekBar
-                x:Name="PART_PlayingTime" Width="1"
-                Owner="{Binding RelativeSource={RelativeSource AncestorType=Window}}">
-                <Border Background="Green" Margin="0.5,0" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" />
-            </local:IsolatedSeekBar>
-
             <!--編集用シークバー-->
             <local:IsolatedSeekBar 
                 x:Name="PART_SelectionTime" Width="1"
