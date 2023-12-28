@@ -6,13 +6,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
-using Livet.Behaviors.Messaging.IO;
-using Livet.Behaviors.Messaging;
 using Livet.Messaging;
 using Livet.Messaging.IO;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
-using Quark.Audio;
 using Quark.Behaviors;
 using Quark.Controls;
 using Quark.Data.Projects;
@@ -388,6 +385,10 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         var track = project.Tracks.OfType<INeutrinoTrack>().LastOrDefault();
         this.SetTrack(track);
 
+        // オーディオトラックを設定する
+        var audioFileTrack = project.Tracks.OfType<AudioFileTrack>().FirstOrDefault();
+        this.AudioTrackViewModel = audioFileTrack is not null ? new(audioFileTrack) : null;
+
         this.RefreshAudio();
     }
 
@@ -397,7 +398,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     }
 
     private void RefreshAudio()
-        {
+    {
         if (this.CurrentTrack == null)
         {
             this.CloseAudio();
@@ -496,7 +497,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private void SeekPlayer(TimeSpan time)
     {
         this._player?.Seek(time);
-        }
+    }
 
     private TimeSpan _playingTime = TimeSpan.Zero;
     public TimeSpan PlayingTime
@@ -664,6 +665,73 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
                 track.ChangeEstimateMode(estimateMode);
             }
+        }
+    }
+    public bool HasAudioTrack { get; private set; }
+
+    private AudioTrackViewModel? _audioTrackViewModel;
+    public AudioTrackViewModel? AudioTrackViewModel
+    {
+        get => this._audioTrackViewModel;
+        set
+        {
+            if (this.RaisePropertyChangedIfSet(ref this._audioTrackViewModel, value))
+            {
+                this.HasAudioTrack = value is not null;
+                this.RaisePropertyChanged(nameof(this.HasAudioTrack));
+            }
+        }
+    }
+
+    private Command _changeAudioFileTrackCommand;
+    public Command ChangeAudioFileTrackCommand => this._changeAudioFileTrackCommand ??= this.AddCommand(() =>
+    {
+        if (this.CurrentProject is not { } project)
+            return;
+
+        this.DeleteAudioFileTrack(project);
+
+        var message = new OpeningFileSelectionMessage("OpenProjectFileDialog")
+        {
+            InitialDirectory = this.GetRecentDirectory(RecentDirectoryType.SelectAudioFile),
+            Title = "音楽ファイルを開く",
+            Filter = "WAVファイル(*.wav)|*.wav",
+        };
+
+        this.SetRecentDirectory(RecentDirectoryType.SelectAudioFile, message.InitialDirectory!);
+
+        this.Messenger.Raise(message);
+
+        var paths = message.Response;
+        if (paths is not { Length: > 0 })
+            return; // 未選択の場合は処理しない
+
+        var path = paths.First();
+
+        var newTrack = new AudioFileTrack(project, "Audio File", path);
+        project.Tracks.Add(newTrack);
+        this.AudioTrackViewModel = new(newTrack);
+
+        this._player.Seek(this.PlayingTime);
+    });
+
+    private Command _deleteAudioFileTrackCommand;
+    public Command DeleteAudioFileTrackCommand => this._deleteAudioFileTrackCommand ??= this.AddCommand(() =>
+    {
+        if (this.CurrentProject is not { } project)
+            return;
+
+        this.DeleteAudioFileTrack(project);
+    });
+
+    private void DeleteAudioFileTrack(Project project)
+    {
+        // オーディオトラックが存在するなら削除する
+        var targetTrack = project.Tracks.OfType<AudioFileTrack>().FirstOrDefault();
+        if (targetTrack is not null)
+        {
+            project.Tracks.Remove(targetTrack);
+            this.AudioTrackViewModel = null;
         }
     }
 }

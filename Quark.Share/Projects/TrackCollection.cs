@@ -55,6 +55,7 @@ internal class TrackCollection : ObservableCollection<TrackBase>
 
     public void Load(IEnumerable<TrackBaseConfig> tracks)
     {
+        var project = this._project;
         var session = this._session;
 
         foreach (var track in tracks)
@@ -62,12 +63,15 @@ internal class TrackCollection : ObservableCollection<TrackBase>
             switch (track)
             {
                 case NeutrinoV1TrackConfig t:
-                    this.Add(new NeutrinoV1Track(this._project, t, session.NeutrinoV1.GetModels()));
+                    this.Add(new NeutrinoV1Track(project, t, session.NeutrinoV1.GetModels()));
                     break;
 
-
                 case NeutrinoV2TrackConfig t:
-                    this.Add(new NeutrinoV2Track(this._project, t, session.NeutrinoV2.GetModels()));
+                    this.Add(new NeutrinoV2Track(project, t, session.NeutrinoV2.GetModels()));
+                    break;
+
+                case AudioFileTrackConfig t:
+                    this.Add(new AudioFileTrack(project, t));
                     break;
             }
         }

@@ -118,6 +118,9 @@
             </MenuItem>
 
             <MenuItem Header="プロジェクト(_P)" IsEnabled="{Binding IsProjectCreated, Mode=OneWay}">
+                <MenuItem Header="音声トラックを追加／変更する" Command="{Binding ChangeAudioFileTrackCommand, Mode=OneTime}" />
+                <MenuItem Header="音声トラックを削除する" Command="{Binding DeleteAudioFileTrackCommand, Mode=OneTime}" />
+                <Separator />
                 <MenuItem Header="トラックの音声を出力" Command="{Binding ExportWaveCommand, Mode=OneTime}" />
             </MenuItem>
 
@@ -159,6 +162,19 @@
                 <ComboBox Width="130"
                           SelectedValue="{Binding SelectedEditMode, Mode=TwoWay}"
                           ItemsSource="{Binding EditModes, Mode=OneTime}" SelectedValuePath="Key" DisplayMemberPath="Value" />
+            </ToolBar>
+            <ToolBar Band="1" BandIndex="2" Focusable="False" IsTabStop="False"
+                     KeyboardNavigation.TabNavigation="None"
+                     KeyboardNavigation.ControlTabNavigation="None"
+                     KeyboardNavigation.DirectionalNavigation="None"
+                     Visibility="{Binding HasAudioTrack, Converter={StaticResource BoolToVisibilityCollapseConverter}, Mode=OneWay}">
+                <Label
+                    Content="ｵｰﾃﾞｨｵﾄﾗｯｸ音量: " />
+                <ToggleButton
+                    Content="M" ToolTip="ミュートのON/OFF" IsChecked="{Binding AudioTrackViewModel.IsMute, Mode=TwoWay}" />
+                <Slider
+                    Width="100" VerticalAlignment="Center"
+                    Minimum="0.0" Maximum="1.0" Value="{Binding AudioTrackViewModel.Volumne, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </ToolBar>
         </ToolBarTray>
 

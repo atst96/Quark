@@ -14,4 +14,7 @@ public enum RecentDirectoryType : int
 
     /// <summary>WAVエクスポート</summary>
     ExportWav = 3,
+
+    /// <summary>音声ファイルを選択</summary>
+    SelectAudioFile = 4,
 }
