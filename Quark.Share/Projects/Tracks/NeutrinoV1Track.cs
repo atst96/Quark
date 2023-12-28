@@ -1,16 +1,18 @@
-﻿using Quark.Audio;
+﻿using NAudio.Wave;
+using Quark.Audio;
 using Quark.Components;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Data.Settings;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
+using Quark.Projects.Tracks.Base;
 using Quark.Services;
 using Quark.Utils;
 
 namespace Quark.Projects.Tracks;
 
-internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
+internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
 {
     private Settings _settings = ServiceLocator.GetService<SettingService>().Settings;
 
@@ -67,8 +69,15 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
 
         this.EstimateMode = features.EstimateMode;
 
+        this.IsMute = config.IsMute;
+        // this.IsSolo = config.IsSolo;
+        this.Volume = config.Volume;
+
         _ = this.Load();
     }
+
+    protected override WaveStream LoadAudioStream()
+        => new WaveDataStream(this.WaveData);
 
     private static NeutrinoV1Phrase ConvertConfig(AudioFeaturesV1Config features, PhraseInfoV1 config)
     {
@@ -95,7 +104,12 @@ internal class NeutrinoV1Track : TrackBase, INeutrinoTrack
             EstimateMode = this.EstimateMode,
         };
 
-        return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, config);
+        return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, config)
+        {
+            IsMute = this.IsMute,
+            // IsSolo = this.IsSolo,
+            Volume = this.Volume,
+        };
     }
 
     private PhraseInfoV1 ToConfig(NeutrinoV1Phrase i) => new()

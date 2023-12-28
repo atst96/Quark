@@ -4,7 +4,7 @@ using Quark.Models.Neutrino;
 
 namespace Quark.Projects.Tracks;
 
-public interface INeutrinoTrack
+public interface INeutrinoTrack : IAudioTrack
 {
     /// <summary>フレーズのタイミング推定完了時に発生するイベント</summary>
     public event EventHandler TimingEstimated;

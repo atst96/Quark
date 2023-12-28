@@ -12,6 +12,16 @@ public partial class NeutrinoV2TrackConfig : TrackBaseConfig
 
     public string MusicXml { get; set; }
 
+    private const int LatestVersion = 0;
+
+    private int _version = LatestVersion;
+
+    public bool IsMute { get; set; }
+
+    public bool IsSolo { get; set; }
+
+    public float Volume { get; set; }
+
 #pragma warning disable CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
     [MemoryPackConstructor]
     private NeutrinoV2TrackConfig() : base()
@@ -25,5 +35,16 @@ public partial class NeutrinoV2TrackConfig : TrackBaseConfig
         this.Singer = singer;
         this.Features = features;
         this.MusicXml = musicXml;
+    }
+
+    [MemoryPackOnDeserialized]
+    private void Migrate()
+    {
+        if (this._version == 0)
+        {
+            this.IsMute = false;
+            this.IsSolo = false;
+            this.Volume = 1.0f;
+        }
     }
 }

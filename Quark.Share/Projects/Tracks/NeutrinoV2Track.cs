@@ -1,16 +1,18 @@
-﻿using Quark.Audio;
+﻿using NAudio.Wave;
+using Quark.Audio;
 using Quark.Components;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Data.Settings;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
+using Quark.Projects.Tracks.Base;
 using Quark.Services;
 using Quark.Utils;
 
 namespace Quark.Projects.Tracks;
 
-internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
+internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack
 {
     private readonly Settings _settings = ServiceLocator.GetService<SettingService>().Settings;
 
@@ -80,8 +82,15 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
 
         this.EstimateMode = features.EstimateMode;
 
+        this.IsMute = config.IsMute;
+        // this.IsSolo = config.IsSolo;
+        this.Volume = config.Volume;
+
         _ = this.Load();
     }
+
+    protected override WaveStream LoadAudioStream()
+        => new WaveDataStream(this.WaveData);
 
     public override TrackBaseConfig GetConfig()
     {
@@ -107,7 +116,12 @@ internal class NeutrinoV2Track : TrackBase, INeutrinoTrack
             EstimateMode = this.EstimateMode,
         };
 
-        return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, features);
+        return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, features)
+        {
+            IsMute = this.IsMute,
+            // IsSolo = this.IsSolo,
+            Volume = this.Volume,
+        };
     }
 
     public bool HasScoreTiming() => !(this.FullTiming is null && this.MonoTiming is null);

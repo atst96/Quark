@@ -29,6 +29,7 @@ using Quark.Data;
 using Quark.Data.Settings;
 using Quark.Neutrino;
 using Quark.Components;
+using Quark.Audio;
 
 namespace Quark.ViewModels;
 
@@ -382,21 +383,28 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
         this.CurrentProject = project;
         this._projectSession = project.Session;
 
-        var track = this.CurrentProject.Tracks.OfType<INeutrinoTrack>().LastOrDefault();
+        // 編集トラックを設定する
+        // NOTE: 現時点では必ず存在する
+        var track = project.Tracks.OfType<INeutrinoTrack>().LastOrDefault();
         this.SetTrack(track);
+
+        this.RefreshAudio();
     }
 
     private void SetTrack(INeutrinoTrack? track)
     {
         this.CurrentTrack = track!;
+    }
 
-        if (track == null)
+    private void RefreshAudio()
+        {
+        if (this.CurrentTrack == null)
         {
             this.CloseAudio();
         }
         else
         {
-            this.InitAudio(track);
+            this.InitAudio();
         }
     }
 
@@ -406,8 +414,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     }
 
     private TimeSpan? _beginPlayTime = null;
-    private IWavePlayer _player;
-    private WaveDataStream _waveStream;
+    private ProjectPlayer _player;
 
     private bool _isPlaying;
     public bool IsPlaying
@@ -423,21 +430,21 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
             player.PlaybackStopped -= this.OnPlayerStopped;
             player.Dispose();
         }
-        this._waveStream?.Dispose();
     }
 
-    private void InitAudio(INeutrinoTrack track)
+    private void InitAudio()
     {
         this.CloseAudio();
 
-        var device = new WasapiOut(AudioClientShareMode.Shared, Latency);
-        var waveStream = new WaveDataStream(track.WaveData);
+        if (this.CurrentProject is not { } project)
+            return;
+
+        var device = new ProjectPlayer(project);
+        device.BindDevice(() => new WasapiOut(AudioClientShareMode.Shared, Latency));
 
         device.PlaybackStopped += this.OnPlayerStopped;
-        device.Init(waveStream);
 
         this._player = device;
-        this._waveStream = waveStream;
     }
 
     private void OnPlayerStopped(object? sender, StoppedEventArgs e) => App.Instance.Dispatcher.InvokeAsync(() =>
@@ -488,11 +495,8 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
 
     private void SeekPlayer(TimeSpan time)
     {
-        if (this._waveStream is { } waveStream)
-        {
-            waveStream.Position = (int)((double)waveStream.WaveFormat.AverageBytesPerSecond / 1000 * time.TotalMilliseconds);
+        this._player?.Seek(time);
         }
-    }
 
     private TimeSpan _playingTime = TimeSpan.Zero;
     public TimeSpan PlayingTime
@@ -581,7 +585,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private void StopMonitoringTimer()
         => this._playerTimer.Stop();
 
-    private const int Latency = 48 * 2; // 48kHz * 2ch
+    private const int Latency = 48 * 2; // 48kHz * 2bytes
 
     /// <summary>
     /// 再生位置監視タイマのイベント発火時
@@ -590,10 +594,9 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     /// <param name="e"></param>
     private void OnMonitoringTimerTicked(object? sender, EventArgs e)
     {
-        if (this._waveStream is { } stream)
+        if (this.CurrentTrack?.AudioStream is { } stream)
         {
-            int millis = Math.Max(0, (int)(stream.Position / 96) - Latency);
-
+            int millis = Math.Max(0, (int)(stream.Position / (stream.OriginalWaveFormat.AverageBytesPerSecond / 1000d)) - Latency);
             this.PlayingTime = TimeSpan.FromMilliseconds(millis);
         }
     }
