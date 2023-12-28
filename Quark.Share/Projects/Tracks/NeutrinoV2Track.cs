@@ -36,9 +36,9 @@ internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack
 
     INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
 
-    public WaveData WaveData { get; } = new();
-
     public EstimateMode EstimateMode { get; private set; } = EstimateMode.Fast;
+
+    public WaveData WaveData { get; } = new();
 
     public NeutrinoV2Track(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
     {

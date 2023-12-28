@@ -20,7 +20,7 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
 
     public event EventHandler FeatureChanged;
 
-    public ModelInfo Singer { get; set; }
+    public WaveData WaveData { get; } = new();
 
     public string MusicXml { get; set; }
 
@@ -36,9 +36,9 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
 
     INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
 
-    public WaveData WaveData { get; } = new();
-
     public EstimateMode EstimateMode { get; private set; } = EstimateMode.Fast;
+
+    public ModelInfo Singer { get; set; }
 
     public NeutrinoV1Track(Project project, string trackName, string musicXml, ModelInfo model)
         : base(project, trackName)
