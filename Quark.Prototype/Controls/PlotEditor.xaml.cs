@@ -562,24 +562,27 @@ public partial class PlotEditor : UserControl
     /// シークバーを移動して表示させる。
     /// </summary>
     /// <param name="seekBar">シークバー要素</param>
-    /// <param name="x">X座標</param>
-    /// <param name="h">高さ</param>
+    /// <param name="physicalX">X座標(物理ピクセル)</param>
+    /// <param name="layout">レイアウト</param>
     /// <param name="toDisplay">表示させるかどうかのフラグ</param>
-    private void MoveSeekBar(IsolatedSeekBar seekBar, double x, double h, bool toDisplay)
+    private void MoveSeekBar(IsolatedSeekBar seekBar, double physicalX, EditorRenderLayout layout, bool toDisplay)
     {
-        using (seekBar.Dispatcher.DisableProcessing())
+        if (!toDisplay)
         {
-            var point = this.SKElement.PointToScreen(new Point(x, 0));
-
-            double halfWidth = seekBar.Width / 2;
-
-            seekBar.Top = point.Y;
-            seekBar.Left = double.IsNaN(halfWidth) ? point.X : (point.X - halfWidth);
-            seekBar.Height = h;
-
-            if (toDisplay && !seekBar.IsOpen)
-                seekBar.IsOpen = true;
+            seekBar.Hide();
+            return;
         }
+
+        var scaling = this._renderLayout.Scaling;
+
+        var pyxPoint = this.SKElement.PointToScreen(new(scaling.ToRenderImageScaling(physicalX), 0));
+        (double lgcPointX, double lgcPointY) = scaling.ToRenderImageScaling(pyxPoint.X, pyxPoint.Y);
+
+        double halfWidth = seekBar.Width * .5d;
+
+        double x = double.IsNaN(halfWidth) ? lgcPointX : (lgcPointX - halfWidth);
+
+        seekBar.Show(x, lgcPointY, layout.ScreenHeight);
     }
 
     /// <summary>
@@ -587,18 +590,15 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="seekBar">シークバー要素</param>
     static void HideSeekBar(IsolatedSeekBar seekBar)
-    {
-        if (seekBar.IsOpen)
-            seekBar.IsOpen = false;
-    }
+        => seekBar.Hide();
 
     /// <summary>編集位置を示すシークバーの画面要素を取得する</summary>
     private IsolatedSeekBar GetSelectionSeekBar()
         => this.PART_SelectionTime;
 
     /// <summary>編集用シークバーを移動する。</summary>
-    private void DisplaySeekBar(double x)
-        => this.MoveSeekBar(this.GetSelectionSeekBar(), x, this.SKElement.ActualHeight, toDisplay: true);
+    private void DisplaySeekBar(double x, EditorRenderLayout layout)
+        => this.MoveSeekBar(this.GetSelectionSeekBar(), x, layout, toDisplay: true);
 
     /// <summary>編集用のシークバーを隠す</summary>
     private void HideSeekBar()
@@ -636,7 +636,7 @@ public partial class PlotEditor : UserControl
         {
             double x = renderLayout.GetRenderPosXFromTime(currentTime - beginTime) + renderLayout.ScoreArea.X;
 
-            this.DisplaySeekBar(x);
+            this.DisplaySeekBar(x, renderLayout);
             this.RelocateSelectionSeekBar();
         }
         else
@@ -721,7 +721,7 @@ public partial class PlotEditor : UserControl
         {
             double x = renderLayout.GetRenderPosXFromTime(currentTime - beginTime) + renderLayout.ScoreArea.X;
 
-            this.DisplaySeekBar(x);
+            this.DisplaySeekBar(x, renderLayout);
         }
         else
         {
@@ -1905,7 +1905,7 @@ public partial class PlotEditor : UserControl
         double width = scoreArea.Width;
         double percentageX = scoreArea.RelativeX(mousePosition.X) / width;
 
-        return Math.Max(0, timeMs + (int)(width * percentageX / renderLayout.WidthStretch));
+        return Math.Max(0, timeMs + renderLayout.Scaling.ToRenderImageScaling(width * percentageX / renderLayout.WidthStretch));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

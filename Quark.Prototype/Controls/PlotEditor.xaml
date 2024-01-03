@@ -25,10 +25,10 @@
 
             <!--編集用シークバー-->
             <local:IsolatedSeekBar 
-                x:Name="PART_SelectionTime" Width="1"
-                Owner="{Binding RelativeSource={RelativeSource AncestorType=Window}}">
-                <Border Background="Red" Margin="0.5,0" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" />
-            </local:IsolatedSeekBar>
+                x:Name="PART_SelectionTime"
+                Width="3" Background="#FFFF2222" 
+                BorderThickness="1,0" BorderBrush="#66FFFFFF"
+                Owner="{Binding RelativeSource={RelativeSource AncestorType=Window}}" />
 
             <Rectangle x:Name="PART_Rectangle" Stroke="Blue" StrokeThickness="1"
                        Margin="0,40,0,0"

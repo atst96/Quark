@@ -8,7 +8,7 @@ namespace Quark.Controls;
 /// <summary>
 /// 音響情報を描画するための情報。
 /// 本クラスで保持する値および計算は物理ピクセル単位とする。
-/// ※論理100px・スケーリング120%の場合は、120pxtとなる。
+/// ※論理100px・スケーリング120%の場合は、120pxとなる。
 /// </summary>
 public class EditorRenderLayout
 {
@@ -161,7 +161,7 @@ public class EditorRenderLayout
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int GetRenderTimes()
-        => (int)Math.Ceiling(this.ScoreArea.Width / (decimal)this.WidthStretch);
+        => (int)this.Scaling.ToRenderImageScaling(this.ScoreArea.Width / this.WidthStretch);
 
     /// <summary>
     /// 尺(<paramref name="durationMs"/>)を描画時の横幅(物理px)に変換する。

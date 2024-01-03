@@ -13,18 +13,53 @@ namespace Quark.Controls;
 /// <summary>
 /// 画面外配置のシークバーコントロール
 /// </summary>
-[ContentProperty(nameof(Child))]
-[DefaultProperty(nameof(Child))]
 [Localizability(LocalizationCategory.None, Readability = Readability.Unreadable)]
 public class IsolatedSeekBar : FrameworkElement
 {
+    /// <summary>ウィンドウ</summary>
     private Window _window;
+    /// <summary><see cref="_window"/>のDPI</summary>
+    private DpiScale _windowDdpi;
 
     static IsolatedSeekBar()
     {
         FocusableProperty.OverrideMetadata(typeof(IsolatedSeekBar), new FrameworkPropertyMetadata(false));
         Control.IsTabStopProperty.OverrideMetadata(typeof(IsolatedSeekBar), new FrameworkPropertyMetadata(false));
     }
+
+    /// <summary>背景色</summary>
+    public Brush Background
+    {
+        get => (Brush)this.GetValue(BackgroundProperty);
+        set => this.SetValue(BackgroundProperty, value);
+    }
+
+    /// <summary><seealso cref="Background"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty BackgroundProperty =
+        DependencyProperty.Register(nameof(Background), typeof(Brush), typeof(IsolatedSeekBar), new PropertyMetadata(null));
+
+    /// <summary>枠線色</summary>
+    public Brush BorderBrush
+    {
+        get => (Brush)this.GetValue(BorderBrushProperty);
+        set => this.SetValue(BorderBrushProperty, value);
+    }
+
+    /// <summary><seealso cref="BorderBrush"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty BorderBrushProperty =
+        DependencyProperty.Register(nameof(BorderBrush), typeof(Brush), typeof(IsolatedSeekBar), new PropertyMetadata(null));
+
+    /// <summary>枠線のサイズ</summary>
+    public Thickness BorderThickness
+    {
+        get => (Thickness)this.GetValue(BorderThicknessProperty);
+        set => this.SetValue(BorderThicknessProperty, value);
+    }
+
+    /// <summary><seealso cref="BorderThickness"/>の依存関係プロパティ</summary>
+    public static readonly DependencyProperty BorderThicknessProperty =
+        DependencyProperty.Register(nameof(BorderThickness), typeof(Thickness), typeof(IsolatedSeekBar),
+            new PropertyMetadata(new Thickness(1.0d, 0.0d, 1.0d, 0.0d)));
 
     /// <summary>
     /// オーナーウィンドウ
@@ -125,19 +160,6 @@ public class IsolatedSeekBar : FrameworkElement
         ((IsolatedSeekBar)d)._window.Left = (double)e.NewValue;
     }
 
-
-    /// <summary>内容</summary>
-    [Bindable(true)]
-    public UIElement Child
-    {
-        get => (UIElement)this.GetValue(ChildProperty);
-        set => this.SetValue(ChildProperty, value);
-    }
-
-    /// <summary><see cref="Child"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty ChildProperty =
-        DependencyProperty.Register(nameof(Child), typeof(UIElement), typeof(IsolatedSeekBar), new PropertyMetadata(null));
-
     /// <summary>
     /// コンストラクタ
     /// </summary>
@@ -166,9 +188,16 @@ public class IsolatedSeekBar : FrameworkElement
     /// <param name="e"></param>
     private void OnLayoutUpdated(object? sender, EventArgs e)
     {
-        var w = this._window;
-        w.Width = this.Width;
-        w.Height = this.Height;
+        var dpi = this._windowDdpi;
+        var window = this._window;
+
+        (double w, double h) = (this.Width, this.Height);
+        if (double.IsNaN(h))
+            h = this.ActualHeight;
+
+        // TODO: ディスプレイスケーリングが150%の時にBackgroundが描画されなくなるためWidthは一旦考慮しない
+        window.Width = w;
+        window.Height = Math.Round(h / dpi.DpiScaleY);
     }
 
     /// <summary>
@@ -194,13 +223,19 @@ public class IsolatedSeekBar : FrameworkElement
 
         window.SourceInitialized += this.OnChildWindowSourceInitialized;
         window.GotFocus += this.OnChildWindowFocus;
+        window.DpiChanged += this.OnWindowDpiChanged;
 
-        RenderOptions.SetEdgeMode(window, EdgeMode.Aliased);
+        this._windowDdpi = VisualTreeHelper.GetDpi(window);
+
+        RenderOptions.SetBitmapScalingMode(window, BitmapScalingMode.NearestNeighbor);
 
         // 各値をバインド
-        this.SetBinding(window, Window.TopProperty, IsolatedSeekBar.TopProperty);
-        this.SetBinding(window, Window.LeftProperty, IsolatedSeekBar.LeftProperty);
-        this.SetBinding(window, Window.ContentProperty, ChildProperty);
+        this.SetBinding(window, Window.TopProperty, TopProperty);
+        this.SetBinding(window, Window.LeftProperty, LeftProperty);
+        this.SetBinding(window, Window.BackgroundProperty, BackgroundProperty);
+        this.SetBinding(window, Window.BorderBrushProperty, BorderBrushProperty);
+        this.SetBinding(window, Window.BorderThicknessProperty, BorderThicknessProperty);
+
         return window;
     }
 
@@ -234,6 +269,16 @@ public class IsolatedSeekBar : FrameworkElement
     }
 
     /// <summary>
+    /// ウィンドウのDPI変更時
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnWindowDpiChanged(object sender, DpiChangedEventArgs e)
+    {
+        this._windowDdpi = e.NewDpi;
+    }
+
+    /// <summary>
     /// コントロール間でプロパティをバインドする。
     /// </summary>
     /// <param name="element"></param>
@@ -241,4 +286,31 @@ public class IsolatedSeekBar : FrameworkElement
     /// <param name="srcProperty"></param>
     private void SetBinding(FrameworkElement element, DependencyProperty destProperty, DependencyProperty srcProperty)
         => element.SetBinding(destProperty, new Binding(srcProperty.Name) { Source = this, Mode = BindingMode.OneWay });
+
+    /// <summary>
+    /// 表示する
+    /// </summary>
+    /// <param name="left">横位置</param>
+    /// <param name="top">上位置</param>
+    /// <param name="height">t赤さ</param>
+    public void Show(double left, double top, double height)
+    {
+        using (this.Dispatcher.DisableProcessing())
+        using (this._window.Dispatcher.DisableProcessing())
+        {
+            this.Left = left;
+            this.Top = top;
+            this.Height = height;
+
+            if (!this.IsOpen)
+                this.IsOpen = true;
+        }
+    }
+
+    /// <summary>隠す</summary>
+    public void Hide()
+    {
+        if (this.IsOpen)
+            this.IsOpen = false;
+    }
 }
