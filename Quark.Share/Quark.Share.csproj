@@ -8,11 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MemoryPack" Version="1.9.16" />
+    <PackageReference Include="MemoryPack" Version="1.10.0" />
     <PackageReference Include="NAudio.Core" Version="2.2.1" />
     <PackageReference Include="ProcessX" Version="1.5.5" />
     <PackageReference Include="SkiaSharp" Version="2.88.6" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
