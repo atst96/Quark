@@ -1,5 +1,6 @@
 ﻿using Livet.Behaviors.Messaging;
 using Livet.Messaging;
+using Quark.Compatibles;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Interop;
