@@ -2,11 +2,11 @@
 using System.Xml.Serialization;
 using System.Xml;
 using Quark.Models.MusicXML;
-using static Quark.Models.MusicXML.MeasureItemTypes;
 using Quark.Models.Scores;
 using System.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
+using Quark.Models.MusicXML.NoteElements;
 
 namespace Quark.Utils;
 
@@ -45,44 +45,40 @@ public static class MusicXmlUtil
     };
 
     /// <summary>XMLシリアライズ時の名前空間(明示的に未設定)</summary>
-    private static readonly XmlSerializerNamespaces _xmlWriterNamespaces = new(new[] { XmlQualifiedName.Empty });
+    private static readonly XmlSerializerNamespaces _xmlWriterNamespaces = new([XmlQualifiedName.Empty]);
 
     /// <summary>
     /// MusicXMLからパート情報を列挙する。
     /// </summary>
     /// <param name="xmlStream"></param>
     /// <returns></returns>
-    public static IEnumerable<(PartList.ScorePartElement Info, Part Part)> EnumerateParts(Stream xmlStream)
+    public static IEnumerable<(ScorePartElement Info, Part Part)> EnumerateParts(Stream xmlStream)
     {
         var score = Parse(xmlStream);
         if (score == null || score.Parts is not { Count: > 0 } scoreParts)
             // 解析できるパート情報がなければ空で返す
-            return Enumerable.Empty<(PartList.ScorePartElement, Part)>();
+            return Enumerable.Empty<(ScorePartElement, Part)>();
 
-        // パートをIDをキーにしてDictionary化
-        var partInfoByPartId = score.PartList?.ScorePart?
-            .Where(i => i != null)?
-            .ToDictionary(i => i.Id)
-            ?? new();
+        // パートIDをキーにしてDictionary化
+        var partInfoByPartId = score.PartList?.ScorePart
+            ?.Where(i => i != null && i.Id != null)
+            ?.ToDictionary(i => i.Id!)
+            ?? [];
 
-        // 取得結果リスト
-        var result = new List<(PartList.ScorePartElement, Part)>(scoreParts.Count);
-
-        // パート情報を取得
-        foreach (var scorePart in scoreParts)
+        return scoreParts.Where(i => i != null)
+            .Select(scorePart =>
         {
-            if (scorePart == null)
-                continue;
+                ScorePartElement? info;
 
             var partId = scorePart.Id;
-
-            var info = partId != null && partInfoByPartId.TryGetValue(partId, out var _info)
-                ? _info : new();
-
-            result.Add((info, scorePart));
+                if (partId == null || !partInfoByPartId.TryGetValue(partId, out info))
+                {
+                    info = new();
         }
 
-        return result;
+                return (info, scorePart);
+            })
+            .ToArray();
     }
 
     [Obsolete("This class method will delete.", false)]
@@ -242,7 +238,6 @@ public static class MusicXmlUtil
                     }
                 }
             }
-        }
 
         // 先頭のテンポ情報がなければデフォルトを差し込む
         if (tempos is not { Count: > 0, First.Value.Time: 0 })
@@ -463,11 +458,15 @@ public static class MusicXmlUtil
     private static bool GetIsBreath(Note note)
         => note.Notations?.Articulations?.BreathMark is not null;
 
-    private static MusicXmlPhrase.Frame CreateFrameInfo(
-        Note note, decimal startTime, decimal endTime)
-        => new MusicXmlPhrase.Frame(
-            (int)startTime, (int)endTime,
-            note.Lyric?.Text ?? string.Empty, GetCode(note.Pitch), GetIsBreath(note));
+    private static MusicXmlPhrase.Frame CreateFrameInfo(Note note, decimal startTime, decimal endTime)
+        => new()
+        {
+            BeginTime = (int)startTime,
+            EndTime = (int)endTime,
+            Lyrics = note.Lyric?.Text ?? string.Empty,
+            Pitch = GetCode(note.Pitch),
+            Breath = GetIsBreath(note),
+        };
 
     private const int KeyCodeC = 0;
     private const int KeyCodeCSharp = 1;

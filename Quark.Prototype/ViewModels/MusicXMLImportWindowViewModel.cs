@@ -103,7 +103,7 @@ internal class MusicXMLImportWindowViewModel : ViewModelBase
         }
     }
 
-    public MusicXMLImportWindowViewModel(string filePath, IEnumerable<PartList.ScorePartElement> partInfoList)
+    public MusicXMLImportWindowViewModel(string filePath, IEnumerable<ScorePartElement> partInfoList)
     {
         this.FilePath = filePath;
         this.FileName = Path.GetFileName(filePath);
