@@ -7,6 +7,7 @@ using Quark.Data;
 using Quark.Data.Projects;
 using Quark.Data.Settings;
 using Quark.DependencyInjection;
+using Quark.Extensions;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
 using Quark.Projects.Tracks;
@@ -113,19 +114,16 @@ internal class NeutrinoV1Service
     /// <returns>出力結果</returns>
     public async Task<ConvertScoreToTimingResult?> ConvertMusicXmlToTiming(ConvertMusicXmlToTimingOption option)
     {
-        using (var musicXmlFile = TempFile.Create(FileAccess.ReadWrite, FileShare.Read, FileExtensions.MusicXml))
-        using (var fullLabFile = new VirtualFile(FileExtensions.Label))
-        using (var monoLabFile = new VirtualFile(FileExtensions.Label))
+        using (var musicXmlFile = PipeFile.CreateReadOnly(FileExtensions.MusicXml))
+        using (var fullLabFile = PipeFile.CreateReadOnly(FileExtensions.Label))
+        using (var monoLabFile = PipeFile.CreateReadOnly(FileExtensions.Label))
         {
-            // MusicXMLファイルを書込み
-            musicXmlFile.Write(OutputTextEncoding.GetBytes(option.MusicXml));
-
             // 実行ファイル
             var command = this.GetNeutrinoPath(MusicXmlExe);
 
             // コマンドライン引数の作成
             var args = new StringBuilder();
-            args.Append($@"""{musicXmlFile.Path}"" ""{fullLabFile.FilePath}"" ""{monoLabFile.FilePath}""");
+            args.Append($@"""{musicXmlFile.Path}"" ""{fullLabFile.Path}"" ""{monoLabFile.Path}""");
 
             if (!string.IsNullOrEmpty(option.Directory))
                 args.Append(" -x ").Append(option.Directory);
@@ -133,9 +131,12 @@ internal class NeutrinoV1Service
             // ファイル受信処理のキャンセラ
             using var receiveTaskCanceler = new CancellationTokenSource();
 
+            // MusicXMLファイルを書込み
+            var musicXmlTask = musicXmlFile.WriteAllBytesAsync(OutputTextEncoding.GetBytes(option.MusicXml), close: true, receiveTaskCanceler.Token);
+
             // 出力ファイルの読み取り開始
-            var fullLabFileTask = fullLabFile.Read(receiveTaskCanceler.Token);
-            var monoLabFileTask = monoLabFile.Read(receiveTaskCanceler.Token);
+            var fullLabFileTask = fullLabFile.ReadAllBytesAsync(receiveTaskCanceler.Token);
+            var monoLabFileTask = monoLabFile.ReadAllBytesAsync(receiveTaskCanceler.Token);
 
             try
             {
@@ -150,8 +151,7 @@ internal class NeutrinoV1Service
             }
 
             // 出力情報を取得
-            (byte[] fullLabel, byte[] monoLabel) = await TaskUtil.WhenAll(fullLabFileTask, monoLabFileTask)
-                .ConfigureAwait(false);
+            (byte[] fullLabel, byte[] monoLabel) = await TaskUtil.WhenAll(fullLabFileTask, monoLabFileTask).ConfigureAwait(false);
             return new(fullLabel, monoLabel);
         }
     }
@@ -167,13 +167,13 @@ internal class NeutrinoV1Service
     {
         var v1Setting = this._setting.NeutrinoV1;
 
-        VirtualFile? receivePhraseFile = null;
-        VirtualFile? receiveTimingFile = null;
+        PipeFile? receivePhraseFile = null;
+        PipeFile? receiveTimingFile = null;
 
         using (var fullLabFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
-        using (var f0File = new VirtualFile(FileExtensions.F0))
-        using (var mgcFile = new VirtualFile(FileExtensions.Mgc))
-        using (var bapFile = new VirtualFile(FileExtensions.Bap))
+        using (var f0File = PipeFile.CreateReadOnly(FileExtensions.F0))
+        using (var mgcFile = PipeFile.CreateReadOnly(FileExtensions.Mgc))
+        using (var bapFile = PipeFile.CreateReadOnly(FileExtensions.Bap))
         using (var additionalDisposables = new DisposableCollection(5))
         {
             // 一時ファイルのタイミング情報を書き込む
@@ -190,9 +190,9 @@ internal class NeutrinoV1Service
             }
             else
             {
-                receiveTimingFile = new VirtualFile(FileExtensions.Label);
+                receiveTimingFile = PipeFile.CreateReadOnly(FileExtensions.Label);
                 additionalDisposables.Add(receiveTimingFile);
-                timingFilePath = receiveTimingFile.FilePath;
+                timingFilePath = receiveTimingFile.Path;
             }
 
             // 実行ファイル
@@ -200,7 +200,7 @@ internal class NeutrinoV1Service
 
             // コマンドライン引数の作成
             var args = new StringBuilder();
-            args.Append($@"""{fullLabFile.Path}"" ""{timingFilePath}"" ""{f0File.FilePath}"" ""{mgcFile.FilePath}"" ""{bapFile.FilePath}"" {this.GetModelPath(option.Model.ModelId)}");
+            args.Append($@"""{fullLabFile.Path}"" ""{timingFilePath}"" ""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" {this.GetModelPath(option.Model.ModelId)}");
 
             if (option.NumberOfThreads != null)
                 args.Append(" -n ").Append(option.NumberOfThreads);
@@ -236,10 +236,10 @@ internal class NeutrinoV1Service
 
             if (option.IsTracePhraseInformation)
             {
-                receivePhraseFile = new VirtualFile(FileExtensions.Text);
+                receivePhraseFile = PipeFile.CreateReadOnly(FileExtensions.Text);
                 additionalDisposables.Add(receivePhraseFile);
 
-                args.Append(" -i ").AppendDoubleQuoted(receivePhraseFile.FilePath);
+                args.Append(" -i ").AppendDoubleQuoted(receivePhraseFile.Path);
             }
 
             if (option.IsViewInformation)
@@ -249,7 +249,7 @@ internal class NeutrinoV1Service
             using var receiveTaskCanceler = new CancellationTokenSource();
 
             // ファイル出力を非同期で待機
-            var timingTask = receiveTimingFile?.Read(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
+            var timingTask = receiveTimingFile?.ReadAllBytesAsync(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
 
             Task<byte[]> f0Task, mgcTask, bapTask;
             if (option.IsSkipAcousticFeaturesPrediction)
@@ -260,12 +260,12 @@ internal class NeutrinoV1Service
             }
             else
             {
-                f0Task = f0File.Read(receiveTaskCanceler.Token)!;
-                mgcTask = mgcFile?.Read(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
-                bapTask = bapFile?.Read(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
+                f0Task = f0File.ReadAllBytesAsync(receiveTaskCanceler.Token)!;
+                mgcTask = mgcFile?.ReadAllBytesAsync(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
+                bapTask = bapFile?.ReadAllBytesAsync(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
             }
 
-            var phraseTask = receivePhraseFile?.Read(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
+            var phraseTask = receivePhraseFile?.ReadAllBytesAsync(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
 
             try
             {
@@ -380,7 +380,7 @@ internal class NeutrinoV1Service
         using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
         using (var mgcFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Mgc))
         using (var bapFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Bap))
-        using (var wavFile = new VirtualFile(FileExtensions.F0))
+        using (var wavFile = PipeFile.CreateReadOnly(FileExtensions.F0))
         {
             // 実行ファイル
             var command = this.GetNeutrinoPath(WorldExe);
@@ -392,7 +392,7 @@ internal class NeutrinoV1Service
 
             // コマンドライン引数の作成
             var args = new StringBuilder();
-            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" -o ""{wavFile.FilePath}""");
+            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" -o ""{wavFile.Path}""");
 
             if (option.PitchShift != null)
                 args.Append(" -f ").Append(option.PitchShift);
@@ -425,7 +425,7 @@ internal class NeutrinoV1Service
             using var receiveTaskCanceler = new CancellationTokenSource();
 
             // ファイル出力を非同期で待機
-            var wavTask = wavFile.Read(receiveTaskCanceler.Token);
+            var wavTask = wavFile.ReadAllBytesAsync(receiveTaskCanceler.Token);
 
             try
             {
@@ -533,7 +533,7 @@ internal class NeutrinoV1Service
         using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
         using (var mgcFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Mgc))
         using (var bapFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Bap))
-        using (var wavFile = new VirtualFile(FileExtensions.Wave))
+        using (var wavFile = PipeFile.CreateReadOnly(FileExtensions.Wave))
         using (var additionalDisposable = new DisposableCollection())
         {
             // 一時ファイルのタイミング情報を書き込む
@@ -546,7 +546,7 @@ internal class NeutrinoV1Service
 
             // コマンドライン引数の組み立て
             var args = new StringBuilder();
-            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" ""{this.GetModelPath(option.Model.ModelId)}model_nsf.bin"" ""{wavFile.FilePath}""");
+            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" ""{this.GetModelPath(option.Model.ModelId)}model_nsf.bin"" ""{wavFile.Path}""");
 
             if (option.SamplingRate != null)
                 args.Append(" -s ").Append(option.SamplingRate);
@@ -580,7 +580,7 @@ internal class NeutrinoV1Service
             using var receiveTaskCanceler = new CancellationTokenSource();
 
             // ファイル出力を非同期で待機
-            var wavTask = wavFile.Read(receiveTaskCanceler.Token);
+            var wavTask = wavFile.ReadAllBytesAsync(receiveTaskCanceler.Token);
 
             try
             {

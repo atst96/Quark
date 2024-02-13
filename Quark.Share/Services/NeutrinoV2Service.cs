@@ -1,5 +1,4 @@
-﻿using System.IO;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Text;
 using Quark.Components;
 using Quark.Constants;
@@ -7,6 +6,7 @@ using Quark.Data;
 using Quark.Data.Projects;
 using Quark.Data.Settings;
 using Quark.DependencyInjection;
+using Quark.Extensions;
 using Quark.Models.Neutrino;
 using Quark.Neutrino;
 using Quark.Projects.Tracks;
@@ -109,19 +109,16 @@ internal class NeutrinoV2Service
     /// <returns>出力結果</returns>
     public async Task<ConvertScoreToTimingResult?> ConvertMusicXmlToTiming(ConvertMusicXmlToTimingOption option)
     {
-        using (var musicXmlFile = TempFile.Create(FileAccess.ReadWrite, FileShare.Read, FileExtensions.MusicXml))
-        using (var fullLabFile = new VirtualFile(FileExtensions.Label))
-        using (var monoLabFile = new VirtualFile(FileExtensions.Label))
+        using (var musicXmlFile = PipeFile.CreateReadOnly(FileExtensions.MusicXml))
+        using (var fullLabFile = PipeFile.CreateWriteOnly(FileExtensions.Label))
+        using (var monoLabFile = PipeFile.CreateWriteOnly(FileExtensions.Label))
         {
-            // MusicXMLファイルを書込み
-            musicXmlFile.Write(OutputTextEncoding.GetBytes(option.MusicXml));
-
             // 実行ファイル
             var command = this.GetNeutrinoPath(MusicXmlExe);
 
             // コマンドライン引数の作成
             var args = new StringBuilder();
-            args.Append($@"""{musicXmlFile.Path}"" ""{fullLabFile.FilePath}"" ""{monoLabFile.FilePath}""");
+            args.Append($@"""{musicXmlFile.Path}"" ""{fullLabFile.Path}"" ""{monoLabFile.Path}""");
 
             if (!string.IsNullOrEmpty(option.Directory))
                 args.Append(" -x ").Append(option.Directory);
@@ -129,9 +126,12 @@ internal class NeutrinoV2Service
             // ファイル受信処理のキャンセラ
             using var receiveTaskCanceler = new CancellationTokenSource();
 
+            // MusicXMLファイルを書込み
+            var musicXmlFileTask = musicXmlFile.WriteAllBytesAsync(OutputTextEncoding.GetBytes(option.MusicXml), close: true, receiveTaskCanceler.Token);
+
             // 出力ファイルの読み取り開始
-            var fullLabFileTask = fullLabFile.Read(receiveTaskCanceler.Token);
-            var monoLabFileTask = monoLabFile.Read(receiveTaskCanceler.Token);
+            var fullLabFileTask = fullLabFile.ReadAllBytesAsync(receiveTaskCanceler.Token);
+            var monoLabFileTask = monoLabFile.ReadAllBytesAsync(receiveTaskCanceler.Token);
 
             try
             {
@@ -140,13 +140,14 @@ internal class NeutrinoV2Service
             }
             finally
             {
-
                 // 一定時間待機しても終了していなければキャンセルして、タスク終了を永遠に待ち続けるのを防ぐ
                 receiveTaskCanceler.CancelAfter(DataReceiveTaskCancelDuration);
             }
 
             // 出力情報を取得
             (byte[] fullLabel, byte[] monoLabel) = await TaskUtil.WhenAll(fullLabFileTask, monoLabFileTask).ConfigureAwait(false);
+            await musicXmlFileTask.ConfigureAwait(false);
+
             return new(fullLabel, monoLabel);
         }
     }
@@ -160,14 +161,14 @@ internal class NeutrinoV2Service
     /// <returns></returns>
     public async Task<EstimateFeaturesResultV2> EstimateFeatures(NeutrinoV2Option option, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        VirtualFile? mgcFile = null;
-        VirtualFile? bapFile = null;
-        VirtualFile? receivePhraseFile = null;
-        VirtualFile? receiveTimingFile = null;
+        PipeFile? mgcFile = null;
+        PipeFile? bapFile = null;
+        PipeFile? receivePhraseFile = null;
+        PipeFile? receiveTimingFile = null;
 
-        using (var fullLabFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label))
-        using (var f0File = new VirtualFile(FileExtensions.F0))
-        using (var mspecFile = new VirtualFile(FileExtensions.Melspec))
+        using (var fullLabFile = TempFile.CreateReadOnly(FileExtensions.Label))
+        using (var f0File = PipeFile.CreateWriteOnly(FileExtensions.F0))
+        using (var mspecFile = PipeFile.CreateWriteOnly(FileExtensions.Melspec))
         using (var additionalDisposables = new DisposableCollection(5))
         {
             // 一時ファイルのタイミング情報を書き込む
@@ -181,21 +182,23 @@ internal class NeutrinoV2Service
             string timingFilePath;
             if (option.IsSkipTimingPrediction)
             {
-                var sendTimingFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label);
+                // タイミングの推論をスキップする場合はタイミング情報ファイルを渡す
+                var sendTimingFile = TempFile.CreateReadOnly(FileExtensions.Label);
                 additionalDisposables.Add(sendTimingFile);
                 timingFilePath = sendTimingFile.Path;
 
-                sendTimingFile.Write(option.TimingLabel);
+                await sendTimingFile.WriteAsync(option.TimingLabel ?? []).ConfigureAwait(false);
             }
             else
             {
-                receiveTimingFile = new VirtualFile(FileExtensions.Label);
+                // タイミングの推論を行う場合はタイミング情報ファイルを受け取る
+                receiveTimingFile = PipeFile.CreateWriteOnly(FileExtensions.Label);
                 additionalDisposables.Add(receiveTimingFile);
-                timingFilePath = receiveTimingFile.FilePath;
+                timingFilePath = receiveTimingFile.Path;
             }
 
             var args = new StringBuilder();
-            args.Append($@"""{fullLabFile.Path}"" ""{timingFilePath}"" ""{f0File.FilePath}"" ""{mspecFile.FilePath}"" {this.GetModelPath(option.ModelInfo.ModelId)}");
+            args.Append($@"""{fullLabFile.Path}"" ""{timingFilePath}"" ""{f0File.Path}"" ""{mspecFile.Path}"" {this.GetModelPath(option.ModelInfo.ModelId)}");
 
             if (option.NumberOfParallel != null)
                 args.Append(" -n ").Append(option.NumberOfParallel);
@@ -207,7 +210,7 @@ internal class NeutrinoV2Service
                 args.Append(" -d ").Append((int)option.InferenceMode);
 
             if (option.StyleShift != null)
-                args.Append(" -a ").Append(option.StyleShift);
+                args.Append(" -k ").Append(option.StyleShift);
 
             if (option.RandomSeed != null)
                 args.Append(" -r ").Append(option.RandomSeed);
@@ -220,13 +223,13 @@ internal class NeutrinoV2Service
 
             if (option.WorldFeaturesPrediction)
             {
-                mgcFile = new VirtualFile(FileExtensions.Mgc);
+                mgcFile = PipeFile.CreateWriteOnly(FileExtensions.Mgc);
                 additionalDisposables.Add(mgcFile);
 
-                bapFile = new VirtualFile(FileExtensions.Bap);
+                bapFile = PipeFile.CreateWriteOnly(FileExtensions.Bap);
                 additionalDisposables.Add(bapFile);
 
-                args.Append(" -w ").AppendDoubleQuoted(mgcFile.FilePath).Append(' ').AppendDoubleQuoted(bapFile.FilePath);
+                args.Append(" -w ").AppendDoubleQuoted(mgcFile.Path).Append(' ').AppendDoubleQuoted(bapFile.Path);
             }
 
             if (option.SinglePhrasePrediction != null)
@@ -242,8 +245,8 @@ internal class NeutrinoV2Service
             {
                 if (option.EstimatedPhrases != null)
                 {
-                    var sendPhraseFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Text);
-                    sendPhraseFile.Write(option.EstimatedPhrases);
+                    var sendPhraseFile = TempFile.CreateReadOnly(FileExtensions.Text);
+                    await sendPhraseFile.WriteAsync(option.EstimatedPhrases).ConfigureAwait(false);
 
                     additionalDisposables.Add(sendPhraseFile);
                 }
@@ -251,10 +254,10 @@ internal class NeutrinoV2Service
 
             if (option.IsTracePhraseInformation)
             {
-                receivePhraseFile = new VirtualFile(FileExtensions.Text);
+                receivePhraseFile = PipeFile.CreateWriteOnly(FileExtensions.Text);
                 additionalDisposables.Add(receivePhraseFile);
 
-                args.Append($@" -i ""{receivePhraseFile.FilePath}""");
+                args.Append($@" -i ""{receivePhraseFile.Path}""");
             }
 
             if (option.IsViewInformation)
@@ -264,7 +267,7 @@ internal class NeutrinoV2Service
             using var receiveTaskCanceler = new CancellationTokenSource();
 
             // ファイル出力を非同期で待機
-            var timingTask = receiveTimingFile?.Read(receiveTaskCanceler.Token) ?? Task.FromResult<byte[]>(null!);
+            var timingTask = receiveTimingFile?.ReadAllBytesAsync(receiveTaskCanceler.Token) ?? Task.FromResult<byte[]>(null!);
 
             Task<byte[]> f0Task, mspecTask, mgcTask, bapTask;
             if (option.IsSkipAcousticFeaturesPrediction)
@@ -274,13 +277,13 @@ internal class NeutrinoV2Service
             }
             else
             {
-                f0Task = f0File.Read(receiveTaskCanceler.Token)!;
-                mspecTask = mspecFile.Read(receiveTaskCanceler.Token)!;
-                mgcTask = mgcFile?.Read(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
-                bapTask = bapFile?.Read(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
+                f0Task = f0File.ReadAllBytesAsync(receiveTaskCanceler.Token)!;
+                mspecTask = mspecFile.ReadAllBytesAsync(receiveTaskCanceler.Token)!;
+                mgcTask = mgcFile?.ReadAllBytesAsync(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
+                bapTask = bapFile?.ReadAllBytesAsync(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
             }
 
-            var phraseTask = receivePhraseFile?.Read(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
+            var phraseTask = receivePhraseFile?.ReadAllBytesAsync(receiveTaskCanceler.Token) ?? TaskUtil.NullByteArrayTask!;
 
             try
             {
@@ -404,10 +407,10 @@ internal class NeutrinoV2Service
     /// <returns>WAVファイルデータ</returns>
     public async Task<byte[]> SynthesisWorld(WorldV2Option option, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
-        using (var mgcFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Mgc))
-        using (var bapFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Bap))
-        using (var wavFile = new VirtualFile(FileExtensions.Wave))
+        using (var f0File = TempFile.CreateReadOnly(FileExtensions.F0))
+        using (var mgcFile = TempFile.CreateReadOnly(FileExtensions.Mgc))
+        using (var bapFile = TempFile.CreateReadOnly(FileExtensions.Bap))
+        using (var wavFile = PipeFile.CreateWriteOnly(FileExtensions.Wave))
         {
 
             // 実行ファイル
@@ -415,7 +418,7 @@ internal class NeutrinoV2Service
 
             // コマンドライン引数の作成
             var args = new StringBuilder();
-            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" ""{wavFile.FilePath}""");
+            args.Append($@"""{f0File.Path}"" ""{mgcFile.Path}"" ""{bapFile.Path}"" ""{wavFile.Path}""");
 
             if (option.PitchShift != null)
                 args.Append(" -f ").Append(option.PitchShift);
@@ -445,12 +448,16 @@ internal class NeutrinoV2Service
             using var receiveTaskCanceler = new CancellationTokenSource();
 
             // 一時ファイルの情報を書き込む
-            f0File.Write(DataConvertUtil.CastToByte(option.F0));
-            mgcFile.Write(DataConvertUtil.CastToByte(option.Mgc));
-            bapFile.Write(DataConvertUtil.CastToByte(option.Bap));
+            // HACK: ToAraryしないようにする
+            var t1 = StructArrayStream.CopyToAsync(option.F0, f0File);
+            var t2 = StructArrayStream.CopyToAsync(option.Mgc, mgcFile);
+            var t3 = StructArrayStream.CopyToAsync(option.Bap, bapFile);
+            await t1.ConfigureAwait(false);
+            await t2.ConfigureAwait(false);
+            await t3.ConfigureAwait(false);
 
             // ファイル出力を非同期で待機
-            var wavTask = wavFile.Read(receiveTaskCanceler.Token);
+            var wavTask = wavFile.ReadAllBytesAsync(receiveTaskCanceler.Token);
 
             try
             {
@@ -594,9 +601,9 @@ internal class NeutrinoV2Service
     /// <returns>WAVファイルデータ</returns>
     public async Task<byte[]> SynthesisNSF(NSFV2Option option, IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default)
     {
-        using (var f0File = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.F0))
-        using (var mspecFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Melspec))
-        using (var wavFile = new VirtualFile(FileExtensions.Wave))
+        using (var f0File = TempFile.CreateReadOnly(FileExtensions.F0))
+        using (var mspecFile = TempFile.CreateReadOnly(FileExtensions.Melspec))
+        using (var wavFile = PipeFile.CreateWriteOnly(FileExtensions.Wave))
         using (var additionalDisposable = new DisposableCollection())
         {
             // 実行ファイル
@@ -604,7 +611,7 @@ internal class NeutrinoV2Service
 
             // コマンドライン引数の作成
             var args = new StringBuilder();
-            args.Append($@"""{f0File.Path}"" ""{mspecFile.Path}"" "".\model\{option.Model.ModelId}\{option.ModelType.FileName}"" {wavFile.FilePath}");
+            args.Append($@"""{f0File.Path}"" ""{mspecFile.Path}"" "".\model\{option.Model.ModelId}\{option.ModelType.FileName}"" {wavFile.Path}");
 
             if (option.SamplingRate != null)
                 args.Append(" -s ").Append(option.SamplingRate);
@@ -621,7 +628,7 @@ internal class NeutrinoV2Service
             if (option.MultiPhrasePrediction?.Length > 0)
             {
                 // labファイルの作成
-                var timingFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label);
+                var timingFile = TempFile.CreateReadOnly(FileExtensions.Label);
                 timingFile.Write(NeutrinoUtil.GetTimingContent(option.MultiPhrasePrediction));
                 additionalDisposable.Add(timingFile);
 
@@ -641,11 +648,13 @@ internal class NeutrinoV2Service
             using var receiveTaskCanceler = new CancellationTokenSource();
 
             // 一時ファイルの情報を書き込む
-            f0File.Write(DataConvertUtil.CastToByte(option.F0));
-            mspecFile.Write(DataConvertUtil.CastToByte(option.Melspec));
+            await Task.WhenAll([
+                StructArrayStream.CopyToAsync(option.F0, f0File),
+                StructArrayStream.CopyToAsync(option.Melspec, mspecFile),
+            ]).ConfigureAwait(false);
 
             // ファイル出力を非同期で待機
-            var wavTask = wavFile.Read(receiveTaskCanceler.Token);
+            var wavTask = wavFile.ReadAllBytesAsync(receiveTaskCanceler.Token);
 
             try
             {
