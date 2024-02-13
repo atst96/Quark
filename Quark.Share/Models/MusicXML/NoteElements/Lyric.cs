@@ -5,7 +5,10 @@ namespace Quark.Models.MusicXML.NoteElements;
 public class Lyric
 {
     [XmlElement("syllabic")]
-    public Syllabic Syllabic { get; set; }
+    public Syllabic? Syllabic { get; set; }
+
+    [XmlIgnore]
+    public bool SyllabicSpecified => this.Syllabic.HasValue;
 
     [XmlElement("text")]
     public string? Text { get; set; }
