@@ -1,0 +1,313 @@
+<Application xmlns="https://github.com/avaloniaui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+       xmlns:conv="using:Quark.Converters"
+       x:Class="Quark.App"
+       RequestedThemeVariant="Default">
+    <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <!-- TextBox / ComboBox / Slider -->
+                    <SolidColorBrush x:Key="Theme.InputBox.Normal.BackgroundBrush" Color="#FFFFFFFF"/>
+                    <SolidColorBrush x:Key="Theme.InputBox.Normal.BorderBrush" Color="#FFABABAB"/>
+                    <SolidColorBrush x:Key="Theme.InputBox.Normal.ToggleButotn.BackgroundBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="Theme.InputBox.MouseOver.BackgroundBrush" Color="#FFFFFFFF"/>
+                    <SolidColorBrush x:Key="Theme.InputBox.MouseOver.BorderBrush" Color="#FF898989"/>
+                    <SolidColorBrush x:Key="Theme.InputBox.MouseOver.ToggleButotn.BackgroundBrush" Color="#FFEBF4FC" />
+                    <SolidColorBrush x:Key="Theme.InputBox.Pressed.ToggleButotn.BackgroundBrush" Color="#FFDAEBFC" />
+                    <SolidColorBrush x:Key="Theme.InputBox.Focus.BackgroundBrush" Color="#FFFFFFFF"/>
+                    <SolidColorBrush x:Key="Theme.InputBox.Focus.BorderBrush" Color="#07C"/>
+                    <SolidColorBrush x:Key="Theme.InputBox.Error.BorderBrush" Color="#f33"/>
+                    <SolidColorBrush x:Key="Theme.InputBox.Disabled.BackgroundBrush" Color="#FFF0F0F0" />
+                    <SolidColorBrush x:Key="Theme.InputBox.Disabled.BorderBrush" Color="#FFD9D9D9" />
+                    <SolidColorBrush x:Key="Theme.InputBox.Disabled.ToggleButotn.BackgroundBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="Theme.ComboBox.Normal.ArrowBrush" Color="#FF606060"/>
+                    <SolidColorBrush x:Key="Theme.ComboBox.MouseOver.ArrowBrush" Color="#FF000000"/>
+                    <SolidColorBrush x:Key="Theme.ComboBox.Pressed.ArrowBrush" Color="#FF0077CC"/>
+                    <SolidColorBrush x:Key="Theme.ComboBox.Disabled.ArrowBrush" Color="#FFBFBFBF"/>
+
+                    <!-- Buttons -->
+                    <SolidColorBrush x:Key="Theme.Button.Normal.BackgroundBrush" Color="#FFEEEEEE"/>
+                    <SolidColorBrush x:Key="Theme.Button.Normal.BorderBrush" Color="#FFAAAAAA"/>
+                    <SolidColorBrush x:Key="Theme.Button.Normal.ForegroundBrush" Color="#FF333333" />
+                    <SolidColorBrush x:Key="Theme.Button.MouseOver.BackgroundBrush" Color="#FFE8E8E8"/>
+                    <SolidColorBrush x:Key="Theme.Button.MouseOver.BorderBrush" Color="#FFA4A4A4"/>
+                    <SolidColorBrush x:Key="Theme.Button.Pressed.BackgroundBrush" Color="#FFBBBBBB"/>
+                    <SolidColorBrush x:Key="Theme.Button.Pressed.BorderBrush" Color="#FF777777"/>
+                    <SolidColorBrush x:Key="Theme.Button.Disabled.BackgroundBrush" Color="#FFF6F6F6"/>
+                    <SolidColorBrush x:Key="Theme.Button.Disabled.BorderBrush" Color="#FFB2B2B2"/>
+                    <SolidColorBrush x:Key="Theme.Button.Disabled.ForegroundBrush" Color="#FF969696"/>
+                    <!-- Button.Danger -->
+                    <SolidColorBrush x:Key="Theme.DangerButton.Normal.BackgroundBrush" Color="#FFFF4040"/>
+                    <SolidColorBrush x:Key="Theme.DangerButton.Normal.BorderBrush" Color="#FBB8071C"/>
+                    <SolidColorBrush x:Key="Theme.DangerButton.Normal.ForegroundBrush" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="Theme.DangerButton.MouseOver.BackgroundBrush" Color="#FFF93A3A"/>
+                    <SolidColorBrush x:Key="Theme.DangerButton.MouseOver.BorderBrush" Color="#FBB20116"/>
+                    <SolidColorBrush x:Key="Theme.DangerButton.Pressed.BackgroundBrush" Color="#FFCC0D0D"/>
+                    <SolidColorBrush x:Key="Theme.DangerButton.Pressed.BorderBrush" Color="#FF770000"/>
+                    <SolidColorBrush x:Key="Theme.DangerButton.Disabled.BackgroundBrush" Color="#FFFFAAAA"/>
+                    <SolidColorBrush x:Key="Theme.DangerButton.Disabled.BorderBrush" Color="#FFFF8888"/>
+                    <SolidColorBrush x:Key="Theme.DangerButton.Disabled.ForegroundBrush" Color="#FFFF6666"/>
+                    <!-- Button.Primary -->
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.Normal.BackgroundBrush" Color="#FF0077CC"/>
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.Normal.BorderBrush" Color="#FF003388"/>
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.Normal.ForegroundBrush" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.MouseOver.BackgroundBrush" Color="#FF0071C6"/>
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.MouseOver.BorderBrush" Color="#FF002D82"/>
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.Pressed.BackgroundBrush" Color="#FF004499"/>
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.Pressed.BorderBrush" Color="#FF000055"/>
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.Disabled.BackgroundBrush" Color="#FFCCEEFF"/>
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.Disabled.BorderBrush" Color="#FF99BBCC"/>
+                    <SolidColorBrush x:Key="Theme.PrimaryButton.Disabled.ForegroundBrush" Color="#FF7799BB"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <!--<FluentTheme />-->
+        <SimpleTheme />
+
+        <!-- TextBox -->
+        <Style Selector="TextBox">
+            <Setter Property="ClipToBounds" Value="False" />
+            <Setter Property="SelectionBrush" Value="#07c" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Background" Value="{DynamicResource Theme.InputBox.Normal.BackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Theme.InputBox.Normal.BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="KeyboardNavigation.TabNavigation" Value="None" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <DataValidationErrors ClipToBounds="False">
+                        <Panel ClipToBounds="False">
+                            <Rectangle x:Name="PART_FocusBorder"
+                                   Margin="-3" IsVisible="False" IsHitTestVisible="False"
+                                   RadiusX="4" RadiusY="4" Opacity=".2" StrokeThickness="3" />
+
+                            <Border Name="PART_BorderElement"
+                                CornerRadius="2"
+                                ClipToBounds="{TemplateBinding ClipToBounds}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Name="PART_ContentHost">
+                                    <ContentPresenter Grid.Column="0"
+                                              Grid.ColumnSpan="1"
+                                              Content="{TemplateBinding InnerLeftContent}"/>
+                                    <DockPanel x:Name="PART_InnerDockPanel"
+                                           Grid.Column="1"
+                                           Grid.ColumnSpan="1"
+                                           Margin="{TemplateBinding Padding}">
+                                        <TextBlock Name="PART_FloatingWatermark"
+                                               Foreground="{DynamicResource SystemAccentColor}"
+                                               IsVisible="False"
+                                               Text="{TemplateBinding Watermark}"
+                                               DockPanel.Dock="Top" />
+                                        <ScrollViewer Name="PART_ScrollViewer"
+                                                HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                                                VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                                                IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}"
+                                                AllowAutoHide="{TemplateBinding (ScrollViewer.AllowAutoHide)}"
+                                                BringIntoViewOnFocusChange="{TemplateBinding (ScrollViewer.BringIntoViewOnFocusChange)}">
+                                            <Panel>
+                                                <TextBlock Name="PART_Watermark"
+                                                    Opacity="0.5"
+                                                    Text="{TemplateBinding Watermark}"
+                                                    TextAlignment="{TemplateBinding TextAlignment}"
+                                                    TextWrapping="{TemplateBinding TextWrapping}"
+                                                    IsVisible="{TemplateBinding Text, Converter={x:Static StringConverters.IsNullOrEmpty}}"
+                                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                                <TextPresenter Name="PART_TextPresenter"
+                                                        Text="{TemplateBinding Text, Mode=TwoWay}"
+                                                        CaretIndex="{TemplateBinding CaretIndex}"
+                                                        SelectionStart="{TemplateBinding SelectionStart}"
+                                                        SelectionEnd="{TemplateBinding SelectionEnd}"
+                                                        TextAlignment="{TemplateBinding TextAlignment}"
+                                                        TextWrapping="{TemplateBinding TextWrapping}"
+                                                        LineHeight="{TemplateBinding LineHeight}"
+                                                        LetterSpacing="{TemplateBinding LetterSpacing}"
+                                                        PasswordChar="{TemplateBinding PasswordChar}"
+                                                        RevealPassword="{TemplateBinding RevealPassword}"
+                                                        SelectionBrush="{TemplateBinding SelectionBrush}"
+                                                        SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                                                        CaretBrush="{TemplateBinding CaretBrush}"
+                                                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                            </Panel>
+                                            <ScrollViewer.Styles>
+                                                <Style Selector="ScrollContentPresenter#PART_ContentPresenter">
+                                                    <Setter Property="Cursor" Value="IBeam" />
+                                                </Style>
+                                            </ScrollViewer.Styles>
+                                        </ScrollViewer>
+                                    </DockPanel>
+                                    <ContentPresenter Grid.Column="2" Grid.ColumnSpan="1" Content="{TemplateBinding InnerRightContent}"/>
+                                </Grid>
+                            </Border>
+                        </Panel>
+                    </DataValidationErrors>
+                </ControlTemplate>
+            </Setter>
+            <!-- Disabled -->
+            <Style Selector="^:disabled">
+                <Style Selector="^ /template/ Grid#PART_ContentHost">
+                    <Setter Property="Opacity" Value="0.56" />
+                </Style>
+                <Style Selector="^ /template/ Border#PART_BorderElement">
+                    <Setter Property="Background" Value="{DynamicResource Theme.InputBox.Disabled.BackgroundBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.InputBox.Disabled.BorderBrush}" />
+                </Style>
+            </Style>
+            <!-- Mouse over -->
+            <Style Selector="^:pointerover">
+                <Style Selector="^ /template/ Border#PART_BorderElement">
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.InputBox.MouseOver.BorderBrush}" />
+                </Style>
+                <Style Selector="^ /template/ Rectangle#PART_FocusBorder">
+                    <Setter Property="Stroke" Value="{DynamicResource Theme.InputBox.MouseOver.BorderBrush}" />
+                    <Setter Property="IsVisible" Value="True" />
+                </Style>
+            </Style>
+            <!-- Focused -->
+            <Style Selector="^:focus-within">
+                <Style Selector="^ /template/ Border#PART_BorderElement">
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.InputBox.Focus.BorderBrush}" />
+                </Style>
+                <Style Selector="^ /template/ Rectangle#PART_FocusBorder">
+                    <Setter Property="Stroke" Value="{DynamicResource Theme.InputBox.Focus.BorderBrush}" />
+                    <Setter Property="IsVisible" Value="True" />
+                </Style>
+            </Style>
+            <!-- Has error -->
+            <Style Selector="^:error">
+                <Style Selector="^ /template/ Border#PART_BorderElement">
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.InputBox.Error.BorderBrush}"/>
+                </Style>
+                <Style Selector="^:focus-within">
+                    <Style Selector="^ /template/ Rectangle#PART_FocusBorder">
+                        <Setter Property="Stroke" Value="{DynamicResource Theme.InputBox.Error.BorderBrush}" />
+                        <Setter Property="IsVisible" Value="True" />
+                    </Style>
+                </Style>
+            </Style>
+        </Style>
+
+        <!-- Buttons -->
+        <Style Selector="Button">
+            <Setter Property="Padding" Value="6,4"/>
+            <!--<Setter Property="FocusAdorner" Value="{StaticResource FocusVisual}"/>-->
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <!-- Default -->
+            <Setter Property="Background" Value="{DynamicResource Theme.Button.Normal.BackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Theme.Button.Normal.BorderBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Normal.ForegroundBrush}"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="PART_Border"
+                            CornerRadius="1"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Background="{TemplateBinding Background}">
+                        <ContentPresenter Name="PART_Content"
+                                          Focusable="False"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Padding="{TemplateBinding Padding}"
+                                          RecognizesAccessKey="True"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+
+            <!-- Default Theme -->
+            <Style Selector="^">
+                <!-- Hover -->
+                <Style Selector="^:pointerover /template/ Border#PART_Border">
+                    <Setter Property="Background" Value="{DynamicResource Theme.Button.MouseOver.BackgroundBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Button.MouseOver.BorderBrush}" />
+                </Style>
+                <!-- Pressed -->
+                <Style Selector="^:pressed /template/ Border#PART_Border">
+                    <Setter Property="Background" Value="{DynamicResource Theme.Button.Pressed.BackgroundBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Button.Pressed.BorderBrush}"/>
+                </Style>
+                <!-- Disabled -->
+                <Style Selector="^:disabled">
+                    <Style Selector="^ /template/ Border#PART_Border">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Button.Disabled.BackgroundBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.Button.Disabled.BorderBrush}"/>
+                    </Style>
+                    <Style Selector="^ /template/ ContentPresenter#PART_Content">
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource Theme.Button.Disabled.ForegroundBrush}"/>
+                    </Style>
+                </Style>
+            </Style>
+
+            <!-- Button.Primary -->
+            <Style Selector="^.Primary">
+                <Setter Property="Background" Value="{DynamicResource Theme.PrimaryButton.Normal.BackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.PrimaryButton.Normal.BorderBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryButton.Normal.ForegroundBrush}"/>
+                <!-- Hover -->
+                <Style Selector="^:pointerover /template/ Border#PART_Border">
+                    <Setter Property="Background" Value="{DynamicResource Theme.PrimaryButton.MouseOver.BackgroundBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.PrimaryButton.MouseOver.BorderBrush}" />
+                </Style>
+                <!-- Pressed -->
+                <Style Selector="^:pressed /template/ Border#PART_Border">
+                    <Setter Property="Background" Value="{DynamicResource Theme.PrimaryButton.Pressed.BackgroundBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.PrimaryButton.Pressed.BorderBrush}"/>
+                </Style>
+                <!-- Disabled -->
+                <Style Selector="^:disabled">
+                    <Style Selector="^ /template/ Border#PART_Border">
+                        <Setter Property="Background" Value="{DynamicResource Theme.PrimaryButton.Disabled.BackgroundBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.PrimaryButton.Disabled.BorderBrush}"/>
+                    </Style>
+                    <Style Selector="^ /template/ ContentPresenter#PART_Content">
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource Theme.PrimaryButton.Disabled.ForegroundBrush}"/>
+                    </Style>
+                </Style>
+            </Style>
+
+            <!-- Button.Danager -->
+            <Style Selector="^.Danger">
+                <Setter Property="Background" Value="{DynamicResource Theme.DangerButton.Normal.BackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.DangerButton.Normal.BorderBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.DangerButton.Normal.ForegroundBrush}"/>
+                <!-- Hover -->
+                <Style Selector="^:pointerover /template/ Border#PART_Border">
+                    <Setter Property="Background" Value="{DynamicResource Theme.DangerButton.MouseOver.BackgroundBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.DangerButton.MouseOver.BorderBrush}" />
+                </Style>
+                <!-- Pressed -->
+                <Style Selector="^:pressed /template/ Border#PART_Border">
+                    <Setter Property="Background" Value="{DynamicResource Theme.DangerButton.Pressed.BackgroundBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource Theme.DangerButton.Pressed.BorderBrush}"/>
+                </Style>
+                <!-- Disabled -->
+                <Style Selector="^:disabled">
+                    <Style Selector="^ /template/ Border#PART_Border">
+                        <Setter Property="Background" Value="{DynamicResource Theme.DangerButton.Disabled.BackgroundBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.DangerButton.Disabled.BorderBrush}"/>
+                    </Style>
+                    <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource Theme.DangerButton.Disabled.ForegroundBrush}"/>
+                    </Style>
+                </Style>
+            </Style>
+        </Style>
+    </Application.Styles>
+
+    <Application.Resources>
+        <conv:DebugConverter x:Key="DebugConverter" />
+    </Application.Resources>
+</Application>

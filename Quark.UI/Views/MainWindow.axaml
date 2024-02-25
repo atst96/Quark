@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Quark.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:Quark.Views"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="Quark.Views.MainWindow"
+        Title="Quark"
+        xmlns:behavior="using:Quark.Behaviors"
+        x:DataType="vm:MainWindowViewModel"
+        behavior:ViewModelLocator.Type="{x:Type vm:MainWindowViewModel}"
+        behavior:ViewModelLocator.DisposeDataContextOnWindowClosed="True">
+    <Grid>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Menu>
+            <MenuItem Header="ファイル(_F)">
+                <MenuItem Header="新しいプロジェクト">
+                    <MenuItem Header="MusicXMLから作成(_M)" HotKey="Ctrl+Shift+M" />
+                </MenuItem>
+                <MenuItem Header="開く(_O)" HotKey="Ctrl+O" />
+                <Separator />
+                <MenuItem Header="保存(_S)" HotKey="Ctrl+S" />
+                <Separator />
+                <MenuItem Header="終了(_X)" HotKey="Alt+F4" />
+            </MenuItem>
+
+            <MenuItem Header="プロジェクト(_P)">
+                <MenuItem Header="音声トラックを追加／変更する" />
+                <MenuItem Header="音声トラックを削除する" />
+                <Separator />
+                <MenuItem Header="トラックの音声を出力する" />
+            </MenuItem>
+
+            <MenuItem Header="ツール(_T)">
+                <MenuItem Header="オプション(_O)" Command="{Binding ShowPreferenceWindowCommand, Mode=OneTime}" />
+            </MenuItem>
+        </Menu>
+
+        <Panel>
+
+        </Panel>
+
+
+        <Border Grid.Column="0" Grid.Row="2"
+                VerticalAlignment="Center" HorizontalAlignment="Center">
+            <Button Content="Click!" Classes="Danger" Width="120" />
+        </Border>
+
+    </Grid>
+</Window>

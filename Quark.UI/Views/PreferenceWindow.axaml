@@ -1,0 +1,182 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+        xmlns:vm="using:Quark.ViewModels"
+        xmlns:behavior="using:Quark.Behaviors"
+        mc:Ignorable="d"
+        x:Class="Quark.Views.PreferenceWindow"
+        Title="アプリケーション設定" Height="450" Width="800"
+        x:DataType="vm:PreferenceWindowViewModel"
+        behavior:ViewModelLocator.Type="{x:Type vm:PreferenceWindowViewModel}"
+        behavior:ViewModelLocator.DisposeDataContextOnWindowClosed="True"
+        WindowStartupLocation="CenterOwner" CanResize="False"  ShowInTaskbar="False"
+        xmlns:qcomponent="using:Quark.Components"
+        FontFamily="Meiryo UI">
+    <Design.DataContext>
+        <vm:PreferenceWindowViewModel />
+    </Design.DataContext>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="120" />
+            <ColumnDefinition />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+
+        <TabControl
+            Grid.Row="1" Grid.ColumnSpan="2"
+            TabStripPlacement="Left">
+
+            <TabItem Header="全般">
+
+                <StackPanel Margin="8">
+                    <Label Margin="2" Content="ダイアログ" Padding="0" FontWeight="Bold"/>
+                    <CheckBox Margin="2" Content="ファイル選択時のフォルダを記憶する" IsChecked="{Binding UseRecentDirectories, Mode=TwoWay}" />
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="音声合成">
+                <StackPanel Margin="8">
+                    <!--推論処理-->
+                    <Label Margin="0,2" Content="推論処理" Padding="0" FontWeight="Bold"/>
+                    <!-- CPUスレッド数 -->
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Text="CPUスレッド数"
+                            VerticalAlignment="Center" />
+                        <TextBox
+                            Grid.Column="1" Width="100"
+                            Text="{Binding CpuThreads, Mode=TwoWay}" />
+                    </Grid>
+                    <!-- GPUを使用する -->
+                    <CheckBox Margin="0,2" Content="GPUを使用する"
+                              IsChecked="{Binding UseGpu, Mode=TwoWay}"/>
+                    <TextBlock Margin="12,2,0,4" Foreground="Gray"
+                               TextWrapping="Wrap" FontSize="11"
+                               Text="GPUを使用できる場合はGPUで処理を行います。&#10;NEUTRINOの動作要件に満たないGPUをお使いの場合はCPUでの処理になる場合があります。"/>
+
+                    <!--一括処理-->
+                    <CheckBox Margin="0,2" Content="一括処理が可能なら実施する"
+                              IsChecked="{Binding UseBulkEstimate, Mode=TwoWay}"/>
+                    <TextBlock Margin="12,2,0,4" Foreground="Gray"
+                               TextWrapping="Wrap" FontSize="11"
+                               Text="このオプションが有効かつ推論時の対象が全フレーズと判定された場合は、個別の推論処理を実施せずに全フレーズを一括で推論処理します。&#10;これにより、トータルの推論処理の時間が短縮できる可能性があります。"/>
+
+                    <Separator Margin="0,8" />
+
+                    <!--合成品質-->
+                    <Label Margin="0,2" Content="合成品質" Padding="0" FontWeight="Bold"/>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="推論処理" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" Width="180"
+                            x:CompileBindings="False"
+                            ItemsSource="{Binding EstimateModeNames, Mode=OneTime}"
+                            SelectedValue="{Binding EstimateMode, Mode=TwoWay}"
+                            SelectedValueBinding="{Binding Value}"
+                            DisplayMemberBinding="{Binding Description}"/>
+                    </Grid>
+
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="音声再生" VerticalAlignment="Center" />
+                        <ComboBox
+                            Grid.Column="1" Width="180"
+                            x:CompileBindings="False"
+                            ItemsSource="{Binding SynthesisModeNames, Mode=OneTime}"
+                            SelectedValue="{Binding SynthesisMode, Mode=TwoWay}"
+                            SelectedValueBinding="{Binding Value}"
+                            DisplayMemberBinding="{Binding Description}"/>
+                        </Grid>
+                    <TextBlock Margin="0,8,0,2" Foreground="Gray" FontSize="11" TextWrapping="Wrap"
+                               Text="推論処理の品質に[速度優先]を選択した場合、編集モード切り替え時に品質優先で再推論が行われます。" />
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="NEUTRINO v1">
+                <StackPanel Margin="8,4" DataContext="{Binding NeutrinoV1ViewModel, Mode=OneWay}">
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- フォルダ -->
+                        <TextBlock
+                            Text="NEUTRINOフォルダのパス"
+                            VerticalAlignment="Center" />
+
+                        <TextBox
+                            Grid.Column="1" IsReadOnly="True"
+                            Text="{Binding Directory, Mode=OneWay}" />
+
+                        <Button
+                            Grid.Column="2" Margin="4,0,0,0" Content="..."
+                            Command="{Binding SelectDirectoryCommand, Mode=OneTime}" />
+                    </Grid>
+
+                    <!--レガシー版使用選択 -->
+                    <CheckBox Margin="4" IsThreeState="True"
+                        IsChecked="{Binding UseLegacyExe, Mode=TwoWay}"
+                        Content="レガシー版のNEUTRINOを使用する" />
+
+                    <TextBlock Margin="24,4,4,4" Foreground="#666">
+                        <Run Text="現在の状態: " />
+                        <Run Text="{Binding SelectExeLabel, Mode=OneWay}" />
+                    </TextBlock>
+
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="NEUTRINO v2">
+                <StackPanel Margin="8,4" DataContext="{Binding NeutrinoV2ViewModel, Mode=OneWay}">
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Text="NEUTRINOフォルダのパス"
+                            VerticalAlignment="Center" />
+
+                        <TextBox
+                            Grid.Column="1" IsReadOnly="True"
+                            Text="{Binding Directory, Mode=TwoWay}" />
+
+                        <Button
+                            Grid.Column="2" Margin="4,0,0,0"
+                            Content="..."
+                            Command="{Binding SelectDirectoryCommand, Mode=OneTime}" />
+                    </Grid>
+                </StackPanel>
+            </TabItem>
+
+        </TabControl>
+    </Grid>
+
+</Window>
