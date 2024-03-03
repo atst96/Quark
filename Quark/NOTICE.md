@@ -3,6 +3,7 @@
 ## AvaloniaUI
 
 - Avalonia
+- Avalonia.Desktop
 - Avalonia.Themes.Fluent
 - Avalonia.Fonts.Inter
 - Avalonia.Diagnostics

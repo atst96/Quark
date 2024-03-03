@@ -21,7 +21,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Menu>
+        <Menu Grid.Row="0">
             <MenuItem Header="ファイル(_F)">
                 <MenuItem Header="新しいプロジェクト">
                     <MenuItem Header="MusicXMLから作成(_M)" InputGesture="Ctrl+Shift+M" />
@@ -45,19 +45,19 @@
             </MenuItem>
         </Menu>
 
+        <StackPanel Grid.Row="1" Orientation="Horizontal">
+
+            <Button />
+            <Button />
+            <Button />
+            <Button />
+            <Button />
+
+        </StackPanel>
+
         <Panel>
 
         </Panel>
-
-
-        <Border Grid.Column="0" Grid.Row="2"
-                VerticalAlignment="Center" HorizontalAlignment="Center">
-            <ComboBox VerticalAlignment="Center" HorizontalAlignment="Center" Width="140">
-                <ComboBoxItem Content="Item 1" />
-                <ComboBoxItem Content="Item 2" />
-                <ComboBoxItem Content="Item 3" />
-            </ComboBox>
-        </Border>
 
     </Grid>
 </Window>

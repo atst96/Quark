@@ -712,11 +712,12 @@
                                        IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}"
                                        Placement="BottomEdgeAlignedLeft"
                                        OverlayInputPassThroughElement="{Binding $parent[Menu]}"
-                                       HorizontalOffset="-8" VerticalOffset="-7">
+                                       HorizontalOffset="-8" VerticalOffset="-7"
+                                       IsHitTestVisible="False">
                                     <Panel Margin="{StaticResource Theme.InputBox.Shadow.Margin}">
                                         <Rectangle Fill="{DynamicResource Theme.MenuPopup.Popup.Normal.BackgroundBrush}"
                                                    Stroke="{DynamicResource Theme.MenuPopup.Popup.Normal.BorderBrush}"
-                                                   StrokeThickness="1" RadiusX="4" RadiusY="4"
+                                                   StrokeThickness="1" RadiusX="4" RadiusY="4" IsHitTestVisible="False"
                                                    Effect="{StaticResource Theme.InputBox.Normal.ShadowEffect}" />
                                         <ScrollViewer Margin="2" Theme="{StaticResource SimpleMenuScrollViewer}">
                                             <ItemsPresenter Name="PART_ItemsPresenter"
@@ -826,11 +827,12 @@
                                        IsLightDismissEnabled="False"
                                        IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}"
                                        Placement="RightEdgeAlignedTop"
+                                       OverlayInputPassThroughElement="{Binding $parent[Menu]}"
                                        HorizontalOffset="-6" VerticalOffset="-15">
                                     <Panel Margin="{StaticResource Theme.InputBox.Shadow.Margin}">
                                         <Rectangle Fill="{DynamicResource Theme.MenuPopup.Popup.Normal.BackgroundBrush}"
                                                    Stroke="{DynamicResource Theme.MenuPopup.Popup.Normal.BorderBrush}"
-                                                   StrokeThickness="1" RadiusX="4" RadiusY="4"
+                                                   StrokeThickness="1" RadiusX="4" RadiusY="4" IsHitTestVisible="False"
                                                    Effect="{StaticResource Theme.InputBox.Normal.ShadowEffect}" />
                                         <ScrollViewer Margin="2" Theme="{StaticResource SimpleMenuScrollViewer}">
                                             <ItemsPresenter Name="PART_ItemsPresenter"
