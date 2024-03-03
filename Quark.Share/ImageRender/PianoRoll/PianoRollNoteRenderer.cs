@@ -31,15 +31,14 @@ internal class PianoRollNoteRenderer
         int keyHeight = renderLayout.PhysicalKeyHeight;
 
         // スコアの描画
-        foreach (var score in rangeScoreInfo.Score.Phrases)
+        foreach (var score in rangeScoreInfo.Score.Notes)
         {
-            float y = height - (float)(score.Pitch * keyHeight);
-
             var rect = SKRect.Create(
                 renderLayout.GetRenderPosXFromTime(score.BeginTime - beginTime),
                 height - (score.Pitch * keyHeight),
                 renderLayout.GetRenderPosXFromTime(score.EndTime - score.BeginTime),
                 keyHeight);
+
             var roundRect = new SKRoundRect(rect, 2);
 
             g.DrawRoundRect(roundRect, new SKPaint
@@ -55,9 +54,9 @@ internal class PianoRollNoteRenderer
                 IsStroke = true,
             });
 
-            if (score.Breath)
+            if (score.IsBreath)
             {
-                // TOD: ブレスマークのサイズを可変にする
+                // TODO: ブレスマークのサイズを可変にする
                 const float bressMarkWidth = 11f;
                 const float bressMarkHeight = 16f;
                 g.DrawPath(

@@ -1,15 +1,27 @@
 ﻿using System.Numerics;
-using static Quark.Models.MusicXML.MusicXmlPhrase;
+using Quark.Models.MusicXML;
 
 namespace Quark.Models.Scores;
 
-public record PartScore(
+public class ScoreInfo(
     int BeginMeasureTime,
     LinkedList<TempoInfo> Tempos,
     LinkedList<TimeSignature> TimeSignatures,
-    LinkedList<Frame> Phrases)
+    LinkedList<ScoreNote> Notes,
+    LinkedList<Measure> Measures)
 {
-    private const int Unit = 1000 / 200;
+    public int BeginMeasureTime { get; } = BeginMeasureTime;
+
+    /// <summary>テンポ情報</summary>
+    public LinkedList<TempoInfo> Tempos { get; } = Tempos;
+
+    /// <summary>変拍子情報</summary>
+    public LinkedList<TimeSignature> TimeSignatures { get; } = TimeSignatures;
+
+    /// <summary>音符情報</summary>
+    public LinkedList<ScoreNote> Notes { get; } = Notes;
+
+    public LinkedList<Measure> Measures { get; } = Measures;
 
     /// <summary>
     /// 指定範囲内に含まれる楽譜情報を取得する
@@ -17,14 +29,14 @@ public record PartScore(
     /// <param name="beginTime"></param>
     /// <param name="endTime"></param>
     /// <returns>開始位置/終了位置が範囲外であっても、区間として被っていれば本情報に含まれる。</returns>
-    public PartScore GetRangeInfo(int beginTime, int endTime)
+    public ScoreInfo GetRangeInfo(int beginTime, int endTime)
     {
         var tempos = GetRangeElement(this.Tempos, f => (int)f.Time, beginTime, endTime);
         var timeSignatures = GetRangeElement(this.TimeSignatures, f => (int)f.Time, beginTime, endTime);
-        var notes = GetRangeElement(this.Phrases, f => f.BeginTime, f => f.EndTime, beginTime, endTime);
+        var notes = GetRangeElement(this.Notes, f => f.BeginTime, f => f.EndTime, beginTime, endTime);
         int beginMeasureTime = (int)(timeSignatures.First?.Value.Time ?? 0);
 
-        return new(beginMeasureTime, tempos, timeSignatures, notes);
+        return new(beginMeasureTime, tempos, timeSignatures, notes, this.Measures);
     }
 
     private static LinkedList<TElement> GetRangeElement<TElement, TTime>(LinkedList<TElement> collection, Func<TElement, TTime> getTimeFunc, TTime beginTime, TTime endTime)

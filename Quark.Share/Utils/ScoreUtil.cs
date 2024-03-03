@@ -14,7 +14,7 @@ public static class ScoreUtil
     /// <param name="endTime">描画終了位置</param>
     /// <param name="score">譜面情報</param>
     /// <returns></returns>
-    public static decimal[] GetMeasureTimes(decimal beginTime, decimal endTime, PartScore score)
+    public static decimal[] GetMeasureTimes(decimal beginTime, decimal endTime, ScoreInfo score)
     {
         var measureTimeList = new LinkedList<decimal>();
 

@@ -6,7 +6,7 @@ namespace Quark.ImageRender;
 
 public class RangeScoreRenderInfo
 {
-    public required PartScore Score { get; init; }
+    public required ScoreInfo Score { get; init; }
 
     public required IList<TimingHandle> Timings { get; init; }
 

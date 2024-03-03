@@ -4,5 +4,5 @@ namespace Quark.ImageRender;
 
 public class TrackScoreInfo
 {
-    public required PartScore Score { get; init; }
+    public required ScoreInfo Score { get; init; }
 }

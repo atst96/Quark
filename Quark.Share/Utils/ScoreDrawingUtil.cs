@@ -122,7 +122,7 @@ public static class ScoreDrawingUtil
     /// <param name="endTime">終了時間</param>
     /// <param name="lineType">罫線種別</param>
     /// <returns></returns>
-    public static VerticalLineInfo[] GetVerticalLines(PartScore score, decimal beginTime, decimal endTime, LineType lineType)
+    public static VerticalLineInfo[] GetVerticalLines(ScoreInfo score, decimal beginTime, decimal endTime, LineType lineType)
     {
         var list = new LinkedList<VerticalLineInfo>();
 
@@ -219,7 +219,7 @@ public static class ScoreDrawingUtil
     /// <param name="beginTime">現在時間</param>
     /// <param name="lineType">罫線種別</param>
     /// <returns></returns>
-    public static decimal GetNoteDuration(PartScore score, decimal beginTime, LineType lineType)
+    public static decimal GetNoteDuration(ScoreInfo score, decimal beginTime, LineType lineType)
     {
         // 直近のテンポ情報を取得する
         var currentTempoNode = score.Tempos.First!;
@@ -245,7 +245,7 @@ public static class ScoreDrawingUtil
     /// <param name="lineType">罫線種別</param>
     /// <param name="includeTime">尺計算に含める時間</param>
     /// <returns></returns>
-    public static decimal GetNoteDuration(PartScore score, decimal beginTime, LineType lineType, decimal includeTime)
+    public static decimal GetNoteDuration(ScoreInfo score, decimal beginTime, LineType lineType, decimal includeTime)
     {
         // 直近のテンポ情報を取得する
         var currentTempoNode = score.Tempos.First!;

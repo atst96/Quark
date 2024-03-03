@@ -7,6 +7,9 @@ using System.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using Quark.Models.MusicXML.NoteElements;
+using System.Collections.Immutable;
+using Quark.Models;
+using System.Runtime.CompilerServices;
 
 namespace Quark.Utils;
 
@@ -38,11 +41,11 @@ public static class MusicXmlUtil
     };
 
     /// <summary>取得対象とするMusicXMLのメディアタイプ</summary>
-    private static readonly HashSet<string> TargetMediaTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
+    private static readonly ImmutableHashSet<string> TargetMediaTypes = ImmutableHashSet.Create(StringComparer.OrdinalIgnoreCase,
+    [
         "application/vnd.recordare.musicxml",
         "application/vnd.recordare.musicxml+xml",
-    };
+    ]);
 
     /// <summary>XMLシリアライズ時の名前空間(明示的に未設定)</summary>
     private static readonly XmlSerializerNamespaces _xmlWriterNamespaces = new([XmlQualifiedName.Empty]);
@@ -67,14 +70,14 @@ public static class MusicXmlUtil
 
         return scoreParts.Where(i => i != null)
             .Select(scorePart =>
-        {
+            {
                 ScorePartElement? info;
 
-            var partId = scorePart.Id;
+                var partId = scorePart.Id;
                 if (partId == null || !partInfoByPartId.TryGetValue(partId, out info))
                 {
                     info = new();
-        }
+                }
 
                 return (info, scorePart);
             })
@@ -82,7 +85,7 @@ public static class MusicXmlUtil
     }
 
     [Obsolete("This class method will delete.", false)]
-    public static PartScore Parse(string xml)
+    public static ScoreInfo Parse(string xml)
     {
         byte[] data = new UTF8Encoding(false).GetBytes(xml);
 
@@ -94,150 +97,161 @@ public static class MusicXmlUtil
             : throw new NotSupportedException(); // TODO
     }
 
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static decimal TempoToTick(decimal tempo) => 60 / tempo;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static decimal GetQuarterDuration(decimal unit, decimal tempo)
+            => unit * TempoToTick(tempo) * 1000;
+
     /// <summary>
-    /// MusicXMLの各パート情報を解析する。
+    /// MusicXMLのパート毎の演奏情報を解析する。
     /// </summary>
     /// <param name="part">パート情報</param>
     /// <param name="score">解析後情報</param>
     /// <returns></returns>
-    private static bool TryParse(Part part, [NotNullWhen(true)] out PartScore? score)
+    private static bool TryParse(Part part, [NotNullWhen(true)] out ScoreInfo? score)
     {
-        if (part.Measures is not { Count: > 0 } measures)
-        {
-            score = null;
-            return false;
-        }
+        var measures = part.Measures ?? [];
 
-        var _notes = new LinkedList<MusicXmlPhrase.Frame>();
+        var scoreNotes = new LinkedList<ScoreNote>();
         var tempos = new LinkedList<TempoInfo>();
         var timeSignatures = new LinkedList<TimeSignature>();
 
         // second
         decimal currentTime = 0;
-        MusicXmlPhrase.Frame? tiedNote = null;
+        ScoreNote? tiedNote = null;
 
         double tempo = DefaultTempo;
+        // 4分音符の分割数
         float division = 1;
-        decimal tick = (decimal)(60 / DefaultTempo);
         decimal unit = 1;
 
         // 4部音符あたりの時間
-        decimal timePerQuarter = unit * tick * 1000;
-        Dictionary<int, int>? keys = null;
+        decimal timePerQuarter = GetQuarterDuration(unit, (decimal)tempo);
+        Dictionary<int, int>? keySignature = null;
+        int noteIdx = -1;
 
-        foreach (var measure in measures)
+        foreach (var measure in measures ?? [])
         {
-            var attributes = measure.Attributes;
-            if (attributes is not null)
+            if (measure.Attributes is { } attributes)
             {
-                if (attributes.Divisions is not null)
+                if (attributes.Divisions is { } newDivision)
                 {
-                    division = attributes.Divisions.Value;
-                    unit = 1 / (decimal)division;
-                    timePerQuarter = unit * tick * 1000;
+                    division = newDivision;
+                    unit = 1 / (decimal)newDivision;
+                    timePerQuarter = GetQuarterDuration(unit, (decimal)tempo);
                 }
 
-                var time = attributes.Time;
-                if (time is not null)
-                {
+                if (attributes.Time is { } time)
                     timeSignatures.AddLast(new TimeSignature(currentTime, time.Beats, time.BeatType));
-                }
 
                 var fifth = attributes.Key?.Fifths;
                 if (fifth is null || fifth == 0)
                 {
-                    keys = null;
+                    // 調号なし
+                    keySignature = null;
                 }
                 else
                 {
-                    if (!FifthCodeRelations.TryGetValue(fifth.Value, out keys))
+                    if (KeySignatures.TryGetValue(fifth.Value, out var nextKeySignature))
                     {
+                        keySignature = nextKeySignature;
+                    }
+                    else
+                    {
+                        // 想定外の調号だった場合
                         Debug.WriteLine(attributes.Key!.Fifths);
                         Debugger.Break();
                     }
                 }
             }
 
-            var notes = measure.Items;
-            if (notes is not null)
+            foreach (var item in measure.Items ?? [])
             {
-                foreach (var item in notes)
+                if (item is Direction direction)
                 {
-                    if (item is Direction direction)
+                    if (direction.Sound is { } sound && direction.DirectionType?.Metronome is { } metronome)
                     {
-                        if (direction is { Sound: not null })
-                        {
-                            tempo = direction.Sound.Tempo;
-                            tick = 60 / (decimal)tempo;
-                            timePerQuarter = unit * tick * 1000;
+                        tempo = sound.Tempo;
+                        timePerQuarter = GetQuarterDuration(unit, (decimal)tempo);
 
-                            var metronome = direction.DirectionType.Metronome;
-                            tempos.AddLast(new TempoInfo(true, currentTime, tempo, metronome.BeatUnit, metronome.BeatUnitDot is not null, metronome.PerMinute));
-                        }
+                        tempos.AddLast(new TempoInfo(true, currentTime, tempo, metronome.BeatUnit ?? "4", metronome.BeatUnitDot != null, metronome.PerMinute));
                     }
-                    else if (item is Note note)
-                    {
-                        var duration = note.Duration * timePerQuarter;
-                        var pitch = note.Pitch;
+                }
+                else if (item is Note note)
+                {
+                    var duration = note.Duration * timePerQuarter;
+                    var pitch = note.Pitch;
 
-                        try
+                    try
+                    {
+                        if (note.Rest is not null)
                         {
-                            if (note.Rest is not null)
+                            // 休符
+                            continue;
+                        }
+                        else if (pitch is not null)
+                        {
+                            var ties = note.Tie;
+                            if (ties is null || ties.Count == 0)
                             {
-                                // 休符
-                                continue;
-                            }
-                            else if (pitch is not null)
-                            {
-                                var ties = note.Tie;
-                                if (ties is null || ties.Count == 0)
-                                {
-                                    // タイ以外の音符
-                                    _notes.AddLast(CreateFrameInfo(note, currentTime, currentTime + duration));
-                                }
-                                else
-                                {
-                                    if (ties.All(t => t.Type == StartStop.Start))
-                                    {
-                                        // タイ記号の始め
-                                        tiedNote = CreateFrameInfo(note, currentTime, currentTime + duration);
-                                    }
-                                    else if (ties.Any(t => t.Type == StartStop.Stop) && tiedNote is not null)
-                                    {
-                                        if (ties.Any(t => t.Type == StartStop.Start))
-                                        {
-                                            // pass
-                                            // 中間のタイは stop&startのtypeが含まれるので無視する
-                                        }
-                                        else
-                                        {
-                                            // タイ記号の終わり
-                                            tiedNote.SetEndFrame((int)(currentTime + duration));
-                                            tiedNote.SetBreath(GetIsBreath(note));
-                                            _notes.AddLast(tiedNote);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        Debug.WriteLine(note);
-                                        Debugger.Break();
-                                    }
-                                }
+                                // タイ以外の音符
+                                scoreNotes.AddLast(CreateFrameInfo(++noteIdx, note, currentTime, currentTime + duration));
                             }
                             else
                             {
-                                // 音符じゃない場合？
-                                Debug.WriteLine(note);
-                                Debugger.Break();
+                                if (ties.All(t => t.Type == StartStop.Start))
+                                {
+                                    // タイ記号の始め
+
+                                    // 音符リストには追加せずに、タイの終わりまで蓄積する
+                                    tiedNote = CreateFrameInfo(++noteIdx, note, currentTime, currentTime + duration);
+                                }
+                                else if (ties.Any(t => t.Type == StartStop.Stop) && tiedNote is not null)
+                                {
+                                    tiedNote.Notes.Add(note);
+
+                                    if (ties.Any(t => t.Type == StartStop.Start))
+                                    {
+                                        // 3つ以上の音符がタイ記号で連なっている場合の、最初と最後以外の音符
+                                        // pass
+                                    }
+                                    else
+                                    {
+                                        // タイ記号の終わり位置
+
+                                        // タイの開始から終了までの情報を追加
+                                        tiedNote.SetEndFrame((int)(currentTime + duration));
+                                        tiedNote.SetBreath(GetIsBreath(note));
+
+                                        scoreNotes.AddLast(tiedNote);
+
+                                        tiedNote = null;
+                                    }
+                                }
+                                else
+                                {
+                                    Debug.WriteLine(note);
+                                    Debugger.Break();
+                                }
                             }
                         }
-                        finally
+                        else
                         {
-                            currentTime += duration;
+                            // 音符じゃない場合？
+                            Debug.WriteLine(note);
+                            Debugger.Break();
                         }
+                    }
+                    finally
+                    {
+                        currentTime += duration;
                     }
                 }
             }
+        }
 
         // 先頭のテンポ情報がなければデフォルトを差し込む
         if (tempos is not { Count: > 0, First.Value.Time: 0 })
@@ -251,7 +265,7 @@ public static class MusicXmlUtil
             timeSignatures.AddFirst(new TimeSignature(0, 4, 4));
         }
 
-        score = new PartScore(0, tempos, timeSignatures, _notes);
+        score = new ScoreInfo(0, tempos, timeSignatures, scoreNotes, new(measures));
         return true;
     }
 
@@ -458,14 +472,16 @@ public static class MusicXmlUtil
     private static bool GetIsBreath(Note note)
         => note.Notations?.Articulations?.BreathMark is not null;
 
-    private static MusicXmlPhrase.Frame CreateFrameInfo(Note note, decimal startTime, decimal endTime)
+    private static ScoreNote CreateFrameInfo(int noteIdx, Note note, decimal startTime, decimal endTime)
         => new()
         {
+            Index = noteIdx,
             BeginTime = (int)startTime,
             EndTime = (int)endTime,
             Lyrics = note.Lyric?.Text ?? string.Empty,
             Pitch = GetCode(note.Pitch),
-            Breath = GetIsBreath(note),
+            IsBreath = GetIsBreath(note),
+            Notes = [note],
         };
 
     private const int KeyCodeC = 0;
@@ -481,7 +497,7 @@ public static class MusicXmlUtil
     private const int KeyCodeASharp = 10;
     private const int KeyCodeB = 11;
 
-    private static Dictionary<string, int> KeyCodeForStep = new()
+    private static readonly Dictionary<string, int> KeyCodeForStep = new()
     {
         ["C"] = KeyCodeC,
         ["D"] = KeyCodeD,
@@ -492,7 +508,7 @@ public static class MusicXmlUtil
         ["B"] = KeyCodeB,
     };
 
-    private static Dictionary<int, Dictionary<int, int>> FifthCodeRelations = new()
+    private static Dictionary<int, Dictionary<int, int>> KeySignatures = new()
     {
         [-7] = new() // ♭7つ
         {
