@@ -4,13 +4,14 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:Quark.Views"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="320"
         x:Class="Quark.Views.MainWindow"
         Title="Quark"
         xmlns:behavior="using:Quark.Behaviors"
         x:DataType="vm:MainWindowViewModel"
         behavior:ViewModelLocator.Type="{x:Type vm:MainWindowViewModel}"
-        behavior:ViewModelLocator.DisposeDataContextOnWindowClosed="True">
+        behavior:ViewModelLocator.DisposeDataContextOnWindowClosed="True"
+        FontFamily="Meiryo">
     <Grid>
 
         <Grid.RowDefinitions>
@@ -23,13 +24,13 @@
         <Menu>
             <MenuItem Header="ファイル(_F)">
                 <MenuItem Header="新しいプロジェクト">
-                    <MenuItem Header="MusicXMLから作成(_M)" HotKey="Ctrl+Shift+M" />
+                    <MenuItem Header="MusicXMLから作成(_M)" InputGesture="Ctrl+Shift+M" />
                 </MenuItem>
-                <MenuItem Header="開く(_O)" HotKey="Ctrl+O" />
+                <MenuItem Header="開く(_O)" InputGesture="Ctrl+O" />
                 <Separator />
-                <MenuItem Header="保存(_S)" HotKey="Ctrl+S" />
+                <MenuItem Header="保存(_S)" InputGesture="Ctrl+S" />
                 <Separator />
-                <MenuItem Header="終了(_X)" HotKey="Alt+F4" />
+                <MenuItem Header="終了(_X)" InputGesture="Alt+F4" />
             </MenuItem>
 
             <MenuItem Header="プロジェクト(_P)">
@@ -51,7 +52,11 @@
 
         <Border Grid.Column="0" Grid.Row="2"
                 VerticalAlignment="Center" HorizontalAlignment="Center">
-            <Button Content="Click!" Classes="Danger" Width="120" />
+            <ComboBox VerticalAlignment="Center" HorizontalAlignment="Center" Width="140">
+                <ComboBoxItem Content="Item 1" />
+                <ComboBoxItem Content="Item 2" />
+                <ComboBoxItem Content="Item 3" />
+            </ComboBox>
         </Border>
 
     </Grid>

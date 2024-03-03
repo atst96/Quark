@@ -14,9 +14,6 @@
         WindowStartupLocation="CenterOwner" CanResize="False"  ShowInTaskbar="False"
         xmlns:qcomponent="using:Quark.Components"
         FontFamily="Meiryo UI">
-    <Design.DataContext>
-        <vm:PreferenceWindowViewModel />
-    </Design.DataContext>
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -30,7 +27,7 @@
 
         <TabControl
             Grid.Row="1" Grid.ColumnSpan="2"
-            TabStripPlacement="Left">
+            Classes="Setting">
 
             <TabItem Header="全般">
 
