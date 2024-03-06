@@ -567,9 +567,10 @@
                                            MinWidth="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay, Converter={StaticResource Theme.InputBox.Shadow.WidthAdder}}"
                                            MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                            IsLightDismissEnabled="True"
+                                           Placement="BottomEdgeAlignedLeft"
                                            IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}"
                                            Margin="{StaticResource Theme.InputBox.Shadow.Margin}"
-                                           HorizontalOffset="0" VerticalOffset="-7">
+                                           HorizontalOffset="-7" VerticalOffset="-7">
                                         <Border Background="{DynamicResource Theme.InputBox.Normal.BackgroundBrush}"
                                                 BorderBrush="{DynamicResource Theme.InputBox.Normal.BorderBrush}"
                                                 BorderThickness="1"
