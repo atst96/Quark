@@ -4,7 +4,9 @@ using Quark.Components;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Data.Settings;
+using Quark.Extensions;
 using Quark.Models.Neutrino;
+using Quark.Models.Scores;
 using Quark.Neutrino;
 using Quark.Projects.Tracks.Base;
 using Quark.Services;
@@ -16,19 +18,26 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
 {
     private Settings _settings = ServiceLocator.GetService<SettingService>().Settings;
 
+    /// <summary><inheritdoc/></summary>
     public event EventHandler TimingEstimated;
 
+    /// <summary><inheritdoc/></summary>
     public event EventHandler FeatureChanged;
 
     public WaveData WaveData { get; } = new();
 
-    public string MusicXml { get; set; }
+    /// <summary><inheritdoc/></summary>
+    public ScoreInfo Score { get; }
 
     public byte[]? FullTiming { get; set; }
 
     public byte[]? MonoTiming { get; set; }
 
-    public TimingInfo[] Timings { get; set; } = Array.Empty<TimingInfo>();
+    /// <summary><inheritdoc/></summary>
+    public TimingInfo[] Timings { get; set; } = [];
+
+    /// <summary><inheritdoc/></summary>
+    public int Duration { get; private set; }
 
     public PhraseInfo[] RawPhrases { get; private set; } = Array.Empty<PhraseInfo>();
 
@@ -44,7 +53,7 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
         : base(project, trackName)
     {
         this.Singer = model;
-        this.MusicXml = musicXml;
+        this.Score = MusicXmlUtil.Parse(musicXml);
 
         _ = this.Load();
     }
@@ -58,12 +67,21 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
             this.Singer = models.FirstOrDefault(t => t.ModelId == singer)!; // TODO: モデルが見つからない場合
         }
 
-        this.MusicXml = config.MusicXml;
+        this.Score = MusicXmlUtil.Parse(config.MusicXml);
         this.FullTiming = config.FullTiming;
         this.MonoTiming = config.MonoTiming;
 
         var features = config.Features;
         this.Timings = features.Timings;
+        if (this.Timings is { Length: > 0 } timings)
+        {
+            this.Duration = NeutrinoUtil.TimingTimeToMs(timings[^1].OriginEndTime100Ns);
+        }
+        else
+        {
+            // TODO: MusicXMLからDurationを取得する
+        }
+
         this.RawPhrases = features.RawPhrases;
         this.Phrases = features.Phrases.Select(c => ConvertConfig(features, c)).ToArray();
 
@@ -104,7 +122,7 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
             EstimateMode = this.EstimateMode,
         };
 
-        return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, config)
+        return new NeutrinoV1TrackConfig(this.TrackId, this.TrackName, this.CreateMusicXml(), this.FullTiming, this.MonoTiming, this.Singer?.ModelId, config)
         {
             IsMute = this.IsMute,
             // IsSolo = this.IsSolo,
@@ -143,7 +161,7 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
         // Label
         if (!this.HasScoreTiming())
         {
-            var result = await session.NeutrinoV1.ConvertMusicXmlToTiming(new ConvertMusicXmlToTimingOption { MusicXml = this.MusicXml });
+            var result = await session.NeutrinoV1.ConvertMusicXmlToTiming(new() { MusicXml = this.CreateMusicXml() });
             if (result is null)
             {
                 // TODO: 実行失敗時
@@ -163,7 +181,9 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
                 return;
             }
 
+
             this.Timings = NeutrinoUtil.ParseTiming(result.Timing);
+            this.Duration = NeutrinoUtil.TimingTimeToMs(this.Timings[^1].OriginEndTime100Ns);
             this.TimingEstimated?.Invoke(this, EventArgs.Empty);
             this.SetRawPhrase(result.Phrases);
 

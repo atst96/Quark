@@ -1,26 +1,37 @@
 ﻿using Quark.Audio;
 using Quark.Components;
 using Quark.Models.Neutrino;
+using Quark.Models.Scores;
 
 namespace Quark.Projects.Tracks;
 
 public interface INeutrinoTrack : IAudioTrack
 {
-    /// <summary>フレーズのタイミング推定完了時に発生するイベント</summary>
+    /// <summary>
+    /// フレーズのタイミング推定完了時に発生するイベント<br/>
+    /// 以下のパラメータが変化する場合がある<br/>
+    /// ・タイミング(<seealso cref="Timings"/>)<br/>
+    /// ・トータルの尺(<seealso cref="Duration"/>)
+    /// </summary>
     public event EventHandler TimingEstimated;
 
     /// <summary>フレーズの推論／音声出力完了時に発生するイベント</summary>
     public event EventHandler FeatureChanged;
 
+    /// <summary>歌声</summary>
     public ModelInfo? Singer { get; }
 
-    public string? MusicXml { get; }
+    /// <summary>スコア情報</summary>
+    public ScoreInfo Score { get; }
 
     public byte[]? FullTiming { get; }
 
     public byte[]? MonoTiming { get; }
 
+    /// <summary>タイミング情報</summary>
     public TimingInfo[] Timings { get; }
+
+    public int Duration { get; }
 
     public PhraseInfo[] RawPhrases { get; }
 

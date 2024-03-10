@@ -7,6 +7,8 @@ namespace Quark.Projects.Tracks;
 /// </summary>
 public interface IAudioTrack
 {
+    public string TrackName { get; }
+
     /// <summary>(共通)トラックID</summary>
     public string TrackId { get; }
 

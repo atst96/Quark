@@ -4,7 +4,10 @@ using Quark.Components;
 using Quark.Data.Projects.Neutrino;
 using Quark.Data.Projects.Tracks;
 using Quark.Data.Settings;
+using Quark.Extensions;
+using Quark.Models;
 using Quark.Models.Neutrino;
+using Quark.Models.Scores;
 using Quark.Neutrino;
 using Quark.Projects.Tracks.Base;
 using Quark.Services;
@@ -16,23 +19,30 @@ internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack
 {
     private readonly Settings _settings = ServiceLocator.GetService<SettingService>().Settings;
 
+    /// <summary><inheritdoc/></summary>
     public event EventHandler TimingEstimated;
 
+    /// <summary><inheritdoc/></summary>
     public event EventHandler FeatureChanged;
 
     public ModelInfo Singer { get; set; }
 
-    public string MusicXml { get; set; }
+    /// <summary><inheritdoc/></summary>
+    public ScoreInfo Score { get; }
 
     public byte[]? FullTiming { get; set; }
 
     public byte[]? MonoTiming { get; set; }
 
-    public TimingInfo[] Timings { get; set; } = Array.Empty<TimingInfo>();
+    /// <summary><inheritdoc/></summary>
+    public TimingInfo[] Timings { get; set; } = [];
 
-    public PhraseInfo[] RawPhrases { get; private set; } = Array.Empty<PhraseInfo>();
+    /// <summary><inheritdoc/></summary>
+    public int Duration { get; private set; }
 
-    public NeutrinoV2Phrase[] Phrases { get; private set; } = Array.Empty<NeutrinoV2Phrase>();
+    public PhraseInfo[] RawPhrases { get; private set; } = [];
+
+    public NeutrinoV2Phrase[] Phrases { get; private set; } = [];
 
     INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
 
@@ -40,10 +50,16 @@ internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack
 
     public WaveData WaveData { get; } = new();
 
+    /// <summary>全フレーズのタイミング情報</summary>
+    public PhraseTiming[] PhraseTimings { get; private set; }
+
+    /// <summary>有声フレーズ情報(無声フレーズは含めない)</summary>
+    public NeutrinoV2Phrase2[] Phrases2 { get; private set; }
+
     public NeutrinoV2Track(Project project, string trackName, string musicXml, ModelInfo model) : base(project, trackName)
     {
         this.Singer = model;
-        this.MusicXml = musicXml;
+        this.Score = MusicXmlUtil.Parse(musicXml);
 
         _ = this.Load();
     }
@@ -57,14 +73,23 @@ internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack
             this.Singer = models.FirstOrDefault(t => t.ModelId == singer)!; // TODO: モデルが見つからない場合
         }
 
-        this.MusicXml = config.MusicXml;
+        this.Score = MusicXmlUtil.Parse(config.MusicXml);
         this.FullTiming = config.FullTiming;
         this.MonoTiming = config.MonoTiming;
 
         var features = config.Features;
 
-        this.Timings = features.Timing ?? Array.Empty<TimingInfo>();
-        this.RawPhrases = features.RawPhraseInfo ?? Array.Empty<PhraseInfo>();
+        this.Timings = features.Timing ?? [];
+        if (this.Timings is { Length: > 0 } timings)
+        {
+            this.Duration = NeutrinoUtil.TimingTimeToMs(timings[^1].OriginEndTime100Ns);
+        }
+        else
+        {
+            // TODO: MusicXMLからDurationを取得する
+        }
+
+        this.RawPhrases = features.RawPhraseInfo ?? [];
         this.Phrases = features.Phrases.Select(p =>
         {
             var ph = new NeutrinoV2Phrase(p.No, p.BeginTime, p.EndTime, p.Phonemes, PhraseStatus.Complete);
@@ -116,7 +141,7 @@ internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack
             EstimateMode = this.EstimateMode,
         };
 
-        return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.MusicXml, this.FullTiming, this.MonoTiming, this.Singer?.ModelId, features)
+        return new NeutrinoV2TrackConfig(this.TrackId, this.TrackName, this.CreateMusicXml(), this.FullTiming, this.MonoTiming, this.Singer?.ModelId, features)
         {
             IsMute = this.IsMute,
             // IsSolo = this.IsSolo,
@@ -138,7 +163,7 @@ internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack
         // Label
         if (!this.HasScoreTiming())
         {
-            var result = await session.NeutrinoV2.ConvertMusicXmlToTiming(new ConvertMusicXmlToTimingOption { MusicXml = this.MusicXml });
+            var result = await session.NeutrinoV2.ConvertMusicXmlToTiming(new() { MusicXml = this.CreateMusicXml() });
             if (result is null)
             {
                 // TODO: 実行失敗時
@@ -159,6 +184,7 @@ internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack
             }
 
             this.Timings = NeutrinoUtil.ParseTiming(result.Timing);
+            this.Duration = NeutrinoUtil.TimingTimeToMs(this.Timings[^1].OriginEndTime100Ns);
             this.TimingEstimated?.Invoke(this, EventArgs.Empty);
             this.SetRawPhrase(result.Phrases);
 
