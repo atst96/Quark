@@ -1,38 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
+﻿using System.Collections.Generic;
+using System;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Threading;
+using Quark.Constants;
+using Quark.ImageRender;
+using Quark.Projects.Tracks;
+using Avalonia;
+using Quark.Drawing;
+using Avalonia.Input;
+using Quark.Controls.Editing;
+using Quark.Utils;
 using System.Diagnostics;
 using System.Linq;
-using System.Numerics;
-using System.Runtime.CompilerServices;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Threading;
-using Quark.Constants;
-using Quark.Controls.Editing;
 using Quark.Converters;
-using Quark.Drawing;
+using static Quark.Controls.EditorRenderLayout;
+using System.Runtime.CompilerServices;
+using System.Numerics;
 using Quark.Extensions;
 using Quark.Helpers;
-using Quark.ImageRender;
-using Quark.Models.Scores;
-using Quark.Projects.Tracks;
-using Quark.Utils;
-using static Quark.Controls.EditorRenderLayout;
+using SkiaSharp;
 
 namespace Quark.Controls;
-
-/// <summary>
-/// PlotEditor.xaml の相互作用ロジック
-/// 
-/// MEMO:
-/// 　タイムリニア式の描画方法で実装する。
-/// 　　→ そのうち拍／小節リニアにも対応する。(Cubaseとかは拍／小節リニアがデフォルトになっている）
-/// 　縦横の拡大率=100%、テンポ=100、4/4拍子の小節の場合に描画する間隔が340pxとなるようにする。
-/// </summary>
 public partial class PlotEditor : UserControl
 {
     private double MaxHScrollHeight = 1000;
@@ -92,160 +81,109 @@ public partial class PlotEditor : UserControl
     public PlotEditor()
     {
         this.InitializeComponent();
-        this._displayDpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        // HACK:
+        // this._displayDpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        this._displayDpi = 1.0;
 
         // マウス操作時のタイマー
-        this._mouseTimer = new(
-            TimeSpan.FromMilliseconds(20d), DispatcherPriority.Render, this.OnMouseTimerTicked, this.Dispatcher)
+        this._mouseTimer = new(TimeSpan.FromMilliseconds(20d), DispatcherPriority.Render, this.OnMouseTimerTicked)
         {
             IsEnabled = false,
         };
+        this.SKElement.Rendering += this.SKElement_Rendering;
 
         this.InitializeRenderer(null);
     }
 
-    /// <summary>
-    /// レンダラを初期化する
-    /// </summary>
-    /// <param name="track"></param>
-    private void InitializeRenderer(INeutrinoTrack? track)
+    private void SKElement_Rendering(object? sender, SKCanvas e)
     {
-        this._partsLayout = new();
-        this._editorRenderer = EditorRendererHelper.GetRenderer(track, this._partsLayout);
+        if (Design.IsDesignMode)
+            return;
+
+        if (this._editorRenderer is { } renderer && this._renderCommon is { } renderCommon)
+        {
+            renderer.Render(e, renderCommon);
+        }
     }
 
-    static PlotEditor()
+    protected override void OnInitialized()
     {
-        FocusableProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(true));
-        FocusManager.IsFocusScopeProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(true));
-        IsTabStopProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(true));
-        KeyboardNavigation.TabNavigationProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(KeyboardNavigationMode.Once));
-        KeyboardNavigation.ControlTabNavigationProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(KeyboardNavigationMode.Once));
-        KeyboardNavigation.DirectionalNavigationProperty.OverrideMetadata(typeof(PlotEditor), new FrameworkPropertyMetadata(KeyboardNavigationMode.None));
+        base.OnInitialized();
+        // HACK
+        this._renderLayout = this.CreateRenderLayout();
     }
 
-    /// <summary>
-    /// コントロール読み込み完了時
-    /// </summary>
-    /// <param name="sender">イベント発火元</param>
-    /// <param name="e">イベント情報</param>
-    private void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        var window = Window.GetWindow(this);
-        window.DpiChanged += this.OnDpiChanged;
-        window.LocationChanged += this.OnParentWindowLocationChanged;
-    }
-
-    /// <summary>
-    /// コントロール読み込み完了時
-    /// </summary>
-    /// <param name="sender">イベント発火元</param>
-    /// <param name="e">イベント情報</param>
-    private void OnUnload(object sender, RoutedEventArgs e)
-    {
-    }
-
-    /// <summary>
-    /// 画面のDPI変更時
-    /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="e"></param>
-    private void OnDpiChanged(object sender, DpiChangedEventArgs e)
-    {
-        this._displayDpi = e.NewDpi.DpiScaleX;
-        this.OnLayoutChanged();
-    }
-
-    /// <summary>
-    /// コントロールを内包しているウィンドウの移動
-    /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="e"></param>
-    private void OnParentWindowLocationChanged(object? sender, EventArgs e)
-    {
-        this.RelocateSeekBars();
-    }
+    #region Properties
 
     /// <summary>トラック情報</summary>
-    internal INeutrinoTrack? Track
+    public INeutrinoTrack? Track
     {
-        get => (INeutrinoTrack)this.GetValue(TrackProperty);
+        get => this.GetValue(TrackProperty);
         set => this.SetValue(TrackProperty, value);
     }
 
-    /// <summary><see cref="Track"/>プロパティ</summary>
-    public static readonly DependencyProperty TrackProperty = DependencyProperty.Register(
-        nameof(Track), typeof(INeutrinoTrack), typeof(PlotEditor), new PropertyMetadata(null, OnTrackPropertyChanged));
+    /// <summary><see cref="Track"/>のプロパティ情報</summary>
+    public static readonly StyledProperty<INeutrinoTrack?> TrackProperty
+        = AvaloniaProperty.Register<PlotEditor, INeutrinoTrack?>(nameof(INeutrinoTrack), defaultValue: null);
 
     /// <summary>
     /// <seealso cref="Track"/>プロパティ変更時
     /// </summary>
     /// <param name="d">プロパティ変更時</param>
     /// <param name="e">イベント情報</param>
-    private static void OnTrackPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    private void OnTrackPropertyChanged(INeutrinoTrack? prevTrack, INeutrinoTrack? newTrack)
     {
-        if (d is not PlotEditor @this)
-            return;
+        var @this = this;
 
-        if (e.OldValue is INeutrinoTrack oldTrack)
+        if (prevTrack != null)
         {
-            oldTrack.FeatureChanged -= @this.OnTrackFeatureChanged;
-            oldTrack.TimingEstimated -= @this.OnTrackTimingEstimated;
+            prevTrack.FeatureChanged -= this.OnTrackFeatureChanged;
+            prevTrack.TimingEstimated -= this.OnTrackTimingEstimated;
         }
 
-        var newTrack = (INeutrinoTrack?)e.NewValue;
-        @this.InitializeRenderer(newTrack);
+        this.InitializeRenderer(newTrack);
         if (newTrack != null)
         {
-            newTrack.FeatureChanged += @this.OnTrackFeatureChanged;
-            newTrack.TimingEstimated += @this.OnTrackTimingEstimated;
-            @this.LoadTrack(newTrack);
+            newTrack.FeatureChanged += this.OnTrackFeatureChanged;
+            newTrack.TimingEstimated += this.OnTrackTimingEstimated;
+            this.LoadTrack(newTrack);
         }
 
-        @this.UpdateScrollLayout();
-        @this.RelocateSeekBars();
-    }
-
-    /// <summary>内部の編集シークバーの選択位置</summary>
-    public TimeSpan _tempSelectionTime;
-
-    private void UpdateTempSelectionTime(TimeSpan selectionTime)
-    {
-        this._tempSelectionTime = selectionTime;
-        this.RelocateSelectionSeekBar(selectionTime);
+        this.UpdateScrollLayout();
+        this.RelocateSeekBars();
     }
 
     /// <summary>シークバーの選択位置</summary>
     public TimeSpan SelectionTime
     {
-        get => (TimeSpan)this.GetValue(SelectionTimeProperty);
+        get => this.GetValue(SelectionTimeProperty);
         set => this.SetValue(SelectionTimeProperty, value);
     }
 
-    /// <summary><see cref="SelectionTime"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty SelectionTimeProperty = DependencyProperty.Register(
-        nameof(SelectionTime), typeof(TimeSpan), typeof(PlotEditor), new PropertyMetadata(TimeSpan.Zero, OnSelectionTimePropertyChanged));
+    /// <summary><see cref="SelectionTime"/>のプロパティ</summary>
+    public static readonly StyledProperty<TimeSpan> SelectionTimeProperty
+        = AvaloniaProperty.Register<PlotEditor, TimeSpan>(nameof(SelectionTime), defaultValue: TimeSpan.Zero);
 
     /// <summary>
     /// <seealso cref="SelectionTime"/>プロパティ変更時
     /// </summary>
-    private static void OnSelectionTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((PlotEditor)d).UpdateTempSelectionTime((TimeSpan)e.NewValue);
+    private void OnSelectionTimePropertyChanged(TimeSpan newTime)
+        => this.UpdateTempSelectionTime(newTime);
 
     /// <summary>
     /// スクロール追従の有効／無効
     /// </summary>
     public bool IsAutoScroll
     {
-        get => (bool)this.GetValue(IsAutoScrollProperty);
+        get => this.GetValue(IsAutoScrollProperty);
         set => this.SetValue(IsAutoScrollProperty, value);
     }
 
     /// <summary>
     /// <seealso cref="IsAutoScroll"/>の依存関係プロパティ
     /// </summary>
-    public static readonly DependencyProperty IsAutoScrollProperty = DependencyProperty.Register(
-        nameof(IsAutoScroll), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false));
+    public static readonly StyledProperty<bool> IsAutoScrollProperty
+        = AvaloniaProperty.Register<PlotEditor, bool>(nameof(IsAutoScroll), defaultValue: false);
 
     /// <summary>横伸長率の一時変数</summary>
     private double _tempScaleX = DefaultScaleX;
@@ -253,14 +191,26 @@ public partial class PlotEditor : UserControl
     /// <summary>横方向のズームレベル</summary>
     public double ScaleX
     {
-        get => (double)this.GetValue(ScaleXProperty);
+        get => this.GetValue(ScaleXProperty);
         set => this.SetValue(ScaleXProperty, this._tempScaleX = value);
     }
 
     /// <summary><seealso cref="ScaleX"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty ScaleXProperty = DependencyProperty.Register(
-        nameof(ScaleX), typeof(double), typeof(PlotEditor), new PropertyMetadata(DefaultScaleX, OnScaleXChanged));
+    public static readonly StyledProperty<double> ScaleXProperty
+        = AvaloniaProperty.Register<PlotEditor, double>(nameof(ScaleX), defaultValue: 1.0d, validate: e => e > 0d);
 
+    /// <summary>
+    /// <seealso cref="ScaleX"/>プロパティ変更時
+    /// </summary>
+    /// <param name="d">プロパティ変更要素</param>
+    /// <param name="e">イベント情報</param>
+    private void OnScaleXChanged(double newValue)
+    {
+        if (this.UpdateInternalScaleX(newValue))
+        {
+            this.OnLayoutChanged();
+        }
+    }
     /// <summary>キー描画高の一時変数</summary>
     private int _tempKeyHeight = DefaultKeyHeight;
 
@@ -272,8 +222,24 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary><seealso cref="KeyHeight"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty KeyHeightProperty = DependencyProperty.Register(
-        nameof(KeyHeight), typeof(int), typeof(PlotEditor), new PropertyMetadata(DefaultKeyHeight, OnKeyHeightChanged));
+    public static readonly StyledProperty<int> KeyHeightProperty
+        = AvaloniaProperty.Register<PlotEditor, int>(nameof(KeyHeight), defaultValue: DefaultKeyHeight);
+
+    /// <summary>
+    /// <seealso cref="KeyHeight"/>プロパティ変更時
+    /// </summary>
+    /// <param name="d">プロパティ変更要素</param>
+    /// <param name="e">イベント情報</param>
+    private void OnKeyHeightChanged(int oldValue, int newValue)
+    {
+        if (this.UpdateInternalKeyHeight(newValue))
+        {
+            this.SetVScrollPosition((int)(this.GetVScrollPosition() * ((double)newValue / oldValue)));
+
+            // 内部で変更済み出ない場合
+            this.OnLayoutChanged();
+        }
+    }
 
     /// <summary>編集モード</summary>
     public EditMode EditMode
@@ -283,108 +249,63 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary><see cref="EditMode"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty EditModeProperty = DependencyProperty.Register(
-        nameof(EditMode), typeof(EditMode), typeof(PlotEditor),
-        new PropertyMetadata(EditMode.ScoreAndTiming, static (d, _) => (d as PlotEditor)?.OnEditModeChanged()));
+    public static readonly StyledProperty<EditMode> EditModeProperty
+        = AvaloniaProperty.Register<PlotEditor, EditMode>(nameof(EditMode), defaultValue: EditMode.ScoreAndTiming);
 
-    /// <summary>
-    /// 編集モード変更時
-    /// </summary>
-    private void OnEditModeChanged()
+    private void EditModePropertyChanged()
     {
-        var editMode = this.EditMode;
-
-        // 編集操作をキャンセルする
-        this.CancelEditInternal();
-
-        this._isTimingEditable = this._isScoreEditable = editMode == EditMode.ScoreAndTiming;
-        this._isFeatureEditable = this._isF0Editable = editMode == EditMode.AudioFeatures;
-
-        this.UpdateRenderContent();
-        this.UpdateScrollLayout();
-    }
-
-    private void OnTrackFeatureChanged(object? sender, EventArgs e) => this.Dispatcher.InvokeAsync(() =>
-    {
-        // 再描画
-        this.UpdateRenderContent();
-    }
-    , DispatcherPriority.Render);
-
-    private void OnTrackTimingEstimated(object? sender, EventArgs e) => this.Dispatcher.InvokeAsync(() =>
-    {
-        // 再描画
-        this.LoadTiming();
-    }
-    , DispatcherPriority.Normal);
-
-    /// <summary>
-    /// <seealso cref="ScaleX"/>プロパティ変更時
-    /// </summary>
-    /// <param name="d">プロパティ変更要素</param>
-    /// <param name="e">イベント情報</param>
-    private static void OnScaleXChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        var editor = (PlotEditor)d;
-        if (editor.UpdateInternalScaleX((double)e.NewValue))
-        {
-            editor.OnLayoutChanged();
-        }
+        this.OnEditModeChanged();
     }
 
     /// <summary>クオンタイズ値</summary>
     public LineType Quantize
     {
-        get => (LineType)this.GetValue(QuantizeProperty);
+        get => this.GetValue(QuantizeProperty);
         set => this.SetValue(QuantizeProperty, value);
     }
 
-    /// <summary><seealso cref="Quantize"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty QuantizeProperty =
-        DependencyProperty.Register(nameof(Quantize), typeof(LineType), typeof(PlotEditor),
-            new PropertyMetadata(LineType.Note16th, OnQuantizeChanged));
-
-    /// <summary>スナッピングの切り替え</summary>
-    public bool IsQuantizeSnapping
-    {
-        get => (bool)this.GetValue(IsQuantizeSnappingProperty);
-        set => this.SetValue(IsQuantizeSnappingProperty, value);
-    }
-
-    /// <summary><seealso cref="IsQuantizeSnapping"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty IsQuantizeSnappingProperty = DependencyProperty.Register(
-        nameof(IsQuantizeSnapping), typeof(bool), typeof(PlotEditor), new PropertyMetadata(true));
+    /// <summary><seealso cref="Quantize"/>のプロパティ</summary>
+    public static readonly StyledProperty<LineType> QuantizeProperty =
+        AvaloniaProperty.Register<PlotEditor, LineType>(nameof(Quantize), defaultValue: LineType.Note16th);
 
     /// <summary>
     /// <seealso cref="Quantize"/>変更時
     /// </summary>
     /// <param name="d"></param>
     /// <param name="e"></param>
-    private static void OnQuantizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    private void OnQuantizeChanged()
     {
         // 再描画
-        ((PlotEditor)d).UpdateRenderContent();
+        this.UpdateRenderContent();
     }
+
+    /// <summary>スナッピングの切り替え</summary>
+    public bool IsQuantizeSnapping
+    {
+        get => this.GetValue(IsQuantizeSnappingProperty);
+        set => this.SetValue(IsQuantizeSnappingProperty, value);
+    }
+
+    /// <summary><seealso cref="IsQuantizeSnapping"/>のプロパティ</summary>
+    public static readonly StyledProperty<bool> IsQuantizeSnappingProperty
+        = AvaloniaProperty.Register<PlotEditor, bool>(nameof(IsQuantizeSnapping), defaultValue: false);
 
     /// <summary>再生中モードの有効／無効</summary>
     public bool IsPlayMode
     {
-        get => (bool)this.GetValue(IsPlayModeProperty);
+        get => this.GetValue(IsPlayModeProperty);
         set => this.SetValue(IsPlayModeProperty, value);
     }
 
     /// <summary><see cref="IsPlayMode"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty IsPlayModeProperty =
-        DependencyProperty.Register(nameof(IsPlayMode), typeof(bool), typeof(PlotEditor), new PropertyMetadata(false, OnIsPlayModePropertyChanged));
+    public static readonly StyledProperty<bool> IsPlayModeProperty
+        = AvaloniaProperty.Register<PlotEditor, bool>(nameof(IsPlayMode));
 
     /// <summary>
     /// <see cref="IsPlayMode"/>プロパティ変更時
     /// </summary>
-    /// <param name="d">対象要素</param>
-    /// <param name="e">イベント情報</param>
-    private static void OnIsPlayModePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((PlotEditor)d).RelocatePlayingSeekBar();
-
+    private void OnIsPlayModePropertyChanged()
+        => this.RelocatePlayingSeekBar();
     /// <summary>現在再生時点の時刻</summary>
     public TimeSpan PlayingTime
     {
@@ -392,60 +313,69 @@ public partial class PlotEditor : UserControl
         set => this.SetValue(PlayingTimeProperty, value);
     }
 
-    private SeekBarMode GetSeekBarMode()
-    {
-        if (!this.IsPlayMode || this._mouseMode == MouseControlMode.Seek)
-            return SeekBarMode.Edit;
-        else
-            return SeekBarMode.Play;
-    }
-
     /// <summary><see cref="PlayingTime"/>の依存関係プロパティ</summary>
-    public static readonly DependencyProperty PlayingTimeProperty =
-        DependencyProperty.Register(nameof(PlayingTime), typeof(TimeSpan), typeof(PlotEditor), new PropertyMetadata(TimeSpan.Zero, OnPlayingTimePropertyChanged));
+    public static readonly StyledProperty<TimeSpan> PlayingTimeProperty =
+        AvaloniaProperty.Register<PlotEditor, TimeSpan>(nameof(PlayingTime));
 
     /// <summary>
     /// <see cref="PlayingTime"/>プロパティ変更時
     /// </summary>
-    /// <param name="d">対象要素</param>
-    /// <param name="e">イベント情報</param>
-    private static void OnPlayingTimePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((PlotEditor)d).RelocatePlayingSeekBar((TimeSpan)e.NewValue, (TimeSpan)e.OldValue);
+    private void OnPlayingTimePropertyChanged(TimeSpan prevValue, TimeSpan newValue)
+        => this.RelocatePlayingSeekBar(newValue, prevValue);
 
     /// <summary>
-    /// 内部的に保持している横伸長率を更新する
+    /// プロパティ変更時
     /// </summary>
-    /// <param name="newScale"></param>
-    /// <returns></returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool UpdateInternalScaleX(double newScale)
+    /// <param name="change"></param>
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
-        if (this._tempScaleX == newScale)
+        var proeprty = change.Property;
+
+        if (proeprty == TrackProperty)
         {
-            return false;
+            // Trackが変更された
+            this.OnTrackPropertyChanged(change.GetOldValue<INeutrinoTrack?>(), change.GetNewValue<INeutrinoTrack?>());
+        }
+        else if (proeprty == SelectionTimeProperty)
+        {
+            // 選択位置が変更された
+            this.OnSelectionTimePropertyChanged(change.GetNewValue<TimeSpan>());
+        }
+        else if (proeprty == IsAutoScrollProperty)
+        {
+            // pass
+        }
+        else if (proeprty == ScaleXProperty)
+        {
+            this.OnScaleXChanged(change.GetNewValue<double>());
+        }
+        else if (proeprty == KeyHeightProperty)
+        {
+            this.OnKeyHeightChanged(change.GetOldValue<int>(), change.GetNewValue<int>());
+        }
+        else if (proeprty == EditModeProperty)
+        {
+            this.EditModePropertyChanged();
+        }
+        else if (proeprty == QuantizeProperty)
+        {
+            this.OnQuantizeChanged();
+        }
+        else if (proeprty == IsPlayModeProperty)
+        {
+            this.OnIsPlayModePropertyChanged();
+        }
+        else if (proeprty == PlayingTimeProperty)
+        {
+            this.OnPlayingTimePropertyChanged(change.GetOldValue<TimeSpan>(), change.GetNewValue<TimeSpan>());
         }
 
-        this._tempScaleX = newScale;
-        return true;
+        base.OnPropertyChanged(change);
     }
 
-    /// <summary>
-    /// <seealso cref="KeyHeight"/>プロパティ変更時
-    /// </summary>
-    /// <param name="d">プロパティ変更要素</param>
-    /// <param name="e">イベント情報</param>
-    private static void OnKeyHeightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        var editor = (PlotEditor)d;
+    #endregion Properties
 
-        if (editor.UpdateInternalKeyHeight((int)e.NewValue))
-        {
-            editor.SetVScrollPosition((int)(editor.GetVScrollPosition() * ((double)(int)e.NewValue / (int)e.OldValue)));
 
-            // 内部で変更済み出ない場合
-            editor.OnLayoutChanged();
-        }
-    }
 
     /// <summary>
     /// 内部的に保持している横伸長率を更新する
@@ -482,7 +412,7 @@ public partial class PlotEditor : UserControl
 
         this._framesCount = track.GetTotalFramesCount();
 
-        this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
+        // this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
 
         this.UpdateRenderContent();
     }
@@ -499,7 +429,7 @@ public partial class PlotEditor : UserControl
 
         this._framesCount = track.GetTotalFramesCount();
 
-        this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
+        // this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
 
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
@@ -565,36 +495,51 @@ public partial class PlotEditor : UserControl
     /// <param name="physicalX">X座標(物理ピクセル)</param>
     /// <param name="layout">レイアウト</param>
     /// <param name="toDisplay">表示させるかどうかのフラグ</param>
-    private void MoveSeekBar(IsolatedSeekBar seekBar, double physicalX, EditorRenderLayout layout, bool toDisplay)
+    // private void MoveSeekBar(IsolatedSeekBar seekBar, double physicalX, EditorRenderLayout layout, bool toDisplay)
+    private void MoveSeekBar(Control seekBar, double physicalX, EditorRenderLayout layout, bool toDisplay)
     {
         if (!toDisplay)
         {
-            seekBar.Hide();
+            seekBar.IsVisible = false;
             return;
         }
 
         var scaling = this._renderLayout.Scaling;
 
-        var pyxPoint = this.SKElement.PointToScreen(new(scaling.ToRenderImageScaling(physicalX), 0));
-        (double lgcPointX, double lgcPointY) = scaling.ToRenderImageScaling(pyxPoint.X, pyxPoint.Y);
+        // TODO: 別ウィンドウとして表示する場合
+        //var pyxPoint = this.SKElement.PointToScreen(new(scaling.ToRenderImageScaling(physicalX), 0));
+        //(double lgcPointX, double lgcPointY) = scaling.ToRenderImageScaling(pyxPoint.X, pyxPoint.Y);
 
-        double halfWidth = seekBar.Width * .5d;
+        //double halfWidth = seekBar.Width * .5d;
 
-        double x = double.IsNaN(halfWidth) ? lgcPointX : (lgcPointX - halfWidth);
+        //double x = double.IsNaN(halfWidth) ? lgcPointX : (lgcPointX - halfWidth);
 
-        seekBar.Show(x, lgcPointY, layout.ScreenHeight);
+        // seekBar.Show((int)x, (int)lgcPointY, layout.ScreenHeight);
+
+        // TODO: ウィンドウ内のコントロールの一部として表示する場合
+        var scorePoint = scaling.ToRenderImageScaling(physicalX);
+
+        double xOffset = Math.Round(seekBar.Width * .5d);
+        Canvas.SetLeft(seekBar, scorePoint - xOffset);
+        Canvas.SetTop(seekBar, 0);
+        seekBar.Height = layout.ScreenHeight;
+        seekBar.IsVisible = true;
     }
 
     /// <summary>
     /// シークバーを隠す
     /// </summary>
     /// <param name="seekBar">シークバー要素</param>
-    static void HideSeekBar(IsolatedSeekBar seekBar)
-        => seekBar.Hide();
+    // static void HideSeekBar(IsolatedSeekBar seekBar)
+    static void HideSeekBar(Control seekBar)
+        // => seekBar.Hide();
+        => seekBar.IsVisible = false;
 
     /// <summary>編集位置を示すシークバーの画面要素を取得する</summary>
-    private IsolatedSeekBar GetSelectionSeekBar()
-        => this.PART_SelectionTime;
+    //private IsolatedSeekBar GetSelectionSeekBar()
+    //    => this.PART_SelectionTime;
+    private Control GetSelectionSeekBar()
+        => this.PART_SeekBar;
 
     /// <summary>編集用シークバーを移動する。</summary>
     private void DisplaySeekBar(double x, EditorRenderLayout layout)
@@ -752,7 +697,7 @@ public partial class PlotEditor : UserControl
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private (int width, int height) GetCanvasSize()
     {
-        var size = this.SKElement.CanvasSize;
+        var size = this.SKElement.Bounds;
 
         return ((int)size.Width, (int)size.Height);
     }
@@ -770,7 +715,8 @@ public partial class PlotEditor : UserControl
     /// </summary>
     private void UpdateRenderContent(bool redraw = true)
     {
-        if (this.ActualWidth <= 0 || this.ActualHeight <= 0)
+        var size = this.SKElement;
+        if (size.Width <= 0 || size.Height <= 0)
             return;
 
         var renderLayout = this._renderLayout = this.CreateRenderLayout();
@@ -903,31 +849,11 @@ public partial class PlotEditor : UserControl
         => this.SetVerticalPosition((int)(this.vScrollBar1.Value + time));
 
     /// <summary>
-    /// 再描画要求時
-    /// </summary>
-    /// <param name="sender">イベント発火時</param>
-    /// <param name="e">イベント情報</param>
-    private void OnPaintSurface(object sender, SkiaSharp.Views.Desktop.SKPaintSurfaceEventArgs e)
-    {
-        // 描画先
-        var g = e.Surface.Canvas;
-
-        if (DesignerProperties.GetIsInDesignMode(this))
-        {
-            // デザインモード時は描画処理を行わない
-            return;
-        }
-
-        if (this._editorRenderer is { } renderer && this._renderCommon is { } renderInfo)
-            renderer.Render(g, renderInfo);
-    }
-
-    /// <summary>
     /// 縦スクロール時
     /// </summary>
     /// <param name="sender">イベント発火元</param>
     /// <param name="e">イベント情報</param>
-    private void OnVScroll(object sender, ScrollEventArgs e)
+    private void OnVScroll(object? sender, ScrollEventArgs e)
     {
         this._renderCommon?.OnVerticalScrollChanged(this.GetVScrollPosition());
         this.Redraw();
@@ -936,9 +862,9 @@ public partial class PlotEditor : UserControl
     /// <summary>
     /// 横スクロール時
     /// </summary>
-    /// <param name="sender">イベント発火元</param>
-    /// <param name="e">イベント情報</param>
-    private void OnHScroll(object sender, ScrollEventArgs e)
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnHScroll(object? sender, ScrollEventArgs e)
     {
         int time = (int)e.NewValue;
         if (this.GetRenderBeginTimeMs() == time)
@@ -947,7 +873,7 @@ public partial class PlotEditor : UserControl
         }
 
         // 自動スクロールを解除
-        this.CancelAudoScroll();
+        this.CancelAutoScroll();
 
         this.OnRenderBeginMsChanged(time);
         this.UpdateRenderContent();
@@ -955,46 +881,262 @@ public partial class PlotEditor : UserControl
     }
 
     /// <summary>
+    /// レンダラを初期化する
+    /// </summary>
+    /// <param name="track"></param>
+    private void InitializeRenderer(INeutrinoTrack? track)
+    {
+        this._partsLayout = new();
+        this._editorRenderer = EditorRendererHelper.GetRenderer(track, this._partsLayout);
+    }
+
+    private SeekBarMode GetSeekBarMode()
+    {
+        if (!this.IsPlayMode || this._mouseMode == MouseControlMode.Seek)
+            return SeekBarMode.Edit;
+        else
+            return SeekBarMode.Play;
+    }
+
+    /// <summary>
+    /// 編集モード変更時
+    /// </summary>
+    private void OnEditModeChanged()
+    {
+        var editMode = this.EditMode;
+
+        // 編集操作をキャンセルする
+        this.CancelEditInternal();
+
+        this._isTimingEditable = this._isScoreEditable = editMode == EditMode.ScoreAndTiming;
+        this._isFeatureEditable = this._isF0Editable = editMode == EditMode.AudioFeatures;
+
+        this.UpdateRenderContent();
+        this.UpdateScrollLayout();
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        if (!this.IsFocused)
+        {
+            this.Focus();
+            // Keyboard.Focus(this);
+        }
+    }
+
+    /// <summary>
+    /// マウス押下時の処理
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    private void OnMouseDown(object sender, PointerPressedEventArgs e)
+    {
+        Debug.WriteLine("Mouse down.");
+
+        var renderLayout = this._renderLayout;
+        var scaling = renderLayout.Scaling;
+        var element = (Control)sender;
+
+        var cursor = this._cursor;
+        var current = e.GetCurrentPoint(this);
+
+        var pressedKey = this._pressedKey;
+
+        if (current.Properties.IsLeftButtonPressed)
+        {
+            Debug.WriteLine("Mouse captured.");
+            e.Pointer.Capture(this.SKElement);
+
+            var mousePos = this.GetPhysicalMousePosition(renderLayout, e);
+
+            if (IsWithinRuler(renderLayout, mousePos))
+            {
+                if (this._mouseMode == MouseControlMode.None)
+                {
+                    this.ChangeMouseMode(MouseControlMode.Seek);
+                    this.RelocateSeekBarForSeeking(e);
+                    e.Handled = true;
+                }
+            }
+            else if (IsWithinEditArea(renderLayout, mousePos))
+            {
+                if (this.EditMode == EditMode.ScoreAndTiming)
+                {
+                    if (this._isTimingEditable)
+                    {
+                        var rangeTimings = this._renderCommon.RangeScoreRenderInfo?.Timings;
+                        if (rangeTimings != null)
+                        {
+                            (int x, int y) = scaling.ToRenderImageScaling(mousePos.X, mousePos.Y);
+
+                            var handle = rangeTimings.FirstOrDefault(h => h.IsSelected && h.IsCollisionDetection(x, y));
+                            if (handle != null)
+                            {
+                                int idx = this._timings!.IndexOf(handle);
+
+                                this.ChangeMouseMode(MouseControlMode.EditTiming, new TimingEditingInfo(handle, handle.TimingInfo.EditedBeginTime100Ns)
+                                {
+                                    LowerTime100Ns = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.EditedBeginTime100Ns,
+                                    UpperTime100Ns = (idx == -1 || (this._timings.Count <= (idx + 1)))
+                                                                    ? null : this._timings[idx + 1].TimingInfo.EditedBeginTime100Ns,
+                                    OffsetX = x - handle.X,
+                                });
+
+                                e.Handled = true;
+                                return;
+                            }
+                        }
+                    }
+
+                    this._mouseMode = MouseControlMode.PutNote;
+                    var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
+                    this._putNoteBeginTime = this.FindJustBeforeQuantizeSnapping(renderLayout, this.GetRenderBeginTimeMs(), mousePosition);
+
+                    // キーのインデックスを計算する
+                    // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
+                    this._putNoteKeyIndex = this.GetKeyIndex(renderLayout, mousePosition);
+
+                    this.RelocateNoteRectangle(e);
+                    e.Handled = true;
+                }
+                else if (this._mouseMode == MouseControlMode.None)
+                {
+                    if (this.EditMode == EditMode.AudioFeatures)
+                    {
+
+                        // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
+                        var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
+
+                        var scoreArea = renderLayout.ScoreArea;
+                        var dynamicsArea = renderLayout.DynamicsArea;
+
+                        int beginTime = this.GetRenderBeginTimeMs();
+                        int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
+                        this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
+
+                        if (pressedKey.modifiers == KeyModifiers.Shift)
+                        {
+                            // Shiftキーが押されている場合は範囲選択モードにする
+                            if (renderLayout.EditArea.IsContains(mousePosition))
+                            {
+                                cursor = new Cursor(StandardCursorType.SizeWestEast);
+                                var editingInfo = new RangeSelectingInfo(
+                                    renderLayout.ScoreArea.IsContainsY(mousePos.Y),
+                                    adjustedTime, adjustedTime);
+                                this.ChangeMouseMode(MouseControlMode.RangeSelect, editingInfo);
+                                this._rangeSelection = editingInfo;
+                            }
+
+                            this.UpdateRenderContent();
+                            e.Handled = true;
+                        }
+                        else if (pressedKey.modifiers == KeyModifiers.Control)
+                        {
+                            // Ctrlキーが押されている場合は一括編集モードにする
+                            if (this._rangeSelection is { } select)
+                            {
+                                if (select.IsScoreArea)
+                                {
+                                    if (renderLayout.ScoreArea.IsContainsY(mousePos.Y))
+                                    {
+                                        double pitch = this.GetPitch12FromMousePosition(renderLayout, mousePosition);
+
+                                        (int a1, int a2) = select.GetOrdererRange();
+                                        this.ChangeMouseMode(MouseControlMode.EditPitchBulkSeek, new PitchSeekingInfo(a1, a2, pitch));
+
+                                        this.UpdateRenderContent();
+                                        e.Handled = true;
+                                    }
+                                }
+                                else
+                                {
+                                    if (renderLayout.HasDynamicsArea && renderLayout.DynamicsArea.IsContainsY(mousePos.Y))
+                                    {
+                                        (int a1, int a2) = select.GetOrdererRange();
+                                        double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
+                                        this.ChangeMouseMode(MouseControlMode.EditDynamicsBulkSeek, new DynamicsSeekingInfo(a1, a2, coe));
+
+                                        this.UpdateRenderContent();
+                                        e.Handled = true;
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (scoreArea.IsContains(mousePosition))
+                            {
+                                double pitch = this.GetPitchFromMousePosition(renderLayout, mousePosition);
+
+                                this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
+
+                                this.EditF0(adjustedTime, EnumerableUtil.ToEnumerable(pitch));
+                            }
+                            else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
+                            {
+                                double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
+                                double frequency = DynamicsCoeToFrequency(this.Track!, coe);
+
+                                this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
+
+                                this.EditDynamics(adjustedTime, EnumerableUtil.ToEnumerable(frequency));
+                            }
+
+                            this.UpdateRenderContent();
+                            e.Handled = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        this.SetCursor(cursor);
+    }
+
+    /// <summary>
     /// マウスホイールイベント発火時
     /// </summary>
     /// <param name="sender">イベント発火元</param>
     /// <param name="e">イベント情報</param>
-    private void OnScoreMouseWheel(object sender, MouseWheelEventArgs e)
+    private void OnScoreMouseWheel(object sender, PointerWheelEventArgs e)
     {
-        var modifiers = Keyboard.Modifiers;
+        var modifiers = e.KeyModifiers;
 
-        if (modifiers == ModifierKeys.Control)
+        if (modifiers == KeyModifiers.Control)
         {
             // Ctrl+スクロール時
             // 横倍率を変更
 
             double zoomLevel = this.ScaleX;
 
-            if (e.Delta > 0)
+            double delta = e.Delta.Y;
+            if (delta > 0)
             {
                 // 横伸長率リストから次に大きい拡大率(拡大方向)を取得して適用する
                 this.ChangeHorizontalScale(
                     HorizontalZoomLevels.GetNextUpper(zoomLevel), e);
             }
-            else if (e.Delta < 0)
+            else if (delta < 0)
             {
                 // 横伸長率リストから次に小さい拡大率(縮小方向)を取得して適用する
                 this.ChangeHorizontalScale(
                     HorizontalZoomLevels.GetNextLower(zoomLevel), e);
             }
         }
-        else if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        else if (modifiers == (KeyModifiers.Control | KeyModifiers.Shift))
         {
             // Ctrl+Shift+スクロール時
             // 縦倍率を変更
             int currentHeight = this.KeyHeight;
-            if (e.Delta > 0)
+            double delta = e.Delta.Y;
+            if (delta > 0)
             {
                 // 横伸長率リストから次に大きい拡大率(拡大方向)を取得して適用する
                 this.ChangeKeyHeightSize(
                     KeySizes.GetNextUpper(currentHeight), e);
             }
-            else if (e.Delta < 0)
+            else if (delta < 0)
             {
                 // 横伸長率リストから次に小さい拡大率(縮小方向)を取得して適用する
                 this.ChangeKeyHeightSize(
@@ -1006,17 +1148,18 @@ public partial class PlotEditor : UserControl
             // その他のキー操作
 
             // Shiftキーが押下中なら横スクロール、それ以外なら縦スクロール
-            bool isHorizontal = modifiers == ModifierKeys.Shift;
+            bool isHorizontal = modifiers == KeyModifiers.Shift;
             var targetScrollBar = isHorizontal
                 ? this.hScrollBar1
                 : this.vScrollBar1;
 
             if (isHorizontal)
                 // 横スクロールの場合は自動スクロールを無効化
-                this.CancelAudoScroll();
+                this.CancelAutoScroll();
 
             int change = (int)targetScrollBar.LargeChange;
-            if (e.Delta > 0)
+            double delta = e.Delta.Y;
+            if (delta > 0)
             {
                 if (isHorizontal)
                 {
@@ -1029,7 +1172,7 @@ public partial class PlotEditor : UserControl
                 this.UpdateRenderContent();
                 this.RelocateSeekBars();
             }
-            else if (e.Delta < 0)
+            else if (delta < 0)
             {
                 if (isHorizontal)
                 {
@@ -1049,7 +1192,7 @@ public partial class PlotEditor : UserControl
     /// 横の拡大率を変更する
     /// </summary>
     /// <param name="newZoomLevel"></param>
-    private void ChangeHorizontalScale(double newZoomLevel, MouseEventArgs e)
+    private void ChangeHorizontalScale(double newZoomLevel, PointerEventArgs e)
     {
         double oldZoomLevel = this.ScaleX;
         if (oldZoomLevel == newZoomLevel)
@@ -1084,7 +1227,7 @@ public partial class PlotEditor : UserControl
     /// 横の拡大率を変更する
     /// </summary>
     /// <param name="newHeight"></param>
-    private void ChangeKeyHeightSize(int newHeight, MouseEventArgs e)
+    private void ChangeKeyHeightSize(int newHeight, PointerEventArgs e)
     {
         var renderLayout = this._renderLayout;
 
@@ -1183,192 +1326,20 @@ public partial class PlotEditor : UserControl
     private int _putNoteBeginTime = 0;
     private int _putNoteKeyIndex = 0;
 
-    protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
-    {
-        base.OnPreviewMouseDown(e);
+    private Point _seekMousePoint = default;
 
-        if (!this.IsFocused)
-        {
-            this.Focus();
-            Keyboard.Focus(this);
-        }
-    }
-
-    /// <summary>
-    /// マウス押下時の処理
-    /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="e"></param>
-    private void OnMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        Debug.WriteLine("Mouse down.");
-
-        var renderLayout = this._renderLayout;
-        var scaling = renderLayout.Scaling;
-        var element = (UIElement)sender;
-
-        var cursor = this._cursor;
-
-        if (e.LeftButton == MouseButtonState.Pressed)
-        {
-            Debug.WriteLine("Mouse captured.");
-            Mouse.Capture(this.SKElement);
-
-            var mousePos = this.GetPhysicalMousePosition(renderLayout, e);
-
-            if (IsWithinRuler(renderLayout, mousePos))
-            {
-                if (this._mouseMode == MouseControlMode.None)
-                {
-                    this.ChangeMouseMode(MouseControlMode.Seek);
-                    this.RelocateSeekBarForSeeking(e);
-                    e.Handled = true;
-                }
-            }
-            else if (IsWithinEditArea(renderLayout, mousePos))
-            {
-                if (this.EditMode == EditMode.ScoreAndTiming)
-                {
-                    if (this._isTimingEditable)
-                    {
-                        var rangeTimings = this._renderCommon.RangeScoreRenderInfo?.Timings;
-                        if (rangeTimings != null)
-                        {
-                            (int x, int y) = scaling.ToRenderImageScaling(mousePos.X, mousePos.Y);
-
-                            var handle = rangeTimings.FirstOrDefault(h => h.IsSelected && h.IsCollisionDetection(x, y));
-                            if (handle != null)
-                            {
-                                int idx = this._timings!.IndexOf(handle);
-
-                                this.ChangeMouseMode(MouseControlMode.EditTiming, new TimingEditingInfo(handle, handle.TimingInfo.EditedBeginTime100Ns)
-                                {
-                                    LowerTime100Ns = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.EditedBeginTime100Ns,
-                                    UpperTime100Ns = (idx == -1 || (this._timings.Count <= (idx + 1)))
-                                                                    ? null : this._timings[idx + 1].TimingInfo.EditedBeginTime100Ns,
-                                    OffsetX = x - handle.X,
-                                });
-
-                                e.Handled = true;
-                                return;
-                            }
-                        }
-                    }
-
-                    this._mouseMode = MouseControlMode.PutNote;
-                    var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
-                    this._putNoteBeginTime = this.FindJustBeforeQuantizeSnapping(renderLayout, this.GetRenderBeginTimeMs(), mousePosition);
-
-                    // キーのインデックスを計算する
-                    // (譜面の高さ + (スクロール位置 + スクロール位置 + マウス位置 - ルーラ高)) ÷ キー高
-                    this._putNoteKeyIndex = this.GetKeyIndex(renderLayout, mousePosition);
-
-                    this.RelocateNoteRectangle(e);
-                    e.Handled = true;
-                }
-                else if (this._mouseMode == MouseControlMode.None)
-                {
-                    if (this.EditMode == EditMode.AudioFeatures)
-                    {
-                        // TODO: 変更情報をマウス座標ではなく編集データの値で持つようにする
-                        var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
-
-                        var scoreArea = renderLayout.ScoreArea;
-                        var dynamicsArea = renderLayout.DynamicsArea;
-
-                        int beginTime = this.GetRenderBeginTimeMs();
-                        int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
-                        this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(adjustedTime));
-
-                        var keyboard = Keyboard.PrimaryDevice;
-                        if (keyboard.Modifiers == ModifierKeys.Shift)
-                        {
-                            // Shiftキーが押されている場合は範囲選択モードにする
-                            if (renderLayout.EditArea.IsContains(mousePosition))
-                            {
-                                cursor = Cursors.SizeWE;
-                                var editingInfo = new RangeSelectingInfo(
-                                    renderLayout.ScoreArea.IsContainsY(mousePos.Y),
-                                    adjustedTime, adjustedTime);
-                                this.ChangeMouseMode(MouseControlMode.RangeSelect, editingInfo);
-                                this._rangeSelection = editingInfo;
-                            }
-
-                            this.UpdateRenderContent();
-                            e.Handled = true;
-                        }
-                        else if (keyboard.Modifiers == ModifierKeys.Control)
-                        {
-                            // Ctrlキーが押されている場合は一括編集モードにする
-                            if (this._rangeSelection is { } select)
-                            {
-                                if (select.IsScoreArea)
-                                {
-                                    if (renderLayout.ScoreArea.IsContainsY(mousePos.Y))
-                                    {
-                                        double pitch = this.GetPitch12FromMousePosition(renderLayout, mousePosition);
-
-                                        (int a1, int a2) = select.GetOrdererRange();
-                                        this.ChangeMouseMode(MouseControlMode.EditPitchBulkSeek, new PitchSeekingInfo(a1, a2, pitch));
-
-                                        this.UpdateRenderContent();
-                                        e.Handled = true;
-                                    }
-                                }
-                                else
-                                {
-                                    if (renderLayout.HasDynamicsArea && renderLayout.DynamicsArea.IsContainsY(mousePos.Y))
-                                    {
-                                        (int a1, int a2) = select.GetOrdererRange();
-                                        double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
-                                        this.ChangeMouseMode(MouseControlMode.EditDynamicsBulkSeek, new DynamicsSeekingInfo(a1, a2, coe));
-
-                                        this.UpdateRenderContent();
-                                        e.Handled = true;
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            if (scoreArea.IsContains(mousePosition))
-                            {
-                                double pitch = this.GetPitchFromMousePosition(renderLayout, mousePosition);
-
-                                this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
-
-                                this.EditF0(adjustedTime, EnumerableUtil.ToEnumerable(pitch));
-                            }
-                            else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
-                            {
-                                double coe = this.GetDynamicsCoeFromMousePosition(renderLayout, mousePosition);
-                                double frequency = DynamicsCoeToFrequency(this.Track!, coe);
-
-                                this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
-
-                                this.EditDynamics(adjustedTime, EnumerableUtil.ToEnumerable(frequency));
-                            }
-
-                            this.UpdateRenderContent();
-                            e.Handled = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        this.SetCursor(cursor);
-    }
 
     /// <summary>
     /// マウス移動時の処理
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="e"></param>
-    private void OnMouseMove(object sender, MouseEventArgs e)
+    private void OnMouseMove(object sender, PointerEventArgs e)
     {
         // カーソル
-        var cursor = Cursors.Arrow;
+        var cursor = Cursor.Default;
+        var current = e.GetCurrentPoint(this);
+        var pressedKey = this._pressedKey;
 
         //if (e.LeftButton == MouseButtonState.Pressed
         //    || e.RightButton == MouseButtonState.Pressed
@@ -1381,6 +1352,8 @@ public partial class PlotEditor : UserControl
 
         if (this._mouseMode == MouseControlMode.Seek)
         {
+            this._seekMousePoint = e.GetCurrentPoint(this.SKElement).Position;
+
             this.RelocateSeekBarForSeeking(e);
             e.Handled = true;
         }
@@ -1429,15 +1402,14 @@ public partial class PlotEditor : UserControl
             var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
             if (renderLayout.EditArea.IsContains(mousePosition))
-                cursor = Cursors.Pen;
+                cursor = new Cursor(StandardCursorType.Arrow);
 
-            if (e.LeftButton == MouseButtonState.Pressed)
+            if (current.Properties.IsLeftButtonPressed)
             {
                 int beginTime = this.GetRenderBeginTimeMs();
                 int frameAdjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
 
                 // this.RelocateSelectionSeekBar(TimeSpan.FromMilliseconds(frameAdjustedTime));
-
 
                 var editingInfo = this._editingInfo;
                 if (editingInfo is PitchEditingInfo pitchEditing)
@@ -1506,7 +1478,7 @@ public partial class PlotEditor : UserControl
                 else if (editingInfo is RangeSelectingInfo rangeSelection)
                 {
                     // 範囲選択モード
-                    cursor = Cursors.SizeWE;
+                    cursor = new Cursor(StandardCursorType.SizeWestEast);
                     rangeSelection.UpdateEndTime(frameAdjustedTime);
                 }
                 else if (editingInfo is PitchSeekingInfo pitchSeeking)
@@ -1537,24 +1509,23 @@ public partial class PlotEditor : UserControl
                 this.UpdateRenderContent();
                 e.Handled = true;
             }
-            else if (e.LeftButton == MouseButtonState.Released)
+            else if (current.Properties.IsLeftButtonPressed)
             {
                 if (this._mouseMode == MouseControlMode.None)
                 {
                     var rangeSelection = this._rangeSelection;
                     if (rangeSelection != null)
                     {
-                        var keyboard = Keyboard.PrimaryDevice;
-                        if (keyboard.Modifiers == ModifierKeys.Control)
+                        if (pressedKey.modifiers == KeyModifiers.Control)
                         {
                             // Ctrlキーが押されている場合は一括編集モードにする
                             if (renderLayout.ScoreArea.IsContainsY(mousePosition.Y))
                             {
-                                cursor = Cursors.SizeNS;
+                                cursor = new Cursor(StandardCursorType.SizeNorthSouth);
                             }
                             else if (renderLayout.HasDynamicsArea && renderLayout.DynamicsArea.IsContainsY(mousePosition.Y))
                             {
-                                cursor = Cursors.SizeNS;
+                                cursor = new Cursor(StandardCursorType.SizeNorthSouth);
                             }
                         }
                     }
@@ -1565,7 +1536,7 @@ public partial class PlotEditor : UserControl
         {
             // this.RelocatePuttableNoteRectangle(e);
 
-            var scaling = this._renderCommon.ScreenLayout.Scaling;
+            // var scaling = this._renderCommon.ScreenLayout.Scaling;
             var renderLayout = this._renderLayout;
             var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
@@ -1592,7 +1563,7 @@ public partial class PlotEditor : UserControl
 
                         // 選択中のタイミングがある場合はカーソルを変更する
                         if (!noSelected)
-                            cursor = Cursors.SizeWE;
+                            cursor = new Cursor(StandardCursorType.SizeWestEast);
 
                         // 再描画
                         this.Redraw();
@@ -1612,13 +1583,17 @@ public partial class PlotEditor : UserControl
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="e"></param>
-    private void OnMouseUp(object sender, MouseButtonEventArgs e)
+    private void OnMouseUp(object sender, PointerReleasedEventArgs e)
     {
         //Debug.WriteLine("Mouse up.");
 
-        if (e.LeftButton == MouseButtonState.Released)
+        var current = e.GetCurrentPoint(this);
+
+        if (!current.Properties.IsLeftButtonPressed)
         {
-            this.SKElement.ReleaseMouseCapture();
+            // this.SKElement.ReleaseMouseCapture();
+            e.Pointer.Capture(null);
+
             Debug.WriteLine("Mouse released.");
 
             switch (this._mouseMode)
@@ -1676,22 +1651,17 @@ public partial class PlotEditor : UserControl
         }
     }
 
-    /// <summary>
-    /// キー押下時の処理
-    /// </summary>
-    /// <param name="e"></param>
-    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    private (KeyModifiers modifiers, Key key) _pressedKey = default;
+
+    protected override void OnKeyDown(KeyEventArgs e)
     {
+        this._pressedKey = (e.KeyModifiers, e.Key);
         Debug.WriteLine(e);
     }
 
-    /// <summary>
-    /// キーを離した時の処理
-    /// </summary>
-    /// <param name="e"></param>
-    protected override void OnPreviewKeyUp(KeyEventArgs e)
+    protected override void OnKeyUp(KeyEventArgs e)
     {
-        var keyboard = e.KeyboardDevice;
+        this._pressedKey = default;
 
         if (this.EditMode == EditMode.AudioFeatures)
         {
@@ -1701,7 +1671,7 @@ public partial class PlotEditor : UserControl
                 {
                     // ピッチ編集エリアを選択中
 
-                    if (keyboard.Modifiers == ModifierKeys.None)
+                    if (e.KeyModifiers == KeyModifiers.None)
                     {
                         (int beginTime, int endTime) = select.GetOrdererRange();
                         int lenggth = NeutrinoUtil.MsToFrameIndex(endTime - beginTime + 1);
@@ -1716,7 +1686,7 @@ public partial class PlotEditor : UserControl
                             e.Handled = true;
                         }
                     }
-                    else if (keyboard.Modifiers == ModifierKeys.Shift)
+                    else if (e.KeyModifiers == KeyModifiers.Shift)
                     {
                         (int beginTime, int endTime) = select.GetOrdererRange();
                         int lenggth = NeutrinoUtil.MsToFrameIndex(endTime - beginTime + 1);
@@ -1737,7 +1707,7 @@ public partial class PlotEditor : UserControl
         }
     }
 
-    private Cursor _cursor = Cursors.Arrow;
+    private Cursor _cursor = Cursor.Default;
     private RangeSelectingInfo? _rangeSelection;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1747,7 +1717,7 @@ public partial class PlotEditor : UserControl
             this.Cursor = this._cursor = cursor;
     }
 
-    private void RelocateSeekBarForSeeking(MouseEventArgs e)
+    private void RelocateSeekBarForSeeking(PointerEventArgs e)
     {
         var renderLayout = this._renderLayout;
         int beginTime = this.GetRenderBeginTimeMs();
@@ -1812,7 +1782,7 @@ public partial class PlotEditor : UserControl
         this.UpdateTempSelectionTime(TimeSpan.FromMilliseconds(conditionTime));
     }
 
-    private void RelocateNoteRectangle(MouseEventArgs e)
+    private void RelocateNoteRectangle(PointerEventArgs e)
     {
         var renderLayout = this._renderLayout;
         int beginTime = this.GetRenderBeginTimeMs();
@@ -1856,7 +1826,7 @@ public partial class PlotEditor : UserControl
         element.Width = width + 1;
         element.Height = (int)scaling.ToScaled(renderLayout.PhysicalKeyHeight) + 1;
 
-        element.Visibility = Visibility.Visible;
+        element.IsVisible = true;
     }
 
     private int FindJustBeforeQuantizeSnapping(EditorRenderLayout renderLayout, int beginTime, LayoutPoint mousePosition)
@@ -2314,75 +2284,6 @@ public partial class PlotEditor : UserControl
     private static bool IsWithinEditArea(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
         => renderLayout.EditArea.IsContainsY(mousePosition.Y);
 
-    private static string GetLyrics(ScoreInfo score)
-        => string.Concat(score.Notes.Select(i => i.Lyrics.Length > 1 ? $"({i.Lyrics})" : i.Lyrics));
-
-    private void OnLyricsTextBoxChanged(object sender, TextChangedEventArgs e)
-    {
-    }
-
-    private void OnLyricsTextBoxSelectionChanged(object sender, RoutedEventArgs e)
-    {
-        var trackScoreInfo = this._trackScoreInfo;
-        if (trackScoreInfo is null)
-            return;
-
-        var textBox = (sender as TextBox)!;
-
-        var text = textBox.Text ?? string.Empty;
-        int selection = textBox.SelectionStart + textBox.SelectionLength;
-
-        int bracketNestCount = 0;
-
-        var node = trackScoreInfo.Score.Notes.First!;
-
-        // 選択中の文字位置からどの(何番目の)音符にあたるかを走査する
-        for (int idx = 0; idx < text.Length && idx < selection && node.Next is not null; ++idx)
-        {
-            char @char = text[idx];
-            if (IsIgnoreLyricsCharacter(ref @char))
-                continue;
-
-            if (IsBracketStart(ref @char))
-            {
-                ++bracketNestCount;
-            }
-            else if (IsBracketEnd(ref @char))
-            {
-                --bracketNestCount;
-
-                if (bracketNestCount < 0)
-                    break;
-                else if (bracketNestCount == 0)
-                    node = node.Next;
-            }
-            else if (bracketNestCount == 0)
-                node = node.Next;
-        }
-
-        var note = node.Value;
-
-        // TODO: 暫定実装
-        // 音符の位置にシークバーを移動させる。
-        bool tempAutoScroll = this.IsAutoScroll;
-        this.IsAutoScroll = true;
-        this.UpdateTempSelectionTime(TimeSpan.FromMilliseconds(note.BeginTime));
-        if (!tempAutoScroll)
-            this.IsAutoScroll = tempAutoScroll;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsIgnoreLyricsCharacter(ref char @char)
-        => @char == ' ' || @char == '　';
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsBracketStart(ref char @char)
-        => @char == '(' || @char == '（';
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsBracketEnd(ref char @char)
-        => @char == ')' || @char == '）';
-
     /// <summary>
     /// 指定の要素数(<paramref name="length"/>)で<paramref name="begin"/>から<paramref name="end"/>までの等差数列を生成する。
     /// </summary>
@@ -2401,19 +2302,16 @@ public partial class PlotEditor : UserControl
             yield return (delta * T.CreateChecked(idx) / coe) + begin;
     }
 
-    private static LayoutPoint ToUnscaled(RenderScaleInfo scaling, Point point)
-        => new((int)scaling.ToUnscaled(point.X), (int)scaling.ToUnscaled(point.Y));
-
     private static LayoutPoint ToUnscaled(RenderScaleInfo scaling, ref Point point)
         => new((int)scaling.ToUnscaled(point.X), (int)scaling.ToUnscaled(point.Y));
 
     private LayoutPoint GetPhysicalMousePosition(EditorRenderLayout renderLayout)
     {
-        var position = Mouse.GetPosition(this.SKElement);
+        var position = this._seekMousePoint;
         return ToUnscaled(renderLayout.Scaling, ref position);
     }
 
-    private LayoutPoint GetPhysicalMousePosition(EditorRenderLayout renderLayout, MouseEventArgs e)
+    private LayoutPoint GetPhysicalMousePosition(EditorRenderLayout renderLayout, PointerEventArgs e)
     {
         var position = e.GetPosition(this.SKElement);
         return ToUnscaled(renderLayout.Scaling, ref position);
@@ -2430,11 +2328,51 @@ public partial class PlotEditor : UserControl
     /// <summary>
     /// 自動スクロールを無効にする。
     /// </summary>
-    public void CancelAudoScroll()
+    public void CancelAutoScroll()
     {
         if (this.IsAutoScroll)
         {
             this.IsAutoScroll = false;
         }
+    }
+
+    /// <summary>内部の編集シークバーの選択位置</summary>
+    public TimeSpan _tempSelectionTime;
+
+    private void UpdateTempSelectionTime(TimeSpan selectionTime)
+    {
+        this._tempSelectionTime = selectionTime;
+        this.RelocateSelectionSeekBar(selectionTime);
+    }
+
+    private void OnTrackFeatureChanged(object? sender, EventArgs e) => Dispatcher.UIThread.InvokeAsync(() =>
+    {
+        // 再描画
+        this.UpdateRenderContent();
+    }
+    , DispatcherPriority.Render);
+
+    private void OnTrackTimingEstimated(object? sender, EventArgs e) => Dispatcher.UIThread.InvokeAsync(() =>
+    {
+        // 再描画
+        this.LoadTiming();
+    }
+    , DispatcherPriority.Normal);
+
+    /// <summary>
+    /// 内部的に保持している横伸長率を更新する
+    /// </summary>
+    /// <param name="newScale"></param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool UpdateInternalScaleX(double newScale)
+    {
+        if (this._tempScaleX == newScale)
+        {
+            return false;
+        }
+
+        this._tempScaleX = newScale;
+        return true;
     }
 }

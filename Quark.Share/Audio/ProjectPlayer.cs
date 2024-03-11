@@ -9,7 +9,7 @@ public class ProjectPlayer : IDisposable
     private readonly AudioTrackMixer _mixer;
     private IWavePlayer? _device;
 
-    public EventHandler<StoppedEventArgs> PlaybackStopped;
+    public EventHandler<StoppedEventArgs>? PlaybackStopped;
 
     internal ProjectPlayer(Project project)
     {
@@ -71,4 +71,7 @@ public class ProjectPlayer : IDisposable
     {
         this._device?.Pause();
     }
+
+    public TimeSpan CurrentTime
+        => this._mixer.CurrnetTime;
 }

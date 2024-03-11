@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:Quark.Controls"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Quark.Controls.PlotEditor">
+    <Grid>
+        <Grid ColumnDefinitions="*, Auto" RowDefinitions="*, Auto, Auto">
+
+            <controls:RenderPanel x:Name="SKElement"
+                    PointerWheelChanged="OnScoreMouseWheel"
+                    PointerPressed="OnMouseDown" PointerMoved="OnMouseMove" PointerReleased="OnMouseUp" />
+
+            <!--編集用シークバー-->
+            <!--
+            <controls:IsolatedSeekBar
+                x:Name="PART_SelectionTime"
+                Width="3" Background="#FFFF2222" 
+                BorderThickness="1,0" BorderBrush="#66FFFFFF"
+                Owner="{Binding $parent[Window], Mode=OneTime}" />-->
+
+            <!--描画内容より上に表示する要素-->
+            <Canvas IsHitTestVisible="False">
+                <!--編集用シークバー-->
+                <Border x:Name="PART_SeekBar"
+                     Width="3" IsVisible="False"
+                     Background="#FFFF2222" BorderBrush="#66FFFFFF"
+                     BorderThickness="1,0" />
+            </Canvas>
+
+            <Rectangle x:Name="PART_Rectangle" Stroke="Blue" StrokeThickness="1"
+                       Margin="0,40,0,0"
+                       VerticalAlignment="Top" HorizontalAlignment="Left"
+                       Width="120" Height="40"
+                       IsHitTestVisible="False" />
+
+            <ScrollBar x:Name="vScrollBar1" Grid.Column="1" Grid.Row="0" Orientation="Vertical" Scroll="OnVScroll" />
+            <ScrollBar x:Name="hScrollBar1" Grid.Column="0" Grid.Row="2" Orientation="Horizontal" Scroll="OnHScroll" />
+        </Grid>
+    </Grid>
+</UserControl>

@@ -4,60 +4,146 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:Quark.Views"
+        xmlns:i="using:Avalonia.Xaml.Interactivity"
+        xmlns:ia="using:Avalonia.Xaml.Interactions.Core"
+        xmlns:conv="using:Quark.Converters"
+        xmlns:controls="using:Quark.Controls"
         mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="320"
         x:Class="Quark.Views.MainWindow"
-        Title="Quark"
+        Title="{Binding Title, Mode=OneWay}"
         xmlns:behavior="using:Quark.Behaviors"
         x:DataType="vm:MainWindowViewModel"
         behavior:ViewModelLocator.Type="{x:Type vm:MainWindowViewModel}"
         behavior:ViewModelLocator.DisposeDataContextOnWindowClosed="True"
         FontFamily="Meiryo">
-    <Grid>
+  <Window.Resources>
+    <conv:TimeSpanFormatConverter x:Key="TimeSpanConverter" />
+  </Window.Resources>
+  <Window.KeyBindings>
+    <!-- 再生／停止 スペース単押し -->
+    <KeyBinding Gesture="Space" Command="{Binding ProjectViewModel.TogglePlayCommand, Mode=OneTime}" />
+       <!-- 再生／停止 スペース単押し -->
+    <KeyBinding Gesture="Shift+Space" Command="{Binding ProjectViewModel.TogglePlayResumeCommand, Mode=OneTime}" />
+  </Window.KeyBindings>
+  <Grid>
 
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
 
-        <Menu Grid.Row="0">
-            <MenuItem Header="ファイル(_F)">
-                <MenuItem Header="新しいプロジェクト">
-                    <MenuItem Header="MusicXMLから作成(_M)" InputGesture="Ctrl+Shift+M" />
-                </MenuItem>
-                <MenuItem Header="開く(_O)" InputGesture="Ctrl+O" />
-                <Separator />
-                <MenuItem Header="保存(_S)" InputGesture="Ctrl+S" />
-                <Separator />
-                <MenuItem Header="終了(_X)" InputGesture="Alt+F4" />
-            </MenuItem>
+    <Menu Grid.Row="0">
+      <MenuItem Header="ファイル(_F)">
+        <MenuItem Header="新しいプロジェクト">
+          <MenuItem Header="MusicXMLから作成(_M)" InputGesture="Ctrl+Shift+M" />
+        </MenuItem>
+        <MenuItem Header="開く(_O)" InputGesture="Ctrl+O"
+                  Command="{Binding SelectProjectFileCommand, Mode=OneTime}" />
+        <Separator />
+        <MenuItem Header="保存(_S)" InputGesture="Ctrl+S" />
+        <Separator />
+        <MenuItem Header="終了(_X)" InputGesture="Alt+F4" />
+      </MenuItem>
 
-            <MenuItem Header="プロジェクト(_P)">
-                <MenuItem Header="音声トラックを追加／変更する" />
-                <MenuItem Header="音声トラックを削除する" />
-                <Separator />
-                <MenuItem Header="トラックの音声を出力する" />
-            </MenuItem>
+      <MenuItem Header="プロジェクト(_P)">
+        <MenuItem Header="音声トラックを追加／変更する" />
+        <MenuItem Header="音声トラックを削除する" />
+        <Separator />
+        <MenuItem Header="トラックの音声を出力する" />
+      </MenuItem>
 
-            <MenuItem Header="ツール(_T)">
-                <MenuItem Header="オプション(_O)" Command="{Binding ShowPreferenceWindowCommand, Mode=OneTime}" />
-            </MenuItem>
-        </Menu>
+      <MenuItem Header="ツール(_T)">
+        <MenuItem Header="オプション(_O)" Command="{Binding OpenSettingWindowCommand, Mode=OneTime}" />
+      </MenuItem>
+    </Menu>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal">
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Background="{DynamicResource Theme.Menu.BackgroundBrush}">
 
-            <Button />
-            <Button />
-            <Button />
-            <Button />
-            <Button />
+      <!--  歌声 -->
+      <Label Content="歌声:" VerticalAlignment="Center" />
+      <TextBlock VerticalAlignment="Center" Width="140"
+                 TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                 Text="{Binding TrackViewModel.Singer.DetailName, Mode=OneWay}" />
 
-        </StackPanel>
+      <Separator />
 
-        <Panel>
+      <!-- クオンタイズ値 -->
+      <Label Content="Quantize" VerticalAlignment="Center" />
+      <ComboBox Width="80" Margin="3" Padding="3,2"
+                VerticalAlignment="Center"
+                ItemsSource="{Binding Quantizes, Mode=OneTime}"
+                SelectedValue="{Binding SelectedQuantize, Mode=TwoWay}"
+                SelectedValueBinding="{Binding Value, Mode=OneWay}"
+                DisplayMemberBinding="{Binding Description, Mode=OneWay}" />
 
-        </Panel>
+      <Button Content="Play" Command="{Binding ProjectViewModel.PlayCommand, Mode=OneTime}" VerticalAlignment="Center" />
+      <Button Content="Stop" Command="{Binding ProjectViewModel.StopCommand, Mode=OneTime}" VerticalAlignment="Center" />
+      <Button Content="Stop(Back)" Command="{Binding ProjectViewModel.StopRestoreCommand, Mode=OneTime}" VerticalAlignment="Center" />
+      <!--<ToggleButton Content="Scroll" IsChecked="{Binding Path=IsAutoScroll, ElementName=PloatEditor1, Mode=TwoWay}" />-->
+      <Separator />
+      <Label Content="{Binding ProjectViewModel.SelectionTime, Mode=OneWay, Converter={StaticResource TimeSpanConverter}}"
+             VerticalAlignment="Center" Width="100" />
+      <Label Content="{Binding ProjectViewModel.PlayingTime, Mode=OneWay, Converter={StaticResource TimeSpanConverter}}"
+             VerticalAlignment="Center" Width="100" />
+      <Separator />
+      <Label Content="編集モード：" VerticalAlignment="Center" />
+      <ComboBox Width="130" Margin="3" Padding="3,2" VerticalAlignment="Center"
+                SelectedValue="{Binding SelectedEditMode, Mode=TwoWay}"
+                ItemsSource="{Binding EditModes, Mode=OneTime}"
+                SelectedValueBinding="{Binding Value, Mode=OneWay}"
+                DisplayMemberBinding="{Binding Description, Mode=OneWay}" />
+    </StackPanel>
+
+    <Grid Grid.Row="2">
+
+      <controls:PlotEditor
+          Name="Editor"
+          Focusable="True" IsTabStop="True" TabIndex="0"
+          IsAutoScroll="True" IsQuantizeSnapping="True" ScaleX="0.1"
+          Track="{Binding TrackViewModel.Track, Mode=OneWay}"
+          IsPlayMode="{Binding ProjectViewModel.IsPlaying, Mode=TwoWay}"
+          PlayingTime="{Binding ProjectViewModel.PlayingTime, Mode=TwoWay}"
+          SelectionTime="{Binding ProjectViewModel.SelectionTime, Mode=TwoWay}"
+          Quantize="{Binding SelectedQuantize, Mode=OneWay}"
+          EditMode="{Binding SelectedEditMode, Mode=OneWay}" />
 
     </Grid>
+
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto">
+      <StackPanel Grid.Column="2" Orientation="Horizontal">
+        <CheckBox
+            Padding="4"
+            VerticalAlignment="Bottom"
+            HorizontalAlignment="Left"
+            Cursor="Hand"
+            Content="追従"
+            IsChecked="{Binding Path=IsAutoScroll, ElementName=Editor, Mode=TwoWay}" />
+
+        <CheckBox
+            Padding="4"
+            VerticalAlignment="Bottom"
+            HorizontalAlignment="Left"
+            Cursor="Hand"
+            Content="スナップ"
+            IsChecked="{Binding ElementName=Editor, Path=IsQuantizeSnapping, Mode=TwoWay}" />
+
+        <!--<TextBlock Grid.Column="2" IsHitTestVisible="False"
+                          Text="{Binding SelectionTime, ElementName=PloatEditor1, StringFormat='{}{0:hh\\:mm\\:ss\\.fff}', Mode=OneWay}"
+                          d:Text="00:00:00.000"
+                          VerticalAlignment="Center" Margin="12,0" />-->
+
+        <Label Content="横倍率: " VerticalAlignment="Center" />
+        <ComboBox Grid.Column="3" Width="100" VerticalAlignment="Center"
+                  SelectedValue="{Binding ElementName=Editor, Path=ScaleX, Mode=TwoWay}"
+                  ItemsSource="{x:Static controls:PlotEditor.HorizontalZoomLevels}" />
+
+        <Label Content="縦倍率: " VerticalAlignment="Center" />
+        <ComboBox Grid.Column="4" Width="100" VerticalAlignment="Center"
+                  SelectedValue="{Binding ElementName=Editor, Path=KeyHeight, Mode=TwoWay}"
+                  ItemsSource="{x:Static controls:PlotEditor.KeySizes}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
 </Window>

@@ -1,4 +1,5 @@
-﻿using Quark.Data.Project;
+﻿using Quark.Audio;
+using Quark.Data.Project;
 using Quark.Factories;
 using Quark.Services;
 using Quark.Utils;
@@ -7,7 +8,7 @@ namespace Quark.Projects;
 
 internal class Project
 {
-    public event EventHandler Estimated;
+    public event EventHandler? Estimated;
 
     public string? ProjectFilePath { get; private set; }
 
@@ -20,21 +21,25 @@ internal class Project
 
     public TrackCollection Tracks { get; }
 
+    public ProjectPlayer Player { get; }
+
     public Project(string name, ProjectSessionFactory sessionFactory)
     {
+        this.Name = name;
         this.Session = sessionFactory.Create(this);
         this.Tracks = new(this, this.Session);
-        this.Name = name;
+        this.Player = new(this);
 
         this.Session.BeginSession();
     }
 
     public Project(string projDir, ProjectConfig composition, ProjectSessionFactory sessionFactory)
     {
+        this.Name = composition.Name;
         this.ProjectFilePath = projDir;
         this.Session = sessionFactory.Create(this);
-        this.Name = composition.Name;
         this.Tracks = new(this, this.Session);
+        this.Player = new(this);
         this.Tracks.Load(composition.Tracks);
 
         this.Session.BeginSession();

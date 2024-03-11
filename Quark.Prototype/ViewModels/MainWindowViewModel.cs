@@ -596,7 +596,7 @@ internal class MainWindowViewModel : ViewModelBase, IProgress<ProgressReport>
     private void OnMonitoringTimerTicked(object? sender, EventArgs e)
     {
         if (this.CurrentTrack?.AudioStream is { } stream)
-        {
+        { 
             int millis = Math.Max(0, (int)(stream.Position / (stream.OriginalWaveFormat.AverageBytesPerSecond / 1000d)) - Latency);
             this.PlayingTime = TimeSpan.FromMilliseconds(millis);
         }

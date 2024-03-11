@@ -4,10 +4,10 @@ using Quark.Services;
 using Quark.Data.Settings;
 using Quark.DependencyInjection;
 using Quark.Components;
-using System.Collections.Generic;
-using System;
-using System.Diagnostics;
 using Quark.UI.Mvvm;
+using System.ComponentModel;
+using System.Windows.Input;
+using System.Collections.Immutable;
 
 namespace Quark.ViewModels;
 
@@ -93,7 +93,7 @@ internal partial class PreferenceWindowViewModel : ViewModelBase, IDialogService
     [ObservableProperty]
     private bool _useBulkEstimate;
 
-    public ItemValueViewModel<EstimateMode>[] EstimateModeNames { get; } = [
+    public ImmutableArray<ItemValueViewModel<EstimateMode>> EstimateModeNames { get; } = [
         new(EstimateMode.Fast, "速度優先"),
         new(EstimateMode.Quality, "品質優先"),
     ];
@@ -101,7 +101,7 @@ internal partial class PreferenceWindowViewModel : ViewModelBase, IDialogService
     [ObservableProperty]
     private EstimateMode _estimateMode;
 
-    public ItemValueViewModel<SynthesisMode>[] SynthesisModeNames { get; } = [
+    public ImmutableArray<ItemValueViewModel<SynthesisMode>> SynthesisModeNames { get; } = [
         new(SynthesisMode.MostFast, "速度優先(最速)"),
         new(SynthesisMode.Fast, "速度優先"),
         new(SynthesisMode.Quality, "品質優先"),
@@ -109,4 +109,14 @@ internal partial class PreferenceWindowViewModel : ViewModelBase, IDialogService
 
     [ObservableProperty]
     private SynthesisMode _synthesisMode;
+
+    private ICommand? _closeCommand;
+    public ICommand ClosingCommand => this._closeCommand ??= this.AddCommand<CancelEventArgs>(a =>
+    {
+        // 設定情報を反映
+        this.ApplyToSettings();
+
+        // 設定情報を保存
+        this._settingService.Save();
+    });
 }

@@ -9,6 +9,9 @@ namespace Quark.Projects;
 
 public class AudioTrackMixer : ISampleProvider
 {
+    /// <summary>読み取った音声のバイト数</summary>
+    private long _readBytes;
+
     private readonly TrackCollection _tracks;
 
     private readonly MixingSampleProvider _mixer;
@@ -106,12 +109,10 @@ public class AudioTrackMixer : ISampleProvider
     public void Seek(TimeSpan time)
     {
         double timeMs = time.TotalMilliseconds;
+        Interlocked.Exchange(ref this._readBytes, (long)(this.WaveFormat.AverageBytesPerSecond / 1000d * timeMs));
 
-        var tracks = this.EnumerateAudioTracks();
-        foreach (var track in tracks)
-        {
+        foreach (var track in this.EnumerateAudioTracks())
             track.AudioStream.Seek(timeMs);
-        }
     }
 
     private static void AddOrUpdate<TKey, TValue>(IDictionary<TKey, TValue> sampleProviders, TKey key, TValue value)
@@ -130,7 +131,12 @@ public class AudioTrackMixer : ISampleProvider
     /// <param name="count">バッファの書込みデータ数</param>
     /// <returns></returns>
     public int Read(float[] buffer, int offset, int count)
-        => this._mixer.Read(buffer, offset, count);
+    {
+        int length = this._mixer.Read(buffer, offset, count);
+        // バイト数に換算する
+        Interlocked.Add(ref this._readBytes, length * sizeof(float));
+        return length;
+    }
 
     private static IEnumerable<IAudioTrack> EnumerateAudioTracks(IList tracks)
         => tracks.OfType<IAudioTrack>();
@@ -138,4 +144,8 @@ public class AudioTrackMixer : ISampleProvider
     private IEnumerable<IAudioTrack> EnumerateAudioTracks()
         => this._tracks.OfType<IAudioTrack>();
 
+    /// <summary>現在の再生時間を取得する</summary>
+    /// <remarks>読み取りが完了した尺</remarks>
+    public TimeSpan CurrnetTime => TimeSpan.FromMilliseconds(
+        this._readBytes / (this.WaveFormat.AverageBytesPerSecond / 1000d));
 }

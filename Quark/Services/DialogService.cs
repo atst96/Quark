@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO.IsolatedStorage;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -37,22 +39,72 @@ public class DialogService
     private IStorageProvider GetStorageProvider()
         => this._window?.StorageProvider ?? throw new Exception("StorageProvider not found.");
 
-    public async Task<string?> SelectFolderAsync(string? title = null, string? startupFolder = null)
+    private static Task<IStorageFolder?> GetFolder(IStorageProvider storageProvider, string? path)
+    {
+        if (path == null)
+            return Task.FromResult<IStorageFolder?>(null);
+
+        return storageProvider.TryGetFolderFromPathAsync(path);
+    }
+
+    private static string? GetSingleLocalPath<T>(IReadOnlyList<T>? item)
+        where T : IStorageItem
+    {
+        // TODO: IStorageItemの解放は必要?
+        return item?.FirstOrDefault()?.TryGetLocalPath();
+    }
+
+    public async Task<string?> SelectFolderAsync(string? title = null, string? initialDirectory = null)
     {
         var storageProvider = this.GetStorageProvider();
-        var startupFolder2 = startupFolder == null
-            ? null
-            : await storageProvider.TryGetFolderFromPathAsync(startupFolder).ConfigureAwait(false);
+        var startupLocation = await GetFolder(storageProvider, initialDirectory).ConfigureAwait(false);
 
 
         var result = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = title,
             AllowMultiple = false,
-            SuggestedStartLocation = startupFolder2,
+            SuggestedStartLocation = startupLocation,
         })
         .ConfigureAwait(false);
 
-        return result?.FirstOrDefault()?.TryGetLocalPath();
+        return GetSingleLocalPath(result);
+    }
+
+    public async Task<string?> SelectOpenFileAsync(string? title = null, IReadOnlyList<FilePickerFileType>? fileTypeFilters = null, string? initialDirectory = null)
+    {
+        var storageProvider = this.GetStorageProvider();
+        var startupLocation = await GetFolder(storageProvider, initialDirectory).ConfigureAwait(false);
+
+        var result = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            SuggestedStartLocation = startupLocation,
+            FileTypeFilter = fileTypeFilters,
+
+        })
+        .ConfigureAwait(false);
+
+        return GetSingleLocalPath(result);
+    }
+
+    public async Task<string?> SelectSaveFileAsync(string? title = null, IReadOnlyList<FilePickerFileType>? fileTypeFilters = null, string? initialDirectory = null)
+    {
+        var storageProvider = this.GetStorageProvider();
+        var startupLocation = await GetFolder(storageProvider, initialDirectory).ConfigureAwait(false);
+
+
+        var result = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            SuggestedStartLocation = startupLocation,
+            FileTypeFilter = fileTypeFilters,
+
+        })
+        .ConfigureAwait(false);
+
+        return GetSingleLocalPath(result);
     }
 }

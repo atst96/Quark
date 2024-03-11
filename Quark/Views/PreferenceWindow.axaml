@@ -2,7 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:i="clr-namespace:Avalonia.Xaml.Interactivity;assembly=Avalonia.Xaml.Interactivity"
+        xmlns:i="using:Avalonia.Xaml.Interactivity"
+        xmlns:ia="using:Avalonia.Xaml.Interactions.Core"
         xmlns:vm="using:Quark.ViewModels"
         xmlns:behavior="using:Quark.Behaviors"
         mc:Ignorable="d"
@@ -14,7 +15,11 @@
         WindowStartupLocation="CenterOwner" CanResize="False"  ShowInTaskbar="False"
         xmlns:qcomponent="using:Quark.Components"
         FontFamily="Meiryo UI">
-
+    <i:Interaction.Behaviors>
+        <ia:EventTriggerBehavior EventName="Closing">
+            <ia:InvokeCommandAction Command="{Binding ClosingCommand, Mode=OneTime}" />
+        </ia:EventTriggerBehavior>
+    </i:Interaction.Behaviors>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="120" />
@@ -80,11 +85,10 @@
 
                         <TextBlock Text="推論処理" VerticalAlignment="Center" />
                         <ComboBox Grid.Column="1" Width="180"
-                            x:CompileBindings="False"
                             ItemsSource="{Binding EstimateModeNames, Mode=OneTime}"
                             SelectedValue="{Binding EstimateMode, Mode=TwoWay}"
-                            SelectedValueBinding="{Binding Value}"
-                            DisplayMemberBinding="{Binding Description}"/>
+                            SelectedValueBinding="{Binding Value, Mode=OneWay}"
+                            DisplayMemberBinding="{Binding Description, Mode=OneWay}"/>
                     </Grid>
 
                     <Grid Margin="0,2">
@@ -96,11 +100,10 @@
                         <TextBlock Text="音声再生" VerticalAlignment="Center" />
                         <ComboBox
                             Grid.Column="1" Width="180"
-                            x:CompileBindings="False"
                             ItemsSource="{Binding SynthesisModeNames, Mode=OneTime}"
                             SelectedValue="{Binding SynthesisMode, Mode=TwoWay}"
-                            SelectedValueBinding="{Binding Value}"
-                            DisplayMemberBinding="{Binding Description}"/>
+                            SelectedValueBinding="{Binding Value, Mode=OneWay}"
+                            DisplayMemberBinding="{Binding Description, Mode=OneWay}"/>
                         </Grid>
                     <TextBlock Margin="0,8,0,2" Foreground="Gray" FontSize="11" TextWrapping="Wrap"
                                Text="推論処理の品質に[速度優先]を選択した場合、編集モード切り替え時に品質優先で再推論が行われます。" />
