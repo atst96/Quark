@@ -1,0 +1,87 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:i="using:Avalonia.Xaml.Interactivity"
+        xmlns:ia="using:Avalonia.Xaml.Interactions.Core"
+        xmlns:behavior="using:Quark.Behaviors"
+        xmlns:vm="clr-namespace:Quark.ViewModels"
+        mc:Ignorable="d"
+        x:Class="Quark.Views.MusicXMLImportWindow"
+        Title="MusicXMLImportWindow"
+        x:DataType="vm:MusicXMLImportWindowViewModel"
+        behavior:ViewModelLocator.DisposeDataContextOnWindowClosed="True"
+        FontFamily="Meiryo" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner" Height="360" Width="450"
+        KeyboardNavigation.TabOnceActiveElement="{Binding ElementName=PART_ProjectNameTextBox, Mode=OneTime}">
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+        <Border Background="{DynamicResource ToolBar.Background}"
+                BorderThickness="0,1,0,0" BorderBrush="{DynamicResource ToolBar.BorderBrush}">
+            <StackPanel Margin="6,4">
+                <TextBlock
+                    Margin="2"
+                    Text="{Binding FileName, StringFormat={}ファイル名: {0}, Mode=OneTime}"
+                    ToolTip.Tip="{Binding FilePath, Mode=OneTime}"
+                    TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="12,12,12,0">
+            <TextBlock Margin="4" Text="プロジェクト名:" FontWeight="Bold" Foreground="#888" />
+            <TextBox x:Name="PART_ProjectNameTextBox" TabIndex="0" Margin="4" Text="{Binding ProjectName, Mode=TwoWay}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Margin="12,0,12,12">
+            <TextBlock Margin="4" Text="インポートするパート:" FontWeight="Bold" Foreground="#888" />
+            <ComboBox Margin="4" ItemsSource="{Binding Parts, Mode=OneTime}" SelectedItem="{Binding SelectedPart, Mode=TwoWay}" TabIndex="1">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PartSelectInfo">
+                        <Grid ColumnDefinitions="60,*">
+                            <TextBlock Text="{Binding No, Mode=OneTime, StringFormat='{}パート{0}: '}" />
+                            <TextBlock Grid.Column="1" Text="{Binding PartName}" />
+                        </Grid>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </StackPanel>
+
+        <Border Grid.Row="3" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource ToolBar.BorderBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="8,12" IsVisible="{Binding IsEditPartPanelVisible, Mode=OneWay}"
+                      RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*">
+
+                    <TextBlock Text="トラック名: " VerticalAlignment="Center" HorizontalAlignment="Right" />
+                    <TextBox Grid.Column="1" Margin="4" Text="{Binding SelectedPart.TrackName, Mode=TwoWay}" TabIndex="2">
+                        <i:Interaction.Behaviors>
+                            <ia:EventTriggerBehavior EventName="TextChanged">
+                                <ia:InvokeCommandAction Command="{Binding OnInputParameterUpdatedCommand, Mode=OneTime}" />
+                            </ia:EventTriggerBehavior>
+                        </i:Interaction.Behaviors>
+                    </TextBox>
+
+                    <TextBlock Grid.Row="1" Text="歌声: " VerticalAlignment="Center" HorizontalAlignment="Right" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" Margin="4" TabIndex="3"
+                              ItemsSource="{Binding Models, Mode=OneWay}" SelectedItem="{Binding SelectedPart.Singer, Mode=TwoWay}"
+                              DisplayMemberBinding="{Binding DetailName, Mode=OneWay}">
+                        <i:Interaction.Behaviors>
+                            <ia:EventTriggerBehavior EventName="SelectionChanged">
+                                <ia:InvokeCommandAction Command="{Binding OnInputParameterUpdatedCommand, Mode=OneTime}" />
+                            </ia:EventTriggerBehavior>
+                        </i:Interaction.Behaviors>
+                    </ComboBox>
+                </Grid>
+
+                <StackPanel Margin="4" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Margin="4" Width="120" Content="インポート" Classes="Primary" Command="{Binding CompleteCommand, Mode=OneTime}" IsDefault="True" TabIndex="4" />
+                    <Button Margin="4" Width="80" Content="閉じる" IsCancel="True" TabIndex="5" />
+                </StackPanel>
+            </Grid>
+
+        </Border>
+    </Grid>
+</Window>

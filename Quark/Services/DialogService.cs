@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.IO.IsolatedStorage;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Controls.Chrome;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Quark.DependencyInjection;
+using Quark.ViewModels;
 using Quark.Views;
 
 namespace Quark.Services;
@@ -107,4 +106,30 @@ public class DialogService
 
         return GetSingleLocalPath(result);
     }
+
+    internal Task ImportMusicXmlAsync(MusicXMLImportWindowViewModel viewModel)
+        => Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            var owner = this._window!;
+
+            viewModel.DialogService.SetOwner(owner);
+
+            Window? window = null;
+            try
+            {
+                window = new MusicXMLImportWindow()
+                {
+                    DataContext = viewModel
+                };
+
+                viewModel.DialogService.SetOwner(window);
+
+                await window.ShowDialog(owner).ConfigureAwait(false);
+            }
+            finally
+            {
+                if (window != null)
+                    viewModel.DialogService.UnregisterOwner(window);
+            }
+        });
 }

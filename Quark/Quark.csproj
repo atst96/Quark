@@ -36,6 +36,7 @@
 
   <ItemGroup>
     <Watch Remove="Controls\PlotEditor.axaml" />
+    <Watch Remove="Views\MusicXMLImportWindow.axaml" />
   </ItemGroup>
 
   <ItemGroup>
