@@ -9,7 +9,7 @@
         <Grid ColumnDefinitions="*, Auto" RowDefinitions="*, Auto, Auto">
 
             <controls:RenderPanel x:Name="SKElement"
-                    PointerWheelChanged="OnScoreMouseWheel"
+                    PointerWheelChanged="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
                     PointerPressed="OnMouseDown" PointerMoved="OnMouseMove" PointerReleased="OnMouseUp" />
 
             <!--編集用シークバー-->
