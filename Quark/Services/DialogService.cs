@@ -132,4 +132,9 @@ public class DialogService
                     viewModel.DialogService.UnregisterOwner(window);
             }
         });
+
+    public void Close()
+    {
+        this._window?.Close();
+    }
 }

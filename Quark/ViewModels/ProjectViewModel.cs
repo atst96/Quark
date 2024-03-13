@@ -11,7 +11,7 @@ namespace Quark.ViewModels;
 
 internal class ProjectViewModel : ViewModelBase
 {
-    private readonly TrackViewModelFactory _trackViewModelFactory;
+    private readonly ViewModelFactory _viewModelFactory;
 
     /// <summary>プロジェクト</summary>
     public Project Project { get; }
@@ -20,9 +20,9 @@ internal class ProjectViewModel : ViewModelBase
 
     private readonly DispatcherTimer _playerTimer;
 
-    public ProjectViewModel(TrackViewModelFactory trackViewModelFactory, Project project)
+    public ProjectViewModel(ViewModelFactory viewModelFactory, Project project)
     {
-        this._trackViewModelFactory = trackViewModelFactory;
+        this._viewModelFactory = viewModelFactory;
         this.Project = project;
         this._player = project.Player;
         this._playerTimer = new(
@@ -72,7 +72,7 @@ internal class ProjectViewModel : ViewModelBase
     public Command PlayCommand => this._playCommand ??= this.AddCommand(() => this.StartPlayer());
 
 
-    private Command _togglePlayCommand;
+    private Command? _togglePlayCommand;
     public Command TogglePlayCommand => this._togglePlayCommand ??= this.AddCommand(() =>
     {
         var player = this._player;
@@ -83,7 +83,7 @@ internal class ProjectViewModel : ViewModelBase
             this.StopPlayer(false);
     });
 
-    private Command _togglePlayResumeCommand;
+    private Command? _togglePlayResumeCommand;
     public Command TogglePlayResumeCommand => this._togglePlayResumeCommand ??= this.AddCommand(() =>
     {
         if (this._player is { } player)
@@ -174,10 +174,7 @@ internal class ProjectViewModel : ViewModelBase
 
     public void SelectTrack(INeutrinoTrack track)
     {
-        if (track is NeutrinoV1Track v1Track)
-            this.SelectedTrack = this._trackViewModelFactory.GetViewModel(v1Track);
-        else if (track is NeutrinoV2Track v2Track)
-            this.SelectedTrack = this._trackViewModelFactory.GetViewModel(v2Track);
+        this.SelectedTrack = this._viewModelFactory.GetTrackViewModel(track);
     }
 
     /// <summary>

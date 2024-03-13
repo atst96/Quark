@@ -45,6 +45,9 @@ internal class Project
         this.Session.BeginSession();
     }
 
+    public bool IsNewFile()
+        => this.ProjectFilePath is null;
+
     public void SaveToFile(string? filePath = null, bool overrideFielPath = true)
     {
         var projPath = filePath ?? this.ProjectFilePath;

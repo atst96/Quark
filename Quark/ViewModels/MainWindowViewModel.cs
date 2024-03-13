@@ -3,7 +3,8 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using Avalonia.Platform.Storage;
+using Avalonia.Controls;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
@@ -12,6 +13,7 @@ using Quark.Controls;
 using Quark.Data.Settings;
 using Quark.DependencyInjection;
 using Quark.Drawing;
+using Quark.Models.MusicXML;
 using Quark.Mvvm;
 using Quark.Projects;
 using Quark.Projects.Tracks;
@@ -27,18 +29,21 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
     public DialogService DialogService { get; }
 
     private readonly Settings _settings;
+    private readonly ProjectFactory _projectFactory;
     private readonly ProjectService _projectService;
-    private readonly TrackViewModelFactory _trackViewModelFactory;
+    private readonly ViewModelFactory _trackViewModelFactory;
 
     public MainWindowViewModel(DialogService dialogService, SettingService settingService, ProjectService projectService,
-        TrackViewModelFactory trackViewModelFactory) : base()
+        ViewModelFactory trackViewModelFactory, ProjectFactory projectFactory) : base()
     {
         this.DialogService = dialogService;
         this._settings = settingService.Settings;
         this._projectService = projectService;
         this._trackViewModelFactory = trackViewModelFactory;
+        this._projectFactory = projectFactory;
 
         this.SelectProjectFileCommand = new AsyncRelayCommand(this.OnSelectProjectFileCommand);
+        this.SelectMusicXmlForNewProjectCommand = new AsyncRelayCommand(this.SelectMusicXmlForNewProject);
     }
 
     /// <summary>
@@ -156,15 +161,158 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         private set => this.SetProperty(ref this._projectViewModel, value);
     }
 
+    /// <summary>
+    /// プロジェクトを名前を付けて保存
+    /// </summary>
+    /// <param name="project">プロジェクト</param>
+    /// <returns></returns>
+    public async Task<bool> SaveProjectAs(Project project)
+    {
+        var path = await this.DialogService.SelectOpenFileAsync(
+           title: "プロジェクトファイルを保存",
+           initialDirectory: this.GetRecentDirectory(RecentDirectoryType.SaveProjectFile),
+           fileTypeFilters: [new("Quarkプロジェクト") { Patterns = ["*.qprj"] }]
+           ).ConfigureAwait(false);
+
+        if (path == null)
+            return false; // キャンセルされた場合は処理を終了する
+
+        this.SetRecentDirectory(RecentDirectoryType.SaveProjectFile, Path.GetDirectoryName(path)!);
+
+        project.SaveToFile(path, true);
+
+        // TODO: エラーハンドリング。エラー発生時は例外をラップしたい
+        return true;
+    }
+
+    private AsyncRelayCommand? _saveCommand;
+    public AsyncRelayCommand SaveCommand => this._saveCommand ??= new AsyncRelayCommand(
+        () => this.SaveProjectAs(this.ProjectViewModel!.Project),
+        () => this.ProjectViewModel != null);
+
+    /// <summary>
+    /// プロジェクトを保存する
+    /// </summary>
+    /// <param name="project"></param>
+    /// <returns>プロジェクト</returns>
+    public async Task<bool> SaveProject(Project project)
+    {
+        // TODO: エラーハンドリング
+        if (project.IsNewFile())
+        {
+            // 新しいファイルの場合(ファイル名が不明)の場合は名前をつけて保存
+            return await this.SaveProjectAs(project).ConfigureAwait(false);
+        }
+        else
+        {
+            project.SaveToFile();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// プロジェクトを閉じられる状態にする
+    /// </summary>
+    /// <returns>後続処理実行の可否</returns>
+    public async Task<bool> ConfirmProjecttClosable()
+    {
+        var project = this.ProjectViewModel?.Project;
+        if (project == null)
+            // プロジェクトが開かれていない場合は何もしない
+            return true;
+
+        // TODO: 変更点監視処理を実装する
+        bool isProjectChanged = false; // project.IsChanged; 
+        if (isProjectChanged)
+        {
+            // TODO: 保存するかどうかを尋ねるダイアログを実装する
+            // 保存しますか？→はい／いいえ／キャンセル
+            bool saveRequested = true;
+            if (saveRequested)
+            {
+                // TODO: エラーハンドリング
+                await this.SaveProject(project).ConfigureAwait(false);
+                return true;
+            }
+            else
+            {
+                // TODO: 保存しない場合はtrueを返す。
+                // キャンセルした場合はfalaseを返す。
+                return false;
+            }
+        }
+        else
+        {
+            // プロジェクトに変更がない場合
+            return true;
+        }
+    }
+
+    private void UpdateCommands() => Dispatcher.UIThread.Invoke(() =>
+    {
+        this.SaveCommand.NotifyCanExecuteChanged();
+    });
+
+    /// <summary>
+    /// プロジェクトを閉じる
+    /// </summary>
+    /// <returns></returns>
+    public Task CloseProject()
+    {
+        this.UpdateCommands();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>MusicXMLを選択する</summary>
+    public ICommand SelectMusicXmlForNewProjectCommand { get; }
+
+    public async Task SelectMusicXmlForNewProject()
+    {
+        // 開いているプロジェクトがあれば閉じる
+        if (!await this.ConfirmProjecttClosable().ConfigureAwait(false))
+            return;
+
+        var path = await this.DialogService.SelectOpenFileAsync(
+           title: "インポートするMusicXMLを選択",
+           initialDirectory: this.GetRecentDirectory(RecentDirectoryType.ImportMusicXml),
+           fileTypeFilters: [new("MusicXMLファイル") { Patterns = ["*.musicxml", "*.xml", "*.mxl"] }]
+           ).ConfigureAwait(false);
+
+        if (path == null)
+            // キャンセルされた場合は処理を終了する
+            return;
+
+        this.SetRecentDirectory(RecentDirectoryType.ImportMusicXml, Path.GetDirectoryName(path)!);
+
+        (ScorePartElement Info, Models.MusicXML.Part Part)[] parts = this._projectFactory.ParseParts(path);
+
+        var viewModel = this._trackViewModelFactory.GetMusicXmlImportViewModel(path, parts.Select(p => p.Info));
+
+        await this.DialogService.ImportMusicXmlAsync(viewModel).ConfigureAwait(false);
+
+        if (viewModel.Response is not { Length: > 0 } selectParts)
+            // 未選択の場合は特に何もしない
+            return;
+
+        // 新しいプロジェクトが読み込めたら、現在のプロジェクトを閉じる
+        await this.CloseProject().ConfigureAwait(false);
+
+        var project = this._projectFactory.CreateFromMusicXml(viewModel.ProjectName, parts, selectParts);
+
+        this.ChangeProject(project);
+    }
+
     public ICommand SelectProjectFileCommand { get; }
 
     public async Task OnSelectProjectFileCommand()
     {
-        // TODO: 既に開いているプロジェクトがあれば確認ダイアログで保存を促す
+        // 開いているプロジェクトがあれば閉じる
+        if (!await this.ConfirmProjecttClosable().ConfigureAwait(false))
+            return;
 
         var path = await this.DialogService.SelectOpenFileAsync(
            title: "プロジェクトファイルを開く",
-           initialDirectory: GetRecentDirectory(RecentDirectoryType.OpenProjectFile),
+           initialDirectory: this.GetRecentDirectory(RecentDirectoryType.OpenProjectFile),
            fileTypeFilters: [new("Quarkプロジェクト") { Patterns = ["*.qprj"] }]
            ).ConfigureAwait(false);
 
@@ -174,6 +322,9 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         this.SetRecentDirectory(RecentDirectoryType.OpenProjectFile, Path.GetDirectoryName(path)!);
 
         var project = this._projectService.Open(path);
+
+        // 新しいプロジェクトが読み込めたら、現在のプロジェクトを閉じる
+        await this.CloseProject().ConfigureAwait(false);
 
         this.ChangeProject(project);
     }
@@ -202,5 +353,21 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         //this.AudioTrackViewModel = audioFileTrack is not null ? new(audioFileTrack) : null;
 
         //this.RefreshAudio();
+
+        this.UpdateCommands();
+    }
+
+    private ICommand? _closingCommand;
+    public ICommand ClosingCommand => this._closingCommand ??= new AsyncRelayCommand<WindowClosingEventArgs>(this.OnClosing);
+
+    private async Task OnClosing(WindowClosingEventArgs e)
+    {
+        if (!await this.ConfirmProjecttClosable().ConfigureAwait(false))
+        {
+            // 何らかの理由で拒否された場合はウィンドウを閉じないようにする
+            e.Cancel = true;
+
+            await this.CloseProject().ConfigureAwait(false);
+        }
     }
 }

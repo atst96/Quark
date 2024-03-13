@@ -20,11 +20,22 @@
     <conv:TimeSpanFormatConverter x:Key="TimeSpanConverter" />
   </Window.Resources>
   <Window.KeyBindings>
+    <!-- MusicXmlインポート -->
+    <KeyBinding Gesture="Ctrl+Shift+M" Command="{Binding SelectMusicXmlForNewProjectCommand, Mode=OneTime}" />
+    <!-- 開く -->
+    <KeyBinding Gesture="Ctrl+O" Command="{Binding SelectProjectFileCommand, Mode=OneTime}" />
+    <!-- 保存 -->
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCommand, Mode=OneTime}" />
     <!-- 再生／停止 スペース単押し -->
     <KeyBinding Gesture="Space" Command="{Binding ProjectViewModel.TogglePlayCommand, Mode=OneTime}" />
-       <!-- 再生／停止 スペース単押し -->
+    <!-- 再生／停止 スペース単押し -->
     <KeyBinding Gesture="Shift+Space" Command="{Binding ProjectViewModel.TogglePlayResumeCommand, Mode=OneTime}" />
   </Window.KeyBindings>
+    <i:Interaction.Behaviors>
+        <ia:EventTriggerBehavior EventName="Closing">
+            <ia:InvokeCommandAction Command="{Binding ClosingCommand, Mode=OneTime}" PassEventArgsToCommand="True" />
+        </ia:EventTriggerBehavior>
+    </i:Interaction.Behaviors>
   <Grid>
 
     <Grid.RowDefinitions>
@@ -37,12 +48,13 @@
     <Menu Grid.Row="0">
       <MenuItem Header="ファイル(_F)">
         <MenuItem Header="新しいプロジェクト">
-          <MenuItem Header="MusicXMLから作成(_M)" InputGesture="Ctrl+Shift+M" />
+          <MenuItem Header="MusicXMLから作成(_M)" InputGesture="Ctrl+Shift+M"
+                    Command="{Binding SelectMusicXmlForNewProjectCommand, Mode=OneTime}" />
         </MenuItem>
         <MenuItem Header="開く(_O)" InputGesture="Ctrl+O"
                   Command="{Binding SelectProjectFileCommand, Mode=OneTime}" />
         <Separator />
-        <MenuItem Header="保存(_S)" InputGesture="Ctrl+S" />
+        <MenuItem Header="保存(_S)" InputGesture="Ctrl+S" Command="{Binding SaveCommand, Mode=OneTime}" />
         <Separator />
         <MenuItem Header="終了(_X)" InputGesture="Alt+F4" />
       </MenuItem>
