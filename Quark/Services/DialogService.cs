@@ -94,17 +94,16 @@ public class DialogService
         var startupLocation = await GetFolder(storageProvider, initialDirectory).ConfigureAwait(false);
 
 
-        var result = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var result = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = title,
-            AllowMultiple = false,
             SuggestedStartLocation = startupLocation,
-            FileTypeFilter = fileTypeFilters,
+            FileTypeChoices = fileTypeFilters,
 
         })
         .ConfigureAwait(false);
 
-        return GetSingleLocalPath(result);
+        return result?.TryGetLocalPath();
     }
 
     internal Task ImportMusicXmlAsync(MusicXMLImportWindowViewModel viewModel)

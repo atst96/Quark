@@ -168,7 +168,7 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
     /// <returns></returns>
     public async Task<bool> SaveProjectAs(Project project)
     {
-        var path = await this.DialogService.SelectOpenFileAsync(
+        var path = await this.DialogService.SelectSaveFileAsync(
            title: "プロジェクトファイルを保存",
            initialDirectory: this.GetRecentDirectory(RecentDirectoryType.SaveProjectFile),
            fileTypeFilters: [new("Quarkプロジェクト") { Patterns = ["*.qprj"] }]
@@ -187,7 +187,7 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
 
     private AsyncRelayCommand? _saveCommand;
     public AsyncRelayCommand SaveCommand => this._saveCommand ??= new AsyncRelayCommand(
-        () => this.SaveProjectAs(this.ProjectViewModel!.Project),
+        () => this.SaveProject(this.ProjectViewModel!.Project),
         () => this.ProjectViewModel != null);
 
     /// <summary>
