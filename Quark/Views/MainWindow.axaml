@@ -27,9 +27,9 @@
     <!-- 保存 -->
     <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCommand, Mode=OneTime}" />
     <!-- 再生／停止 スペース単押し -->
-    <KeyBinding Gesture="Space" Command="{Binding ProjectViewModel.TogglePlayCommand, Mode=OneTime}" />
+    <KeyBinding Gesture="Space" Command="{Binding ProjectViewModel.TogglePlayCommand, Mode=OneWay}" />
     <!-- 再生／停止 スペース単押し -->
-    <KeyBinding Gesture="Shift+Space" Command="{Binding ProjectViewModel.TogglePlayResumeCommand, Mode=OneTime}" />
+    <KeyBinding Gesture="Shift+Space" Command="{Binding ProjectViewModel.TogglePlayResumeCommand, Mode=OneWay}" />
   </Window.KeyBindings>
     <i:Interaction.Behaviors>
         <ia:EventTriggerBehavior EventName="Closing">
@@ -90,9 +90,9 @@
                 SelectedValueBinding="{Binding Value, Mode=OneWay}"
                 DisplayMemberBinding="{Binding Description, Mode=OneWay}" />
 
-      <Button Content="Play" Command="{Binding ProjectViewModel.PlayCommand, Mode=OneTime}" VerticalAlignment="Center" />
-      <Button Content="Stop" Command="{Binding ProjectViewModel.StopCommand, Mode=OneTime}" VerticalAlignment="Center" />
-      <Button Content="Stop(Back)" Command="{Binding ProjectViewModel.StopRestoreCommand, Mode=OneTime}" VerticalAlignment="Center" />
+      <Button Content="Play" Command="{Binding ProjectViewModel.PlayCommand, Mode=OneWay}" VerticalAlignment="Center" />
+      <Button Content="Stop" Command="{Binding ProjectViewModel.StopCommand, Mode=OneWay}" VerticalAlignment="Center" />
+      <Button Content="Stop(Back)" Command="{Binding ProjectViewModel.StopRestoreCommand, Mode=OneWay}" VerticalAlignment="Center" />
       <!--<ToggleButton Content="Scroll" IsChecked="{Binding Path=IsAutoScroll, ElementName=PloatEditor1, Mode=TwoWay}" />-->
       <Separator />
       <Label Content="{Binding ProjectViewModel.SelectionTime, Mode=OneWay, Converter={StaticResource TimeSpanConverter}}"

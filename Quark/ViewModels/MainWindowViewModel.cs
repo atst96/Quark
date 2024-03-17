@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -124,8 +124,6 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         new(EditMode.AudioFeatures, "音響パラメータ編集"),
     ];
 
-    public NeutrinoTrackViewModelBase? TrackViewModel { get; private set; }
-
     private EditMode _selectedEditMode = EditMode.ScoreAndTiming;
 
     /// <summary>
@@ -153,13 +151,15 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         }
     }
 
-    private ProjectViewModel? _projectViewModel;
+    /// <summary>プロジェクトを読み込み済みかどうかを取得する</summary>
+    public bool HasProject { get; private set; }
 
-    public ProjectViewModel? ProjectViewModel
-    {
-        get => this._projectViewModel;
-        private set => this.SetProperty(ref this._projectViewModel, value);
-    }
+    /// <summary>プロジェクトのViewModel</summary>
+    public ProjectViewModel? ProjectViewModel { get; private set; }
+
+    /// <summary>トラックのViewModel</summary>
+    public NeutrinoTrackViewModelBase? TrackViewModel { get; private set; }
+
 
     /// <summary>
     /// プロジェクトを名前を付けて保存
@@ -257,10 +257,28 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
     /// プロジェクトを閉じる
     /// </summary>
     /// <returns></returns>
-    public Task CloseProject()
+    public async Task CloseProject()
     {
+        var currentProject = this.ProjectViewModel?.Project;
+        if (currentProject is null)
+            // 開いているプロジェクトがなければ処理終了
+            return;
+
+        // プロジェクトを閉じる。
+        // 子プロセスが稼働している可能性があるので、終了するまで待機する。
+        // TODO: 処理に時間がかかる場合(200ms以上くらい?)、ダイアログを表示してクローズ処理中である旨を表示させたい
+        await currentProject.CloseAsync().ConfigureAwait(false);
+
+        // ViewModelを破棄・更新する
+        this.ProjectViewModel?.Dispose();
+        this.ProjectViewModel = null;
+        this.TrackViewModel = null;
+        this.HasProject = false;
+        this.OnPropertyChanged(nameof(this.HasProject));
+        this.OnPropertyChanged(nameof(this.ProjectViewModel));
+        this.OnPropertyChanged(nameof(this.TrackViewModel));
+
         this.UpdateCommands();
-        return Task.CompletedTask;
     }
 
     /// <summary>MusicXMLを選択する</summary>
@@ -329,16 +347,19 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         this.ChangeProject(project);
     }
 
-    private void ChangeProject(Project project)
+    private async void ChangeProject(Project project)
     {
         this.Title = $"{App.AppName} - {project.Name}";
 
         var projectViewModel = new ProjectViewModel(this._trackViewModelFactory, project);
         projectViewModel.SelectTrack(project.Tracks.OfType<INeutrinoTrack>().LastOrDefault()!);
 
+        this.HasProject = true;
         this.ProjectViewModel = projectViewModel;
         this.TrackViewModel = projectViewModel.SelectedTrack;
+        this.OnPropertyChanged(nameof(this.HasProject));
         this.OnPropertyChanged(nameof(this.TrackViewModel));
+        this.OnPropertyChanged(nameof(this.ProjectViewModel));
 
 
         //// 編集トラックを設定する
@@ -366,6 +387,13 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         {
             // 何らかの理由で拒否された場合はウィンドウを閉じないようにする
             e.Cancel = true;
+        }
+        else
+        {
+            await this.CloseProject().ConfigureAwait(false);
+        }
+    }
+    }
 
             await this.CloseProject().ConfigureAwait(false);
         }

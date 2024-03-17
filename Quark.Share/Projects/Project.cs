@@ -75,4 +75,12 @@ internal class Project
 
     internal void RaiseEstimated()
         => this.Estimated?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// プロジェクトを閉じる
+    /// </summary>
+    public async Task CloseAsync()
+    {
+        await this.Session.EndSession().ConfigureAwait(false);
+    }
 }
