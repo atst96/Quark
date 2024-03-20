@@ -21,7 +21,7 @@ public class ProjectPlayer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(deviceResolver, nameof(deviceResolver));
 
-        var device = deviceResolver();
+        var device = deviceResolver.Invoke();
 
         bool isPlay = this._device?.PlaybackState == PlaybackState.Playing;
         this.UnboundDevice();
