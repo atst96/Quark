@@ -1,3 +1,4 @@
+﻿using System;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
@@ -6,8 +7,6 @@ using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
 using Quark.Components;
 using Quark.Controls;
 using Quark.Data.Settings;
@@ -15,10 +14,12 @@ using Quark.DependencyInjection;
 using Quark.Drawing;
 using Quark.Models.MusicXML;
 using Quark.Mvvm;
+using Quark.Neutrino;
 using Quark.Projects;
 using Quark.Projects.Tracks;
 using Quark.Services;
 using Quark.UI.Mvvm;
+using Quark.Utils;
 
 namespace Quark.ViewModels;
 
@@ -31,14 +32,19 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
     private readonly Settings _settings;
     private readonly ProjectManager _projectManager;
     private readonly ViewModelFactory _trackViewModelFactory;
+    private readonly NeutrinoV1Service _v1Service;
+    private readonly NeutrinoV2Service _v2Service;
 
     public MainWindowViewModel(DialogService dialogService, SettingService settingService,
-        ViewModelFactory trackViewModelFactory, ProjectFactory projectFactory) : base()
+        ViewModelFactory trackViewModelFactory, ProjectManager projectManager,
+        NeutrinoV1Service v1Service, NeutrinoV2Service v2Service) : base()
     {
         this.DialogService = dialogService;
         this._settings = settingService.Settings;
         this._trackViewModelFactory = trackViewModelFactory;
         this._projectManager = projectManager;
+        this._v1Service = v1Service;
+        this._v2Service = v2Service;
 
         this.SelectProjectFileCommand = new AsyncRelayCommand(this.OnSelectProjectFileCommand);
         this.SelectMusicXmlForNewProjectCommand = new AsyncRelayCommand(this.SelectMusicXmlForNewProject);
@@ -143,8 +149,7 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
                     _ => this._settings.Synthesis.EstimateMode,
                 };
 
-                // TODO:
-                // track.ChangeEstimateMode(estimateMode);
+                track.Track.ChangeEstimateMode(estiamteMode);
             }
         }
     }
@@ -249,6 +254,7 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
     private void UpdateCommands() => Dispatcher.UIThread.Invoke(() =>
     {
         this.SaveCommand.NotifyCanExecuteChanged();
+        this.ExportWaveCommand.NotifyCanExecuteChanged();
     });
 
     /// <summary>
@@ -370,8 +376,6 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         //var track = project.Tracks.OfType<INeutrinoTrack>().LastOrDefault();
         //this.SetTrack(track);
 
-        project.Player.BindDevice(() => new WasapiOut(AudioClientShareMode.Shared, 48 * 2));
-
         //// オーディオトラックを設定する
         //var audioFileTrack = project.Tracks.OfType<AudioFileTrack>().FirstOrDefault();
         //this.AudioTrackViewModel = audioFileTrack is not null ? new(audioFileTrack) : null;
@@ -396,9 +400,76 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
             await this.CloseProject().ConfigureAwait(false);
         }
     }
-    }
 
-            await this.CloseProject().ConfigureAwait(false);
+    private AsyncRelayCommand? _exportWaveCommand;
+    public AsyncRelayCommand ExportWaveCommand => this._exportWaveCommand ??= new AsyncRelayCommand(
+        this.ExportWave, () => this.TrackViewModel != null);
+
+    private async Task ExportWave()
+    {
+        var track = this.TrackViewModel?.Track;
+        if (track is null)
+            return; // プロジェクトが開かれていない場合は何もしない
+
+
+        var path = await this.DialogService.SelectSaveFileAsync(
+           title: "WAVEファイルをエクスポート",
+           initialDirectory: this.GetRecentDirectory(RecentDirectoryType.OpenProjectFile),
+           fileTypeFilters: [new("WAVEファイル") { Patterns = ["*.wav"] }]
+           ).ConfigureAwait(false);
+
+        if (path == null)
+            return; // キャンセルされた場合は処理を終了する
+
+        this.SetRecentDirectory(RecentDirectoryType.ExportWav, Path.GetDirectoryName(path)!);
+
+        var progress = this._trackViewModelFactory.GetProgressViewModel("WAVEファイル出力");
+
+        Task task;
+        if (track is NeutrinoV1Track v1Track)
+        {
+            var service = this._v1Service;
+
+            // TODO: 出力方法を選択できるようにする
+            bool isWorldOutput = false;
+            // bool isWorldOutput =  track.OutputConfig.ExportType == ExprotType.World
+
+            task = isWorldOutput
+                // WORLDで合成
+                ? service.SynthesisWorld(v1Track, path, progress)
+                // NSFで合成
+                : service.SynthesisNSF(v1Track, path, progress);
+        }
+        else if (track is NeutrinoV2Track v2Track)
+        {
+            var service = this._v2Service;
+
+            // TODO: 出力方法を選択できるようにする
+            bool isWorldOutput = false;
+            // bool isWorldOutput =  track.OutputConfig.ExportType == ExprotType.World
+
+            task = isWorldOutput
+                 // WORLDで合成
+                 ? service.SynthesisWorld(v2Track, path, progress)
+                 // NSFで合成
+                 : service.SynthesisNSF(v2Track, path, NSFV2Model.Get(NeutrinoV2InferenceMode.Advanced), progress);
+        }
+        else
+        {
+            throw new NotSupportedException("");
+        }
+
+        // 進捗ダイアログを表示
+        _ = this.DialogService.ShowProgressDialog(progress);
+
+        try
+        {
+            await task.ConfigureAwait(false);
+            progress.Close();
+        }
+        catch (Exception)
+        {
+            // TODO: 
         }
     }
 }

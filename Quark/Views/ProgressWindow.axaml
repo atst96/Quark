@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Quark.ViewModels"
+        xmlns:conv="using:Quark.Converters"
+        mc:Ignorable="d" d:DesignWidth="420"
+        x:Class="Quark.Views.ProgressWindow"
+        Width="520" SizeToContent="Height" FontFamily="Meiryo"
+        WindowStartupLocation="CenterOwner"
+        x:DataType="vm:ProgressWindowViewModel"
+        Title="{Binding Title, Mode=OneWay}" CanResize="False">
+
+    <Window.Resources>
+        <conv:BoolToBrushConverter x:Key="ProgressBarBrushConverter"
+                                   TrueBrush="#DD3333" FalseBrush="#FF06B025" />
+    </Window.Resources>
+
+    <Grid Margin="8" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+
+        <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Margin="4"
+                   Text="{Binding Status, Mode=OneWay}" />
+
+        <ProgressBar x:Name="ProgressBar" Grid.Column="0" Grid.Row="1" Margin="4"
+                     Background="#EEEEEE" BorderThickness="1" BorderBrush="#AAA"
+                     Foreground="{Binding IsFail, Converter={StaticResource ProgressBarBrushConverter}, Mode=OneWay}"
+                     Value="{Binding Progress, Mode=OneWay}" IsIndeterminate="{Binding IsWaiting, Mode=OneWay}" />
+
+        <CheckBox x:Name="ShowCheckBox" Grid.Row="2" Margin="4" Content="詳細を表示する"
+                  IsChecked="True" />
+
+        <TextBox x:Name="TextBox" Grid.Row="3" Margin="4" Grid.ColumnSpan="2"
+                 Height="180"
+                 IsReadOnly="True"
+                 Text="{Binding Details, Mode=OneWay}"
+                 CaretIndex="{Binding Details.Length, Mode=OneWay}"
+                 IsVisible="{Binding ElementName=ShowCheckBox, Path=IsChecked}"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 TextWrapping="Wrap" />
+
+        <Button Grid.Row="1" Grid.Column="1" Margin="0,4,4,4" Width="100" Classes="Primary"
+            HorizontalAlignment="Right"
+            IsEnabled="{Binding Closeable, Mode=OneWay}"
+            Content="閉じる" IsCancel="True" />
+
+    </Grid>
+</Window>

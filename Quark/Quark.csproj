@@ -37,11 +37,15 @@
   <ItemGroup>
     <Watch Remove="Controls\PlotEditor.axaml" />
     <Watch Remove="Views\MusicXMLImportWindow.axaml" />
+    <Watch Remove="Views\ProgressWindow.axaml" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Update="Controls\PlotEditor.axaml.cs">
       <DependentUpon>PlotEditor.axaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\ProgressWindow.axaml.cs">
+      <DependentUpon>ProgressWindow.axaml</DependentUpon>
     </Compile>
   </ItemGroup>
 </Project>

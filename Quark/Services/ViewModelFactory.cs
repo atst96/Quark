@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using Quark.DependencyInjection;
 using Quark.Models.MusicXML;
 using Quark.Projects;
@@ -65,4 +66,13 @@ internal class ViewModelFactory
     /// <param name="track">トラック</param>
     public NeutrinoV2TrackViewModel GetTrackViewModel(ProjectViewModel project, NeutrinoV2Track track)
         => new(this._v2Service, project, track);
+
+    /// <summary>
+    /// 進捗ウィンドウのViewModelを取得する
+    /// </summary>
+    /// <param name="title">ダイアログのタイトル</param>
+    /// <param name="isCancellable">キャンセル可能フラグ</param>
+    /// <returns></returns>
+    internal ProgressWindowViewModel GetProgressViewModel(string title, bool isCancellable = false)
+        => new(new DialogService(), title, isCancellable);
 }

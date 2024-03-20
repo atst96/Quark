@@ -132,6 +132,32 @@ public class DialogService
             }
         });
 
+    internal Task ShowProgressDialog(ProgressWindowViewModel viewModel)
+        => Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            var owner = this._window!;
+
+            viewModel.DialogService.SetOwner(owner);
+
+            Window? window = null;
+            try
+            {
+                window = new ProgressWindow()
+                {
+                    DataContext = viewModel
+                };
+
+                viewModel.DialogService.SetOwner(window);
+
+                await window.ShowDialog(owner).ConfigureAwait(false);
+            }
+            finally
+            {
+                if (window != null)
+                    viewModel.DialogService.UnregisterOwner(window);
+            }
+        });
+
     public void Close()
     {
         this._window?.Close();

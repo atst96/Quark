@@ -63,7 +63,7 @@
         <MenuItem Header="音声トラックを追加／変更する" />
         <MenuItem Header="音声トラックを削除する" />
         <Separator />
-        <MenuItem Header="トラックの音声を出力する" />
+        <MenuItem Header="トラックの音声を出力する" Command="{Binding ExportWaveCommand, Mode=OneTime}" />
       </MenuItem>
 
       <MenuItem Header="ツール(_T)">
