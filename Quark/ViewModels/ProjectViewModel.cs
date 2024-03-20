@@ -174,7 +174,7 @@ internal class ProjectViewModel : ViewModelBase
 
     public void SelectTrack(INeutrinoTrack track)
     {
-        this.SelectedTrack = this._viewModelFactory.GetTrackViewModel(track);
+        this.SelectedTrack = this._viewModelFactory.GetTrackViewModel(this, track);
     }
 
     /// <summary>

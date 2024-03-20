@@ -35,11 +35,11 @@ internal class ViewModelFactory
     /// トラックのViewModelを取得する
     /// </summary>
     /// <param name="track">トラック</param>
-    public NeutrinoTrackViewModelBase GetTrackViewModel(INeutrinoTrack track)
+    public NeutrinoTrackViewModelBase GetTrackViewModel(ProjectViewModel project, INeutrinoTrack track)
         => track switch
         {
-            NeutrinoV1Track v1Track => this.GetTrackViewModel(v1Track),
-            NeutrinoV2Track v2Track => this.GetTrackViewModel(v2Track),
+            NeutrinoV1Track v1Track => this.GetTrackViewModel(project, v1Track),
+            NeutrinoV2Track v2Track => this.GetTrackViewModel(project, v2Track),
             _ => throw new NotImplementedException()
         };
 
@@ -56,13 +56,13 @@ internal class ViewModelFactory
     /// トラックのViewModelを取得する
     /// </summary>
     /// <param name="track">トラック</param>
-    public NeutrinoV1TrackViewModel GetTrackViewModel(NeutrinoV1Track track)
-        => new(this._v1Service, track);
+    public NeutrinoV1TrackViewModel GetTrackViewModel(ProjectViewModel project, NeutrinoV1Track track)
+        => new(this._v1Service, project, track);
 
     /// <summary>
     /// トラックのViewModelを取得する
     /// </summary>
     /// <param name="track">トラック</param>
-    public NeutrinoV2TrackViewModel GetTrackViewModel(NeutrinoV2Track track)
-        => new(this._v2Service, track);
+    public NeutrinoV2TrackViewModel GetTrackViewModel(ProjectViewModel project, NeutrinoV2Track track)
+        => new(this._v2Service, project, track);
 }

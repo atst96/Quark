@@ -29,18 +29,16 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
     public DialogService DialogService { get; }
 
     private readonly Settings _settings;
-    private readonly ProjectFactory _projectFactory;
-    private readonly ProjectService _projectService;
+    private readonly ProjectManager _projectManager;
     private readonly ViewModelFactory _trackViewModelFactory;
 
-    public MainWindowViewModel(DialogService dialogService, SettingService settingService, ProjectService projectService,
+    public MainWindowViewModel(DialogService dialogService, SettingService settingService,
         ViewModelFactory trackViewModelFactory, ProjectFactory projectFactory) : base()
     {
         this.DialogService = dialogService;
         this._settings = settingService.Settings;
-        this._projectService = projectService;
         this._trackViewModelFactory = trackViewModelFactory;
-        this._projectFactory = projectFactory;
+        this._projectManager = projectManager;
 
         this.SelectProjectFileCommand = new AsyncRelayCommand(this.OnSelectProjectFileCommand);
         this.SelectMusicXmlForNewProjectCommand = new AsyncRelayCommand(this.SelectMusicXmlForNewProject);
@@ -267,7 +265,7 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         // プロジェクトを閉じる。
         // 子プロセスが稼働している可能性があるので、終了するまで待機する。
         // TODO: 処理に時間がかかる場合(200ms以上くらい?)、ダイアログを表示してクローズ処理中である旨を表示させたい
-        await currentProject.CloseAsync().ConfigureAwait(false);
+        await this._projectManager.CloseCurrentProject();
 
         // ViewModelを破棄・更新する
         this.ProjectViewModel?.Dispose();
@@ -302,7 +300,11 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
 
         this.SetRecentDirectory(RecentDirectoryType.ImportMusicXml, Path.GetDirectoryName(path)!);
 
-        (ScorePartElement Info, Models.MusicXML.Part Part)[] parts = this._projectFactory.ParseParts(path);
+        (ScorePartElement Info, Models.MusicXML.Part Part)[] parts;
+        using (var fs = File.OpenRead(path))
+        {
+            parts = MusicXmlUtil.EnumerateParts(fs).ToArray();
+        }
 
         var viewModel = this._trackViewModelFactory.GetMusicXmlImportViewModel(path, parts.Select(p => p.Info));
 
@@ -315,7 +317,8 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
         // 新しいプロジェクトが読み込めたら、現在のプロジェクトを閉じる
         await this.CloseProject().ConfigureAwait(false);
 
-        var project = this._projectFactory.CreateFromMusicXml(viewModel.ProjectName, parts, selectParts);
+        var project = await this._projectManager.CreateFromMxl(viewModel.ProjectName, parts, selectParts)
+            .ConfigureAwait(false);
 
         this.ChangeProject(project);
     }
@@ -339,7 +342,7 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
 
         this.SetRecentDirectory(RecentDirectoryType.OpenProjectFile, Path.GetDirectoryName(path)!);
 
-        var project = this._projectService.Open(path);
+        var project = await this._projectManager.OpenFromFile(path).ConfigureAwait(false);
 
         // 新しいプロジェクトが読み込めたら、現在のプロジェクトを閉じる
         await this.CloseProject().ConfigureAwait(false);
@@ -351,7 +354,7 @@ internal partial class MainWindowViewModel : ViewModelBase, IDialogServiceViewMo
     {
         this.Title = $"{App.AppName} - {project.Name}";
 
-        var projectViewModel = new ProjectViewModel(this._trackViewModelFactory, project);
+        var projectViewModel = this._trackViewModelFactory.GetProjectViewModel(project);
         projectViewModel.SelectTrack(project.Tracks.OfType<INeutrinoTrack>().LastOrDefault()!);
 
         this.HasProject = true;

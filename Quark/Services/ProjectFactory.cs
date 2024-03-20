@@ -1,32 +1,25 @@
-﻿using System.IO;
-using System.Linq;
-using Quark.Data;
+﻿using Quark.Data;
 using Quark.DependencyInjection;
 using Quark.Factories;
 using Quark.Models.MusicXML;
 using Quark.Projects;
-using Quark.Utils;
 using Quark.ViewModels;
 
 namespace Quark.Services;
 
 [Singleton]
-internal class ProjectFactory
+internal class ProjectFactory(ProjectSessionFactory sessionFactory)
 {
-    private ProjectSessionFactory _sessionFactory;
+    private ProjectSessionFactory _sessionFactory = sessionFactory;
 
-    public ProjectFactory(ProjectSessionFactory sessionFactory)
-    {
-        this._sessionFactory = sessionFactory;
-    }
-
-    public (ScorePartElement Info, Part part)[] ParseParts(string path)
-    {
-        using var fs = File.OpenRead(path);
-        return MusicXmlUtil.EnumerateParts(fs).ToArray();
-    }
-
-    public Project CreateFromMusicXml(string name, (ScorePartElement Info, Part Part)[] parts, PartSelectInfo[] selectParts)
+    /// <summary>
+    /// プロジェクトを作成する
+    /// </summary>
+    /// <param name="name"></param>
+    /// <param name="parts"></param>
+    /// <param name="selectParts"></param>
+    /// <returns></returns>
+    public Project CreateFromMxlPart(string name, (ScorePartElement Info, Part Part)[] parts, PartSelectInfo[] selectParts)
     {
         var project = new Project(name, this._sessionFactory);
 
@@ -48,4 +41,11 @@ internal class ProjectFactory
 
         return project;
     }
+
+    /// <summary>
+    /// プロジェクトをファイルから読み込む
+    /// </summary>
+    /// <param name="filePath">ファイルパス</param>
+    public Project LoadFromFile(string filePath)
+        => Project.Open(filePath, this._sessionFactory);
 }
