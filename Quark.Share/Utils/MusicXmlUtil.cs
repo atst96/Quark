@@ -59,8 +59,7 @@ public static class MusicXmlUtil
     {
         var score = Parse(xmlStream);
         if (score == null || score.Parts is not { Count: > 0 } scoreParts)
-            // 解析できるパート情報がなければ空で返す
-            return Enumerable.Empty<(ScorePartElement, Part)>();
+            return []; // パート情報がなければ空で返す
 
         // パートIDをキーにしてDictionary化
         var partInfoByPartId = score.PartList?.ScorePart
@@ -133,7 +132,7 @@ public static class MusicXmlUtil
         Dictionary<int, int>? keySignature = null;
         int noteIdx = -1;
 
-        foreach (var measure in measures ?? [])
+        foreach (var measure in measures)
         {
             if (measure.Attributes is { } attributes)
             {
@@ -211,6 +210,8 @@ public static class MusicXmlUtil
                                 }
                                 else if (ties.Any(t => t.Type == StartStop.Stop) && tiedNote is not null)
                                 {
+                                    // タイの終わり
+
                                     tiedNote.Notes.Add(note);
 
                                     if (ties.Any(t => t.Type == StartStop.Start))
@@ -316,12 +317,12 @@ public static class MusicXmlUtil
 
             if (ZipUtil.IsZipHeader(fileHeader))
             {
-                // ファイルヘッダがZIPの場合
+                // ファイルの先頭がZIPヘッダなら圧縮済みMusicXMLとして処理する
                 return ParseCompressedMusicXml(stream);
             }
             else
             {
-                // その他の場合はテキストのXMLデータをみなす
+                // その他の場合はMusicXMLとして処理する
                 return ParseTextBaseMusicXml(stream);
             }
         }
@@ -406,7 +407,7 @@ public static class MusicXmlUtil
     /// <param name="stream">対象データ</param>
     /// <returns></returns>
     /// <exception cref="NotSupportedException"></exception>
-    public static T? ParseXml<T>(Stream stream) where T : class
+    private static T ParseXml<T>(Stream stream) where T : class
     {
         using (var streamReader = new StreamReader(stream, Encoding.UTF8))
         using (var reader = XmlReader.Create(streamReader, _xmlReaderSettings))
@@ -428,18 +429,20 @@ public static class MusicXmlUtil
     /// <param name="part">パート情報</param>
     /// <param name="partName">パート名</param>
     /// <returns>XMLデータ(バイナリ)</returns>
-    public static byte[] ToXmlData(Part part, string partName)
-    {
-        var musicXml = new MusicXmlObject()
+    private static byte[] ToXmlData(Part part, string partName)
+        => ToXmlData(new MusicXmlObject()
         {
             Version = "4.0",
-            Identification = new() { Encoding = new() { Software = "Quark", EncodingDate = DateTime.Now } },
-            PartList = new() { ScorePart = new() { new() { Id = "1", PartName = partName } } },
-            Parts = new() { new() { Id = "1", Measures = part.Measures } }
-        };
-
-        return ToXmlData(musicXml);
-    }
+            Identification = new()
+            {
+                Encoding = new() { Software = "Quark", EncodingDate = DateTime.Now }
+            },
+            PartList = new()
+            {
+                ScorePart = [new() { Id = "1", PartName = partName }]
+            },
+            Parts = [new() { Id = "1", Measures = part.Measures }]
+        });
 
     /// <summary>
     /// オブジェクトをMusicXMLに変換する。
@@ -452,14 +455,12 @@ public static class MusicXmlUtil
         const string PubId = "-//Recordare//DTD MusicXML 4.0 Partwise//EN";
         const string SysId = "http://www.musicxml.org/dtds/partwise.dtd";
 
-        using (var ms = new MemoryStream())
-        using (var writer = XmlWriter.Create(ms, _xmlWriterSetting))
-        {
-            writer.WriteDocType("score-partwise", PubId, SysId, null);
+        using var ms = new MemoryStream();
+        using var writer = XmlWriter.Create(ms, _xmlWriterSetting);
+        writer.WriteDocType("score-partwise", PubId, SysId, null);
 
-            XmlUtil.GetXmlSerializer<T>().Serialize(writer, obj, _xmlWriterNamespaces);
-            return ms.ToArray();
-        }
+        XmlUtil.GetXmlSerializer<T>().Serialize(writer, obj, _xmlWriterNamespaces);
+        return ms.ToArray();
     }
 
     static int GetCode(Pitch pitch)
@@ -497,7 +498,7 @@ public static class MusicXmlUtil
     private const int KeyCodeASharp = 10;
     private const int KeyCodeB = 11;
 
-    private static readonly Dictionary<string, int> KeyCodeForStep = new()
+    private static readonly ImmutableDictionary<string, int> KeyCodeForStep = new Dictionary<string, int>()
     {
         ["C"] = KeyCodeC,
         ["D"] = KeyCodeD,
@@ -506,9 +507,10 @@ public static class MusicXmlUtil
         ["G"] = KeyCodeG,
         ["A"] = KeyCodeA,
         ["B"] = KeyCodeB,
-    };
+    }
+    .ToImmutableDictionary();
 
-    private static Dictionary<int, Dictionary<int, int>> KeySignatures = new()
+    private static readonly ImmutableDictionary<int, Dictionary<int, int>> KeySignatures = new Dictionary<int, Dictionary<int, int>>()
     {
         [-7] = new() // ♭7つ
         {
@@ -598,5 +600,6 @@ public static class MusicXmlUtil
             [KeyCodeB] = KeyCodeB + 1,
             [KeyCodeA] = KeyCodeA + 1,
         },
-    };
+    }
+    .ToImmutableDictionary();
 }
