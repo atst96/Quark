@@ -14,7 +14,7 @@ public partial class Recents
 
     /// <summary></summary>
     [MemoryPackInclude, MemoryPackOrder(1)]
-    private Dictionary<RecentDirectoryType, string> _directories = null!;
+    private Dictionary<RecentDirectoryType, string> _directories = [];
 
     /// <summary>
     /// デシリアライズ完了時
@@ -22,7 +22,7 @@ public partial class Recents
     [MemoryPackOnDeserialized]
     private void OnDeserialized()
     {
-        this._directories ??= new();
+        this._directories ??= [];
     }
 
     /// <summary>

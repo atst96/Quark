@@ -132,8 +132,14 @@ public static class MusicXmlUtil
         Dictionary<int, int>? keySignature = null;
         int noteIdx = -1;
 
-        foreach (var measure in measures)
+        // 小節分解析を繰り返す
+        for (int measureIdx = 0; measureIdx < measures.Count; ++measureIdx)
         {
+            var measure = measures[measureIdx];
+
+            // 小節内の音符の開始位置。divisionsの値を用いる
+            int noteOffset = 0;
+
             if (measure.Attributes is { } attributes)
             {
                 if (attributes.Divisions is { } newDivision)
@@ -144,7 +150,7 @@ public static class MusicXmlUtil
                 }
 
                 if (attributes.Time is { } time)
-                    timeSignatures.AddLast(new TimeSignature(currentTime, time.Beats, time.BeatType));
+                    timeSignatures.AddLast(new TimeSignature(measureIdx, noteOffset, currentTime, time.Beats, time.BeatType));
 
                 var fifth = attributes.Key?.Fifths;
                 if (fifth is null || fifth == 0)
@@ -176,7 +182,7 @@ public static class MusicXmlUtil
                         tempo = sound.Tempo;
                         timePerQuarter = GetQuarterDuration(unit, (decimal)tempo);
 
-                        tempos.AddLast(new TempoInfo(true, currentTime, tempo, metronome.BeatUnit ?? "4", metronome.BeatUnitDot != null, metronome.PerMinute));
+                        tempos.AddLast(new TempoInfo(measureIdx, noteOffset, currentTime, tempo, metronome.BeatUnit ?? "4", metronome.BeatUnitDot != null, metronome.PerMinute));
                     }
                 }
                 else if (item is Note note)
@@ -197,7 +203,7 @@ public static class MusicXmlUtil
                             if (ties is null || ties.Count == 0)
                             {
                                 // タイ以外の音符
-                                scoreNotes.AddLast(CreateFrameInfo(++noteIdx, note, currentTime, currentTime + duration));
+                                scoreNotes.AddLast(CreateFrameInfo(++noteIdx, measureIdx, noteOffset, note, currentTime, currentTime + duration));
                             }
                             else
                             {
@@ -206,7 +212,7 @@ public static class MusicXmlUtil
                                     // タイ記号の始め
 
                                     // 音符リストには追加せずに、タイの終わりまで蓄積する
-                                    tiedNote = CreateFrameInfo(++noteIdx, note, currentTime, currentTime + duration);
+                                    tiedNote = CreateFrameInfo(++noteIdx, measureIdx, noteOffset, note, currentTime, currentTime + duration);
                                 }
                                 else if (ties.Any(t => t.Type == StartStop.Stop) && tiedNote is not null)
                                 {
@@ -249,6 +255,7 @@ public static class MusicXmlUtil
                     finally
                     {
                         currentTime += duration;
+                        noteOffset += note.Duration;
                     }
                 }
             }
@@ -257,13 +264,13 @@ public static class MusicXmlUtil
         // 先頭のテンポ情報がなければデフォルトを差し込む
         if (tempos is not { Count: > 0, First.Value.Time: 0 })
         {
-            tempos.AddFirst(new TempoInfo(false, 0, DefaultTempo, "quarter", false, DefaultTempo));
+            tempos.AddFirst(new TempoInfo(0, 0, 0, DefaultTempo, "quarter", false, DefaultTempo));
         }
 
         // 先頭の小節情報がなければデフォルトを差し込む
         if (timeSignatures is not { Count: > 0, First.Value.Time: 0 })
         {
-            timeSignatures.AddFirst(new TimeSignature(0, 4, 4));
+            timeSignatures.AddFirst(new TimeSignature(0, 0, 0, 4, 4));
         }
 
         score = new ScoreInfo(0, tempos, timeSignatures, scoreNotes, new(measures));
@@ -473,10 +480,12 @@ public static class MusicXmlUtil
     private static bool GetIsBreath(Note note)
         => note.Notations?.Articulations?.BreathMark is not null;
 
-    private static ScoreNote CreateFrameInfo(int noteIdx, Note note, decimal startTime, decimal endTime)
+    private static ScoreNote CreateFrameInfo(int noteIdx, int measureIdx, int offset, Note note, decimal startTime, decimal endTime)
         => new()
         {
             Index = noteIdx,
+            MeasureIdx = measureIdx,
+            Offset = offset,
             BeginTime = (int)startTime,
             EndTime = (int)endTime,
             Lyrics = note.Lyric?.Text ?? string.Empty,

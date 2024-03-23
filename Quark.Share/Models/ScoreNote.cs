@@ -2,10 +2,19 @@
 
 namespace Quark.Models;
 
+/// <summary>
+/// 音符情報
+/// </summary>
 public class ScoreNote
 {
-    /// <summary>音符のインデックス</summary>
+    /// <summary>楽譜全体の音符のインデックス</summary>
     public required int Index { get; set; }
+
+    /// <summary>小節のインデックス</summary>
+    public required int MeasureIdx { get; init; }
+
+    /// <summary>小節内の先頭からの音符の位置(Divisions単位)</summary>
+    public required int Offset { get; init; }
 
     /// <summary>開始フレーム</summary>
     public required int BeginTime { get; init; }
