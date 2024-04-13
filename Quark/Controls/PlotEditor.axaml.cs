@@ -20,6 +20,7 @@ using System.Numerics;
 using Quark.Extensions;
 using Quark.Helpers;
 using SkiaSharp;
+using Avalonia.Media;
 
 namespace Quark.Controls;
 public partial class PlotEditor : UserControl
@@ -34,10 +35,19 @@ public partial class PlotEditor : UserControl
     private long _framesCount = 0;
     private IList<TimingHandle> _timings = Array.Empty<TimingHandle>();
     private TrackScoreInfo _trackScoreInfo;
-    private EditorRenderLayout _renderLayout;
     private RenderInfoCommon _renderCommon;
+    private RangeScoreRenderInfo? _rangeInfo;
     private EditorPartsLayoutResolver _partsLayout = null!;
-    private EditorRendererBase _editorRenderer = null!;
+
+    /// <summary>
+    /// エディタのレイアウト情報。親要素のサイズ変更時や編集モード変更時に更新される。
+    /// </summary>
+    private EditorRenderLayout? _renderLayout = null;
+
+    /// <summary>
+    /// トラックの描画情報。
+    /// </summary>
+    private TrackRenderInfo? _trackRenderInfo = null;
 
     /// <summary>スコア編集可否フラグ</summary>
     private bool _isScoreEditable = true;
@@ -100,10 +110,10 @@ public partial class PlotEditor : UserControl
         if (Design.IsDesignMode)
             return;
 
-        if (this._editorRenderer is { } renderer && this._renderCommon is { } renderCommon)
-        {
-            renderer.Render(e, renderCommon);
-        }
+        //if (this._editorRenderer is { } renderer && this._renderCommon is { } renderCommon)
+        //{
+        //    renderer.Render(e, renderCommon);
+        //}
     }
 
     protected override void OnInitialized()
@@ -152,6 +162,16 @@ public partial class PlotEditor : UserControl
         this.UpdateScrollLayout();
         this.RelocateSeekBars();
     }
+
+    /// <summary>カラーテーマ</summary>
+    public ColorTheme ColorTheme
+    {
+        get => this.GetValue<ColorTheme>(ColorThemeProperty);
+        set => this.SetValue(ColorThemeProperty, value);
+    }
+
+    /// <summary><see cref="ColorTheme"/>のプロパティ</summary>
+    public static readonly AvaloniaProperty<ColorTheme> ColorThemeProperty = AvaloniaProperty.Register<PlotEditor, ColorTheme>(nameof(ColorTheme), ColorTheme.Light);
 
     /// <summary>シークバーの選択位置</summary>
     public TimeSpan SelectionTime
@@ -234,7 +254,7 @@ public partial class PlotEditor : UserControl
     {
         if (this.UpdateInternalKeyHeight(newValue))
         {
-            this.SetVScrollPosition((int)(this.GetVScrollPosition() * ((double)newValue / oldValue)));
+            this.SetVerticalScrollPosition((int)(this.GetVerticalScrollPosition() * ((double)newValue / oldValue)));
 
             // 内部で変更済み出ない場合
             this.OnLayoutChanged();
@@ -244,7 +264,7 @@ public partial class PlotEditor : UserControl
     /// <summary>編集モード</summary>
     public EditMode EditMode
     {
-        get => (EditMode)this.GetValue(EditModeProperty);
+        get => this.GetValue(EditModeProperty);
         set => this.SetValue(EditModeProperty, value);
     }
 
@@ -277,6 +297,7 @@ public partial class PlotEditor : UserControl
     {
         // 再描画
         this.UpdateRenderContent();
+        this.RedrawAll();
     }
 
     /// <summary>スナッピングの切り替え</summary>
@@ -415,6 +436,7 @@ public partial class PlotEditor : UserControl
         // this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
 
         this.UpdateRenderContent();
+        this.RedrawAll();
     }
 
     private void LoadTiming()
@@ -434,6 +456,7 @@ public partial class PlotEditor : UserControl
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
         this.RelocateSeekBars();
+        this.RedrawAll();
     }
 
     /// <summary>
@@ -446,6 +469,8 @@ public partial class PlotEditor : UserControl
 
         long dataLength = this._framesCount;
         var renderLayout = this._renderLayout;
+        if (renderLayout == null)
+            return;
 
         // ########## 縦スクロールの設定
         int viewHeight = renderLayout.ScoreArea.Height;
@@ -486,6 +511,7 @@ public partial class PlotEditor : UserControl
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
         this.RelocateSeekBars();
+        this.RedrawAll();
     }
 
     /// <summary>
@@ -609,6 +635,7 @@ public partial class PlotEditor : UserControl
                     this.SetRenderBeginMs((int)value);
                     this.RelocatePlayingSeekBar(TimeSpan.FromMilliseconds(value), time, true);
                     this.UpdateRenderContent();
+                    this.RedrawAll();
                 }
 
                 //this.SetRenderBeginMs((int)value);
@@ -739,7 +766,15 @@ public partial class PlotEditor : UserControl
             var timings = this._timings;
             var timingEditingTarget = (this._editingInfo as TimingEditingInfo)?.Target;
 
-            this._renderCommon.RangeScoreRenderInfo = new RangeScoreRenderInfo
+            var trackRenderInfo = new TrackRenderInfo()
+            {
+                Track = this.Track!,
+                RenderRange = rangeInfo,
+                ScreenLayout = renderLayout,
+            };
+            this._trackRenderInfo = trackRenderInfo;
+
+            this._renderCommon.RangeScoreRenderInfo = this._rangeInfo = new RangeScoreRenderInfo
             {
                 Score = trackScore.Score.GetRangeInfo(beginTime, endTime),
                 Timings = ScoreLayoutHelper.GetRenderTargets(this._renderCommon, this._partsLayout, timings, timingEditingTarget),
@@ -748,8 +783,8 @@ public partial class PlotEditor : UserControl
             };
         }
 
-        if (redraw)
-            this.Redraw();
+        //if (redraw)
+        //    this.Redraw();
     }
 
     private void UpdateRenderInfo(RenderRangeInfo render, EditorRenderLayout renerLayout)
@@ -761,15 +796,442 @@ public partial class PlotEditor : UserControl
             ColorInfo = this.ColorInfo,
             ScreenLayout = renerLayout,
             SelectionRange = this._rangeSelection,
-            VScrollPosition = this.GetVScrollPosition(),
+            VScrollPosition = this.GetVerticalScrollPosition(),
         };
     }
 
     /// <summary>
     /// 画面を再描画する
     /// </summary>
+    [Obsolete]
     private void Redraw()
-        => this.SKElement.InvalidateVisual();
+    {
+        using (Dispatcher.UIThread.DisableProcessing())
+        {
+            this.SKElement.InvalidateVisual();
+            this.UpdateScreenContent();
+            this.KeysLayer.OnScroll(this.GetVerticalScrollPosition());
+
+            this.RulerLayer.InvalidateVisual();
+            this.BackgroundLayer.InvalidateVisual();
+            this.WaveformLayer.InvalidateVisual();
+        }
+    }
+
+    private void UpdateScreenContent()
+    {
+        var elParts = this.PART_Notes;
+        var ri = this._renderCommon;
+        if (ri == null)
+            return;
+
+        var rangeScoreInfo = ri.RangeScoreRenderInfo;
+        if (rangeScoreInfo == null)
+            return;
+
+        var rangeInfo = ri.RenderRange;
+        var renderLayout = ri.ScreenLayout;
+
+        // 描画開始・終了位置
+        int beginTime = rangeInfo.BeginTime;
+        int endTime = rangeInfo.EndTime;
+
+        // 描画領域
+        int height = renderLayout.ScoreImage.Height;
+        int keyHeight = renderLayout.PhysicalKeyHeight;
+
+        // スコアの描画
+        var notes = rangeScoreInfo.Score.Notes;
+
+        var children = elParts.Children;
+
+        var dict = children.OfType<EditorNote>().ToDictionary(e => e.Note);
+
+        // 次の範囲に含まれないノートを画面上から削除
+        children.RemoveAll(dict.Values.Where(e => !notes.Contains(e.Note)));
+
+        int offsetY = -this.GetVerticalScrollPosition();
+
+        int phraseZIndex = 1;
+        int noteZIndex = 2;
+        int timingZIndex = 3;
+
+        foreach (var score in notes)
+        {
+            int x = renderLayout.GetRenderPosXFromTime(score.BeginTime - beginTime);
+            int y = height - (score.Pitch * keyHeight);
+            int w = renderLayout.GetRenderPosXFromTime(score.EndTime - score.BeginTime);
+            int h = keyHeight;
+
+            EditorNote note;
+            bool isExists = dict.TryGetValue(score, out note!);
+            if (!isExists)
+                note = new EditorNote(score)
+                {
+                    ZIndex = noteZIndex,
+                };
+
+            Canvas.SetLeft(note, x);
+            Canvas.SetTop(note, offsetY + y);
+            note.Width = w + 1;
+            note.Height = h;
+            note.Lyrics = score.Lyrics;
+            note.HasBreath = score.IsBreath;
+
+            if (!isExists)
+                children.Add(note);
+        }
+
+        var timingDict = children.OfType<TimingHandler>().ToDictionary(e => e.Timing);
+
+        var timings = rangeScoreInfo.Timings.Select(t => t.TimingInfo).Where(
+            e => beginTime <= NeutrinoUtil.TimingTimeToMs(e.EditedBeginTime100Ns) && NeutrinoUtil.TimingTimeToMs(e.EditedEndTime100Ns) <= endTime).ToList();
+
+        // 次の範囲に含まれないノートを画面上から削除
+        children.RemoveAll(timingDict.Values.Where(e => !timings.Contains(e.Timing)));
+
+        foreach (var _timing in timings)
+        {
+            int x = renderLayout.GetRenderPosXFromTime(NeutrinoUtil.TimingTimeToMs(_timing.EditedBeginTime100Ns) - beginTime);
+            int y = 0;
+            int h = renderLayout.ScoreArea.Height;
+
+            TimingHandler timing;
+            bool isExists = timingDict.TryGetValue(_timing, out timing!);
+            if (!isExists)
+                timing = new TimingHandler(_timing)
+                {
+                    ZIndex = timingZIndex,
+                };
+
+            Canvas.SetLeft(timing, x - 3);
+            Canvas.SetTop(timing, y);
+            timing.Height = h + 2;
+            timing.Phoneme = _timing.Phoneme;
+
+            if (!isExists)
+                children.Add(timing);
+        }
+
+        // 次の範囲に含まれない範囲描画を画面上から削除
+
+        var track = ri.Track;
+        if (track != null)
+        {
+            var phrases = track.Phrases.Where(e => beginTime <= e.BeginTime || e.EndTime <= endTime).ToList();
+
+            var rangeRects = children.OfType<PhraseRect>().ToDictionary(e => e.Phrase);
+            children.RemoveAll(rangeRects.Values.Where(e => !phrases.Contains(e.Phrase)));
+
+            foreach (var phrase in phrases)
+            {
+                int x = renderLayout.GetRenderPosXFromTime(phrase.BeginTime - beginTime);
+                int y = 0;
+                int w = renderLayout.GetRenderPosXFromTime(phrase.EndTime - phrase.BeginTime);
+                int h = renderLayout.ScoreArea.Height;
+
+                PhraseRect phraseRect;
+                bool isExists = rangeRects.TryGetValue(phrase, out phraseRect!);
+                if (!isExists)
+                    phraseRect = new(phrase)
+                    {
+                        ZIndex = phraseZIndex,
+                        IsHitTestVisible = false
+                    };
+
+                Canvas.SetLeft(phraseRect, x);
+                Canvas.SetTop(phraseRect, y);
+                phraseRect.Width = w;
+                phraseRect.Height = h;
+
+                if (!isExists)
+                    children.Add(phraseRect);
+
+                phraseRect.UpdateBackground();
+            }
+        }
+    }
+
+    private const int KeyCount = 88;
+
+    private static IBrush ToBrush(SKPaint paint)
+    {
+        var color = paint.Color;
+        return new SolidColorBrush(Color.FromArgb(color.Alpha, color.Red, color.Green, color.Blue));
+    }
+
+    public void Ruler_Rendering(object? _, DrawingContext context)
+    {
+        var renderTarget = this.BackgroundLayer;
+        var ri = this._renderCommon;
+        if (ri == null)
+            return;
+
+        context.PushRenderOptions(new RenderOptions
+        {
+            EdgeMode = EdgeMode.Aliased,
+            TextRenderingMode = TextRenderingMode.Alias,
+        });
+
+        var _renderInfo = ri.ScreenLayout;
+
+        // 描画領域
+        (int renderWidth, int renderHeight) = _renderInfo.RulerArea.Size;
+
+        var rangeScoreInfo = ri.RangeScoreRenderInfo;
+        var renderLayout = ri.ScreenLayout;
+        var renderRange = ri.RenderRange;
+
+        var pen = new Pen(Brushes.White, 1);
+        context.FillRectangle(Brushes.Black, new Rect(0, 0, renderWidth, renderHeight));
+
+        if (rangeScoreInfo != null)
+        {
+            // 描画開始・終了位置
+            int beginTime = renderRange.BeginTime;
+
+            // 小節、4分音符、8分音符時の描画位置
+            float measureLineY = 0.0f;
+            float beat4thLineY = renderHeight * 0.4f;
+            float beat8thLineY = renderHeight * 0.7f;
+
+            foreach (var rulerLine in rangeScoreInfo.RulerLines)
+            {
+                float scaledX = renderLayout.GetRenderPosXFromTime((int)rulerLine.Time - beginTime);
+
+                var linePosY = rulerLine.LineType switch
+                {
+                    LineType.Measure => measureLineY,
+                    LineType.Whole or LineType.Note2th or LineType.Note4th => beat4thLineY,
+                    _ => beat8thLineY,
+                };
+
+                context.DrawLine(pen, new Point(scaledX, linePosY), new Point(scaledX, renderHeight));
+            }
+        }
+    }
+
+    public void Background_Rendering(object? _, DrawingContext context)
+    {
+        var renderTarget = this.BackgroundLayer;
+        var ri = this._renderCommon;
+        if (ri == null)
+            return;
+
+        var _renderInfo = ri.ScreenLayout;
+        var rangeInfo = ri.RenderRange;
+        var scaling = _renderInfo.Scaling;
+
+        context.PushRenderOptions(new RenderOptions
+        {
+            EdgeMode = EdgeMode.Aliased,
+            TextRenderingMode = TextRenderingMode.Alias,
+        });
+
+        // 描画領域
+        (int renderWidth, int renderHeight) = _renderInfo.ScoreImage.Size;
+        // (int width, int height) = _renderInfo.ScoreImage.Size;
+
+        var renderLayout = ri.ScreenLayout;
+
+        int renderKeyHeight = renderLayout.PhysicalKeyHeight;
+        int width = renderLayout.ScoreArea.Width;
+        int height = renderKeyHeight * KeyCount;
+
+        var colorInfo = ri.ColorInfo;
+        var whiteKeyBrush = ToBrush(colorInfo.ScoreWhiteKeyPaint);
+        var whiteGridPen = ToBrush(colorInfo.ScoreWhiteKeyGridPaint);
+        var blackKeyBrush = ToBrush(colorInfo.ScoreBlackKeyPaint);
+
+        var whiteKeyPen = new Pen(whiteGridPen, 1);
+
+        int yOffset = this.GetVerticalScrollPosition();
+
+        int scoreRenderHeight = renderLayout.ScoreArea.Height;
+
+        // 描画できるキー数
+        int renderKeyCount = (int)Math.Ceiling((double)scoreRenderHeight / renderKeyHeight);
+
+        int scoreHeight = renderKeyHeight * KeyCount;
+
+        // 描画を始めるキーのインデックスを計算する
+        // スコア領域が描画領域より小さければA0から、そうでなければ描画領域の下端から描画する
+        int baseKeyIdx = 0;
+        if (scoreRenderHeight < scoreHeight)
+            baseKeyIdx = (scoreHeight - scoreRenderHeight - yOffset) / renderKeyHeight;
+
+        int bottomMarign = scoreRenderHeight - scoreHeight;
+        if (bottomMarign > 0)
+            // 描画領域がスコア領域より大きい場合は、描画されない部分を塗りつぶす
+            context.FillRectangle(Brushes.White, new(0, (scoreRenderHeight - bottomMarign), renderWidth, bottomMarign));
+
+        // ストライプの描画
+        for (int keyIdx = baseKeyIdx, maxKeyIdx = baseKeyIdx + renderKeyCount; keyIdx < maxKeyIdx; ++keyIdx)
+        {
+            int y = height - ((keyIdx + 1) * renderKeyHeight) - yOffset;
+            var rect = new Rect(0, y, width, renderKeyHeight);
+
+            int keyCode = keyIdx % 12;
+
+            if (keyCode is 0 or 2 or 5 or 7 or 9)
+            {
+                // 白鍵のみ描画
+                // C, D, F, G, A
+                context.FillRectangle(whiteKeyBrush, rect);
+            }
+            else if (keyCode is 4 or 11)
+            {
+                // 白鍵と隣接する白鍵の境界
+                // E, A
+                context.FillRectangle(whiteKeyBrush, rect);
+                context.DrawLine(whiteKeyPen, new Point(0, y), new Point(width, y));
+            }
+            else
+            {
+                // 黒鍵のみ描画
+                context.FillRectangle(blackKeyBrush, rect);
+            }
+        }
+
+        // 小節／拍の罫線を描画
+        var rangeScoreInfo = ri.RangeScoreRenderInfo;
+        if (rangeScoreInfo != null)
+        {
+            int beginTime = ri.RenderRange.BeginTime;
+
+            int penSize = 1;
+            var notePen = new Pen(Brushes.DarkGray, penSize);
+            var measurePen = new Pen(Brushes.Black, penSize);
+            var otherNotePen = new Pen(Brushes.LightGray, penSize);
+
+            // 罫線の描画
+            foreach (var noteLine in rangeScoreInfo.NoteLines)
+            {
+                float scaledX = ri.ScreenLayout.GetRenderPosXFromTime((int)noteLine.Time - beginTime);
+
+                var pen = noteLine.LineType switch
+                {
+                    LineType.Measure => measurePen,
+                    LineType.Whole => notePen,
+                    LineType.Note2th => notePen,
+                    LineType.Note4th => notePen,
+                    _ => otherNotePen,
+                };
+
+                context.DrawLine(pen, new Point(scaledX, 0), new Point(scaledX, scoreRenderHeight));
+            }
+        }
+    }
+
+    public void Waveform_Rendering(object? _, DrawingContext context)
+    {
+        var ri = this._renderCommon;
+        if (ri == null)
+            return;
+
+        var rangeScoreInfo = ri.RangeScoreRenderInfo;
+        if (rangeScoreInfo == null)
+            return;
+
+        var rangeInfo = ri.RenderRange;
+        var renderLayout = ri.ScreenLayout;
+
+        if (ri.Track is not NeutrinoV2Track track)
+            return;
+
+        // 描画領域
+        (int width, int height) = renderLayout.ScoreImage.Size;
+        int keyHeight = renderLayout.PhysicalKeyHeight;
+
+        // 描画開始・終了位置
+        int beginTime = rangeInfo.BeginTime;
+        int endTime = rangeInfo.EndTime;
+
+        // フレームの描画範囲
+        int beginFrameIdx = NeutrinoUtil.MsToFrameIndex(beginTime);
+        int endFrameIdx = beginFrameIdx + rangeInfo.FramesCount;
+
+        // 描画対象のフレーズ情報
+        var targetPhrases = track.Phrases
+            .Where(p => beginTime <= p.EndTime && p.BeginTime <= endTime);
+
+        var pitches = targetPhrases
+            .Where(p => p.F0 is not null)
+            .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.F0!, 0, 1, NeutrinoUtil.MsToFrameIndex(p.BeginTime)))
+            .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
+            .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
+
+        float pitchOffset = (float)keyHeight / 2;
+
+        int offsetMs = NeutrinoUtil.FrameIndexToMs(beginFrameIdx) - beginTime;
+
+        foreach (var pitchGroup in pitches)
+        {
+            int count = pitchGroup.Last().TotalEndIndex - pitchGroup.First().TotalBeginIndex + 1;
+            var origPoints = new Point[count];
+            var editedPoints = new Point[count];
+            int pointsIdx = 0;
+
+            foreach (var pitch in pitchGroup)
+            {
+                var phrase = pitch.Phrase;
+                float[] f0 = phrase.F0!;
+                float[] editedF0 = phrase.GetEditingF0()!;
+
+                // 描画開始／終了インデックス
+                (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(
+                    pitch.PhraseBeginFrameIdx + pitch.BeginIndex, pitch.EndIndex - pitch.BeginIndex + 1,
+                    beginFrameIdx, endFrameIdx, 0);
+
+                if (beginIdx >= endIdx)
+                {
+                    Debug.WriteLine($"Beg: {beginIdx}, End: {endIdx}");
+                    continue;
+                }
+
+                int f = beginIdx - pitch.PhraseBeginFrameIdx;
+
+                for (int idx = 0, length = endIdx - beginIdx; idx < length; ++idx)
+                {
+                    int frameIdx = idx + f;
+                    int x = renderLayout.GetRenderPosXFromTime(offsetMs + NeutrinoUtil.FrameIndexToMs(frameIdx + pitch.PhraseBeginFrameIdx) - beginTime);
+
+                    origPoints[pointsIdx] = new Point(x,
+                        height - pitchOffset - ((float)AudioDataConverter.FrequencyToPitch12(f0[frameIdx]) * keyHeight));
+
+                    editedPoints[pointsIdx] = new Point(x,
+                        height - pitchOffset - ((float)AudioDataConverter.FrequencyToPitch12(editedF0[frameIdx]) * keyHeight));
+
+                    ++pointsIdx;
+                }
+            }
+
+            if (pointsIdx > 0)
+            {
+                var range = 0..pointsIdx;
+                // context.DrawGlyphRun()
+
+                var waveformPen = new Pen(Brushes.Red, 1.5);
+
+                var path = new PathGeometry()
+                {
+                    Figures = [
+                        new PathFigure() {
+                            IsClosed = false,
+                            StartPoint = editedPoints[0],
+                            Segments = [ new PolyLineSegment() { Points = new ArraySegment<Point>(editedPoints, 1, pointsIdx - 1) } ]
+                        }
+                    ]
+                };
+
+                context.DrawGeometry(null, waveformPen, path);
+
+
+                //g.DrawPoints(SKPointMode.Polygon, origPoints[range], new SKPaint { Color = SKColors.OrangeRed.WithAlpha(150), StrokeWidth = 1.2f, IsAntialias = true });
+                //g.DrawPoints(SKPointMode.Polygon, editedPoints[range], new SKPaint { Color = SKColors.Red, StrokeWidth = 1.2f, IsAntialias = true });
+            }
+        }
+    }
 
     /// <summary>
     /// 描画領域のサイズ変更時
@@ -781,21 +1243,8 @@ public partial class PlotEditor : UserControl
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
         this.RelocateSeekBars();
+        this.RedrawAll();
     }
-
-    /// <summary>縦スクロール位置を取得する</summary>
-    private int GetVScrollPosition()
-        => (int)this.vScrollBar1.Value;
-
-    /// <summary>縦スクロール位置を設定する</summary>
-    /// <param name="position">スクロール位置(px)</param>
-    private void SetVScrollPosition(int position)
-        => this.vScrollBar1.Value = position;
-
-    /// <summary>縦スクロール位置を設定する</summary>
-    /// <param name="offset">スクロール位置(px)</param>
-    private void SetVScrollPositionOffset(int offset)
-        => this.SetVScrollPosition(this.GetVScrollPosition() + offset);
 
     /// <summary>描画開始時間</summary>
     private int _renderBeginTime = 0;
@@ -833,20 +1282,30 @@ public partial class PlotEditor : UserControl
     private void SetRenderBeginMsOffset(int time)
         => this.SetRenderBeginMs(this.GetRenderBeginTimeMs() + time);
 
+    /// <summary>縦スクロール位置を取得する</summary>
+    private int GetVerticalScrollPosition()
+        => (int)this.vScrollBar1.Value;
+
     /// <summary>描画開始位置を変更する</summary>
-    /// <param name="time"></param>
-    private void SetVerticalPosition(double time)
+    /// <param name="position">縦位置</param>
+    private void SetVerticalScrollPosition(int position)
     {
-        if ((int)this.vScrollBar1.Value != (int)time)
+        if ((int)this.vScrollBar1.Value != position)
         {
-            this.vScrollBar1.Value = time;
+            this.vScrollBar1.Value = position;
+            this.OnVScrolled(position);
         }
     }
 
+    private void OnVScrolled(int position)
+    {
+        this.KeysLayer.OnScroll(position);
+    }
+
     /// <summary>描画開始位置を変更する</summary>
-    /// <param name="time"></param>
-    private void SetVerticalPositionOffset(double time)
-        => this.SetVerticalPosition((int)(this.vScrollBar1.Value + time));
+    /// <param name="offset">縦位置オフセット値</param>
+    private void SetVerticalPositionOffset(double offset)
+        => this.SetVerticalScrollPosition((int)(this.GetVerticalScrollPosition() + offset));
 
     /// <summary>
     /// 縦スクロール時
@@ -855,8 +1314,10 @@ public partial class PlotEditor : UserControl
     /// <param name="e">イベント情報</param>
     private void OnVScroll(object? sender, ScrollEventArgs e)
     {
-        this._renderCommon?.OnVerticalScrollChanged(this.GetVScrollPosition());
-        this.Redraw();
+        int pos = this.GetVerticalScrollPosition();
+        this._renderCommon?.OnVerticalScrollChanged(pos);
+        this.OnVScrolled(pos);
+        this.RedrawAll();
     }
 
     /// <summary>
@@ -878,6 +1339,7 @@ public partial class PlotEditor : UserControl
         this.OnRenderBeginMsChanged(time);
         this.UpdateRenderContent();
         this.RelocateSeekBars();
+        this.RedrawAll();
     }
 
     /// <summary>
@@ -887,7 +1349,6 @@ public partial class PlotEditor : UserControl
     private void InitializeRenderer(INeutrinoTrack? track)
     {
         this._partsLayout = new();
-        this._editorRenderer = EditorRendererHelper.GetRenderer(track, this._partsLayout);
     }
 
     private SeekBarMode GetSeekBarMode()
@@ -912,6 +1373,7 @@ public partial class PlotEditor : UserControl
         this._isFeatureEditable = this._isF0Editable = editMode == EditMode.AudioFeatures;
 
         this.UpdateRenderContent();
+        this.RedrawAll();
         this.UpdateScrollLayout();
     }
 
@@ -1029,6 +1491,7 @@ public partial class PlotEditor : UserControl
                             }
 
                             this.UpdateRenderContent();
+                            this.UpdateNoteElements();
                             e.Handled = true;
                         }
                         else if (pressedKey.modifiers == KeyModifiers.Control)
@@ -1046,6 +1509,7 @@ public partial class PlotEditor : UserControl
                                         this.ChangeMouseMode(MouseControlMode.EditPitchBulkSeek, new PitchSeekingInfo(a1, a2, pitch));
 
                                         this.UpdateRenderContent();
+                                        this.RedrawWaveform();
                                         e.Handled = true;
                                     }
                                 }
@@ -1058,6 +1522,7 @@ public partial class PlotEditor : UserControl
                                         this.ChangeMouseMode(MouseControlMode.EditDynamicsBulkSeek, new DynamicsSeekingInfo(a1, a2, coe));
 
                                         this.UpdateRenderContent();
+                                        this.UpdateDynamicsArea();
                                         e.Handled = true;
                                     }
                                 }
@@ -1072,6 +1537,9 @@ public partial class PlotEditor : UserControl
                                 this.ChangeMouseMode(MouseControlMode.EditPitch, new PitchEditingInfo(adjustedTime, pitch));
 
                                 this.EditF0(adjustedTime, EnumerableUtil.ToEnumerable(pitch));
+
+                                this.UpdateRenderContent();
+                                this.RedrawWaveform();
                             }
                             else if (dynamicsArea != null && dynamicsArea.IsContains(mousePosition))
                             {
@@ -1081,9 +1549,11 @@ public partial class PlotEditor : UserControl
                                 this.ChangeMouseMode(MouseControlMode.EditDynamics, new DynamicsEditingInfo(adjustedTime, frequency));
 
                                 this.EditDynamics(adjustedTime, EnumerableUtil.ToEnumerable(frequency));
+
+                                this.UpdateRenderContent();
+                                this.UpdateDynamicsArea();
                             }
 
-                            this.UpdateRenderContent();
                             e.Handled = true;
                         }
                     }
@@ -1170,6 +1640,7 @@ public partial class PlotEditor : UserControl
                     this.SetVerticalPositionOffset(-change);
                 }
                 this.UpdateRenderContent();
+                this.RedrawAll();
                 this.RelocateSeekBars();
             }
             else if (delta < 0)
@@ -1183,6 +1654,7 @@ public partial class PlotEditor : UserControl
                     this.SetVerticalPositionOffset(change);
                 }
                 this.UpdateRenderContent();
+                this.RedrawAll();
                 this.RelocateSeekBars();
             }
         }
@@ -1257,7 +1729,7 @@ public partial class PlotEditor : UserControl
         int delta = (int)Math.Round(newDuration - oldDuration);
 
         this.KeyHeight = newHeight;
-        this.SetVScrollPosition((int)((this.GetVScrollPosition() * zoom) + delta));
+        this.SetVerticalScrollPosition((int)((this.GetVerticalScrollPosition() * zoom) + delta));
         this.OnLayoutChanged();
     }
 
@@ -1390,8 +1862,9 @@ public partial class PlotEditor : UserControl
                     timingEditing.Target.MoveX(adjustedX);
                     timingEditing.CurrentTimeMs = adjustedTime;
 
-                    // 再描画
-                    this.Redraw();
+                    // タイミング編集関連の要素を再配置
+                    this.UpdateRenderContent();
+                    this.UpdateTimingElements();
                     e.Handled = true;
                 }
             }
@@ -1442,6 +1915,9 @@ public partial class PlotEditor : UserControl
 
                     // 直前の編集情報を更新
                     pitchEditing.SetPrevious(currentTime, currentPitch);
+
+                    this.UpdateRenderContent();
+                    this.RedrawWaveform();
                 }
                 else if (editingInfo is DynamicsEditingInfo dynamicsEditingInfo)
                 {
@@ -1474,12 +1950,17 @@ public partial class PlotEditor : UserControl
 
                     // 直前の編集情報を更新
                     dynamicsEditingInfo.SetPrevious(currentTime, currentFrequency);
+
+                    this.UpdateRenderContent();
+                    this.UpdateDynamicsArea();
                 }
                 else if (editingInfo is RangeSelectingInfo rangeSelection)
                 {
                     // 範囲選択モード
                     cursor = new Cursor(StandardCursorType.SizeWestEast);
                     rangeSelection.UpdateEndTime(frameAdjustedTime);
+                    this.UpdateRenderContent();
+                    this.UpdateSelectionArea();
                 }
                 else if (editingInfo is PitchSeekingInfo pitchSeeking)
                 {
@@ -1492,6 +1973,9 @@ public partial class PlotEditor : UserControl
                     this.AddPitch12(beginTime2, Enumerable.Repeat(currentPitch - pitchSeeking.Pitch, length));
 
                     pitchSeeking.SetPitch(currentPitch);
+
+                    this.UpdateRenderContent();
+                    this.RedrawWaveform();
                 }
                 else if (editingInfo is DynamicsSeekingInfo dynamicsSeeking)
                 {
@@ -1504,9 +1988,11 @@ public partial class PlotEditor : UserControl
                     this.AddDynamicsCoe(beginTime2, Enumerable.Repeat(currentCoe - dynamicsSeeking.Coe, length));
 
                     dynamicsSeeking.SetCoe(currentCoe);
+
+                    this.UpdateRenderContent();
+                    this.UpdateDynamicsArea();
                 }
 
-                this.UpdateRenderContent();
                 e.Handled = true;
             }
             else if (current.Properties.IsLeftButtonPressed)
@@ -1565,8 +2051,9 @@ public partial class PlotEditor : UserControl
                         if (!noSelected)
                             cursor = new Cursor(StandardCursorType.SizeWestEast);
 
-                        // 再描画
-                        this.Redraw();
+                        // タイミング編集関連の要素を再配置
+                        this.UpdateRenderContent();
+                        this.UpdateTimingElements();
                         e.Handled = true;
                     }
                 }
@@ -1683,6 +2170,7 @@ public partial class PlotEditor : UserControl
 
                             this.Resync();
                             this.UpdateRenderContent();
+                            this.RedrawWaveform();
                             e.Handled = true;
                         }
                     }
@@ -1699,6 +2187,7 @@ public partial class PlotEditor : UserControl
 
                             this.Resync();
                             this.UpdateRenderContent();
+                            this.RedrawWaveform();
                             e.Handled = true;
                         }
                     }
@@ -1805,7 +2294,7 @@ public partial class PlotEditor : UserControl
 
     private int GetKeyIndex(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
     {
-        int scrollPosition = this.GetVScrollPosition();
+        int scrollPosition = this.GetVerticalScrollPosition();
 
         return (int)(renderLayout.ScoreArea.Height - ((scrollPosition + renderLayout.ScoreArea.RelativeY(mousePosition.Y)) / renderLayout.PhysicalKeyHeight));
     }
@@ -1815,7 +2304,7 @@ public partial class PlotEditor : UserControl
         var scaling = renderLayout.Scaling;
 
         int keyIndexForTop = RenderConfig.KeyCount - keyIndex - 1;
-        double posY = scaling.ToScaled((keyIndexForTop * renderLayout.PhysicalKeyHeight) - this.GetVScrollPosition() + renderLayout.ScoreArea.Y);
+        double posY = scaling.ToScaled((keyIndexForTop * renderLayout.PhysicalKeyHeight) - this.GetVerticalScrollPosition() + renderLayout.ScoreArea.Y);
 
         double posX = renderLayout.GetRenderPosXFromTime(time);
         double width = renderLayout.GetRenderPosXFromTime(duration);
@@ -1909,7 +2398,7 @@ public partial class PlotEditor : UserControl
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private double GetPitch12FromMousePosition(EditorRenderLayout renderLayout, LayoutPoint mousePosition)
     {
-        int scrollPosition = this.GetVScrollPosition();
+        int scrollPosition = this.GetVerticalScrollPosition();
         var scoreArea = renderLayout.ScoreArea;
         int keyHeight = renderLayout.PhysicalKeyHeight;
 
@@ -1960,8 +2449,9 @@ public partial class PlotEditor : UserControl
                 timing.IsSelected = false;
             }
 
-            // 再描画
-            this.Redraw();
+            // タイミング編集関連の要素を再配置
+            this.UpdateRenderContent();
+            this.UpdateTimingElements();
         }
 
         this.ClearMouseMode();
@@ -2029,6 +2519,7 @@ public partial class PlotEditor : UserControl
 
             // 再描画
             this.UpdateRenderContent();
+            this.RedrawWaveform();
         }
 
         this.ClearMouseMode();
@@ -2049,6 +2540,7 @@ public partial class PlotEditor : UserControl
             v2Track.EditDynamics(time, dynamics.Select(i => (float)i).ToArray());
 
         this.UpdateRenderContent();
+        this.UpdateDynamicsArea();
     }
 
     /// <summary>
@@ -2093,6 +2585,7 @@ public partial class PlotEditor : UserControl
 
             // 再描画
             this.UpdateRenderContent();
+            this.UpdateDynamicsArea();
         }
 
         this.ClearMouseMode();
@@ -2112,6 +2605,7 @@ public partial class PlotEditor : UserControl
 
             // 再描画
             this.UpdateRenderContent();
+            this.RedrawWaveform();
         }
 
         this.ClearMouseMode();
@@ -2131,6 +2625,7 @@ public partial class PlotEditor : UserControl
 
             // 再描画
             this.UpdateRenderContent();
+            this.UpdateDynamicsArea();
         }
 
         this.ClearMouseMode();
@@ -2218,7 +2713,6 @@ public partial class PlotEditor : UserControl
     public void CancelEdit()
     {
         this.CancelEditInternal();
-        this.UpdateRenderContent(redraw: true);
     }
 
     /// <summary>
@@ -2253,7 +2747,9 @@ public partial class PlotEditor : UserControl
             int degree = (int)((posX >= -AutoScrollOuterWidth) ? (posX - AutoScrollInnerWidth) : -(AutoScrollInnerWidth + AutoScrollOuterWidth));
             this.SetRenderBeginMs(Math.Max(0, this.GetRenderBeginTimeMs() + (int)(degree / scaleX)));
             // TODO: 再レンダリングの処理を見直す
+
             this.UpdateRenderContent();
+            this.RedrawAll();
         }
         else if ((width - AutoScrollInnerWidth) < posX)
         {
@@ -2261,6 +2757,7 @@ public partial class PlotEditor : UserControl
             this.SetRenderBeginMsOffset((int)(degree / scaleX));
             // TODO: 再レンダリングの処理を見直す
             this.UpdateRenderContent();
+            this.RedrawAll();
         }
     }
 
@@ -2349,6 +2846,7 @@ public partial class PlotEditor : UserControl
     {
         // 再描画
         this.UpdateRenderContent();
+        this.RedrawAll();
     }
     , DispatcherPriority.Render);
 
@@ -2374,5 +2872,59 @@ public partial class PlotEditor : UserControl
 
         this._tempScaleX = newScale;
         return true;
+    }
+
+
+    private void RedrawRuler()
+    {
+        this.RulerLayer.InvalidateVisual();
+    }
+
+    private void RedrawBackground()
+    {
+        this.BackgroundLayer.InvalidateVisual();
+    }
+
+    private void RedrawWaveform()
+    {
+        this.WaveformLayer.InvalidateVisual();
+    }
+
+    private void RedrawAll()
+    {
+        // 要素の再配置
+        this.UpdateTimingElements();
+        // TODO: 現時点でUpdateTimingElementsの中ですべての要素の再配置をしている。今後処理分割したらコメントを外す
+        // this.UpdateNoteElements();
+        // this.UpdatePharseElements();
+
+        // 
+        this.RedrawRuler();
+        this.RedrawBackground();
+        this.RedrawWaveform();
+    }
+
+    private void UpdateTimingElements()
+    {
+        this.UpdateScreenContent();
+    }
+
+    private void UpdateNoteElements()
+    {
+        this.UpdateScreenContent();
+    }
+
+    private void UpdatePharseElements()
+    {
+        this.UpdateScreenContent();
+    }
+
+    private void UpdateSelectionArea()
+    {
+        // TODO: 実装
+    }
+    private void UpdateDynamicsArea()
+    {
+        // TODO: 実装
     }
 }

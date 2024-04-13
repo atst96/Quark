@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="using:Quark.Converters"
              xmlns:app="using:Quark"
+             xmlns:ctrl="using:Quark.Controls"
              xmlns:sys="using:System"
              RequestedThemeVariant="Default">
     <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
@@ -122,7 +123,7 @@
             <DropShadowEffect x:Key="Theme.InputBox.Focus.ShadowEffect" BlurRadius="4" Opacity=".5" Color="#07c" />
             <DropShadowEffect x:Key="Theme.InputBox.Normal.ShadowEffect" Color="#000000" OffsetX="0" OffsetY="6" BlurRadius="14" Opacity="0.2" />
             <Thickness x:Key="Theme.InputBox.Shadow.Margin">7,7,7,14</Thickness>
-            
+
             <Geometry x:Key="Theme.CheckMark.Geometry">F1 M 9.97498,1.22334L 4.6983,9.09834L 4.52164,9.09834L 0,5.19331L 1.27664,3.52165L 4.255,6.08833L 8.33331,1.52588e-005L 9.97498,1.22334 Z</Geometry>
 
             <conv:DoubleArithmeticConverter x:Key="Theme.InputBox.Shadow.WidthAdder" Operation="Add" RightValue="14" />
@@ -979,6 +980,46 @@
                     <Setter Property="TextElement.Foreground" Value="#FF222222" />
                 </Style>
             </Style>
+        </Style>
+
+        <Style Selector="ctrl|EditorNote">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="1" />
+            <Setter Property="BorderBrush" Value="#4A7EBB" />
+            <Setter Property="Background" Value="#A4C5F5" />
+            <Setter Property="ClipToBounds" Value="False" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border
+                            Background="{TemplateBinding Background}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            CornerRadius="{TemplateBinding CornerRadius}" />
+                </ControlTemplate>
+            </Setter>
+        </Style>
+
+        <Style Selector="ctrl|TimingHandler">
+            <Setter Property="ClipToBounds" Value="False" />
+            <Setter Property="Background" Value="DarkBlue" />
+            <Setter Property="Foreground" Value="DarkBlue" />
+            <Setter Property="Cursor" Value="DragMove" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Grid>
+                        <Panel Background="Transparent" Width="7" HorizontalAlignment="Left">
+                            <!-- TODO: Inner Width -->
+                            <Border Background="{TemplateBinding Background}" Width="1"
+                                    VerticalAlignment="Stretch" HorizontalAlignment="Center" />
+                        </Panel>
+
+                        <Panel Background="Transparent" VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                               Margin="6,2,2,2">
+                            <TextBlock Text="{TemplateBinding Phoneme}" />
+                        </Panel>
+                    </Grid>
+                </ControlTemplate>
+            </Setter>
         </Style>
 
     </Application.Styles>

@@ -5,12 +5,35 @@
              xmlns:controls="using:Quark.Controls"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Quark.Controls.PlotEditor">
-    <Grid>
+    <Grid UseLayoutRounding="True">
         <Grid ColumnDefinitions="*, Auto" RowDefinitions="*, Auto, Auto">
 
-            <controls:RenderPanel x:Name="SKElement"
-                    PointerWheelChanged="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
-                    PointerPressed="OnMouseDown" PointerMoved="OnMouseMove" PointerReleased="OnMouseUp" />
+
+            <Grid ColumnDefinitions="80,*" RowDefinitions="24,*">
+
+                <controls:RenderPanel x:Name="SKElement"
+                        Grid.ColumnSpan="2" Grid.RowSpan="2"
+                        PointerWheelChanged="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
+                        PointerPressed="OnMouseDown" PointerMoved="OnMouseMove" PointerReleased="OnMouseUp" />
+
+                
+                <controls:PianoRollKeys Grid.Row="1" x:Name="KeysLayer" ClipToBounds="True" IsHitTestVisible="False"
+                                        KeyHeight="{Binding $parent[controls:PlotEditor].KeyHeight, Mode=OneWay}"
+                                        ColorTheme="{Binding $parent[controls:PlotEditor].ColorTheme, Mode=OneWay}" />
+                
+
+                <controls:NativeRenderPanel x:Name="RulerLayer" Grid.Column="1"
+                                            Rendering="Ruler_Rendering" IsHitTestVisible="False" ClipToBounds="True" />
+
+                <controls:NativeRenderPanel x:Name="BackgroundLayer" Grid.Column="1" Grid.Row="1"
+                                            Rendering="Background_Rendering" IsHitTestVisible="False" ClipToBounds="True" />
+
+                <Canvas x:Name="PART_Notes" Grid.Column="1" Grid.Row="1" ClipToBounds="True" />
+
+                <controls:NativeRenderPanel x:Name="WaveformLayer"  Grid.Column="1" Grid.Row="1"
+                                            Rendering="Waveform_Rendering" IsHitTestVisible="False" />
+                
+            </Grid>
 
             <!--編集用シークバー-->
             <!--
