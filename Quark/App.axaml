@@ -999,27 +999,29 @@
             </Setter>
         </Style>
 
-        <Style Selector="ctrl|TimingHandler">
+        <Style Selector="ctrl|TimingHandle">
             <Setter Property="ClipToBounds" Value="False" />
             <Setter Property="Background" Value="DarkBlue" />
             <Setter Property="Foreground" Value="DarkBlue" />
             <Setter Property="Cursor" Value="DragMove" />
             <Setter Property="Template">
                 <ControlTemplate>
-                    <Grid>
-                        <Panel Background="Transparent" Width="7" HorizontalAlignment="Left">
-                            <!-- TODO: Inner Width -->
-                            <Border Background="{TemplateBinding Background}" Width="1"
-                                    VerticalAlignment="Stretch" HorizontalAlignment="Center" />
-                        </Panel>
+                    <Panel>
+                        <Border Background="{TemplateBinding Background}" Width="1"
+                                VerticalAlignment="Stretch" HorizontalAlignment="Left" />
 
                         <Panel Background="Transparent" VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                               Margin="6,2,2,2">
-                            <TextBlock Text="{TemplateBinding Phoneme}" />
+                               Margin="3,0,0,1">
+                            <TextBlock x:Name="PART_Text" Text="{TemplateBinding Phoneme}" />
                         </Panel>
-                    </Grid>
+                    </Panel>
                 </ControlTemplate>
             </Setter>
+
+            <Style Selector="^:selected">
+                <Setter Property="Background" Value="Red" />
+                <Setter Property="Foreground" Value="Red" />
+            </Style>
         </Style>
 
     </Application.Styles>

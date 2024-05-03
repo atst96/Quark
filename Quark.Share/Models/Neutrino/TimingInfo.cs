@@ -4,6 +4,8 @@ namespace Quark.Models.Neutrino;
 
 /// <summary>
 /// タイミング情報
+/// 
+/// HACK: 将来的にはEndTimeは不要になるかもしれない
 /// </summary>
 [MemoryPackable]
 public partial class TimingInfo

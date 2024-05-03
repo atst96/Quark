@@ -2,6 +2,7 @@
 using Quark.Components;
 using Quark.Models.Neutrino;
 using Quark.Models.Scores;
+using Quark.Neutrino;
 
 namespace Quark.Projects.Tracks;
 
@@ -29,7 +30,7 @@ public interface INeutrinoTrack : IAudioTrack
     public byte[]? MonoTiming { get; }
 
     /// <summary>タイミング情報</summary>
-    public TimingInfo[] Timings { get; }
+    public IReadOnlyList<PhonemeTiming> Timings { get; }
 
     public int Duration { get; }
 
@@ -43,7 +44,7 @@ public interface INeutrinoTrack : IAudioTrack
 
     public WaveData WaveData { get; }
 
-    public void ChangeTiming(int timingIndex, int timeMs);
+    public void ChangeTiming(PhonemeTiming timing);
 
     internal void RaiseFeatureChanged();
 

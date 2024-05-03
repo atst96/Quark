@@ -20,7 +20,7 @@ public class NSFV2Option
 
     public int? NumberOfParallelInSession { get; init; }
 
-    public TimingInfo[]? MultiPhrasePrediction { get; init; }
+    public IReadOnlyList<PhonemeTiming>? MultiPhrasePrediction { get; init; }
 
     public int? UseSingleGpu { get; init; }
 

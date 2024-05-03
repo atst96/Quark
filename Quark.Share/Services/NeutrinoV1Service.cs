@@ -500,7 +500,7 @@ internal class NeutrinoV1Service
         var timings = track.Timings;
         var phrases = track.Phrases;
 
-        if (timings.Length == 0 || phrases.Length == 0)
+        if (timings.Count == 0 || phrases.Length == 0)
             return;
 
         // f0, mgc, bapを取得
@@ -557,7 +557,7 @@ internal class NeutrinoV1Service
             if (option.NumberOfParallelInSession != null)
                 args.Append(" -p ").Append(option.NumberOfParallelInSession);
 
-            if (option.MultiPhrasePrediction?.Length > 0)
+            if (option.MultiPhrasePrediction?.Count > 0)
             {
                 // labファイルの作成
                 var timingFile = TempFile.Create(FileAccess.Write, FileShare.Read, FileExtensions.Label);
@@ -664,7 +664,7 @@ internal class NeutrinoV1Service
         var timings = track.Timings;
         var phrases = track.Phrases;
 
-        if (timings.Length == 0 || phrases.Length == 0)
+        if (timings.Count == 0 || phrases.Length == 0)
             return;
 
         // f0, mgc, bapを取得
@@ -678,7 +678,7 @@ internal class NeutrinoV1Service
             Mgc = mgc,
             Bap = bap,
             Model = track.Singer,
-            MultiPhrasePrediction = track.Timings,
+            MultiPhrasePrediction = timings,
             IsUseGpu = this.GetUseGpu(),
             NumberOfParallel = this.GetCpuThreads(),
             IsViewInformation = true,
@@ -703,7 +703,7 @@ internal class NeutrinoV1Service
         var phrases = track.Phrases;
 
         // フレーム数
-        int frameCount = NeutrinoUtil.MsToFrameIndex(NeutrinoUtil.TimingTimeToMs(timings[^1].EditedEndTime100Ns));
+        int frameCount = NeutrinoUtil.MsToFrameIndex(timings[^1].EditedTimeMs);
 
         // F0
         double[] f0 = new double[frameCount];

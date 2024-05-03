@@ -18,7 +18,6 @@ using static Quark.Controls.EditorRenderLayout;
 using System.Runtime.CompilerServices;
 using System.Numerics;
 using Quark.Extensions;
-using Quark.Helpers;
 using SkiaSharp;
 using Avalonia.Media;
 
@@ -33,11 +32,11 @@ public partial class PlotEditor : UserControl
 
     private bool _isLoaded = false;
     private long _framesCount = 0;
-    private IList<TimingHandle> _timings = Array.Empty<TimingHandle>();
     private TrackScoreInfo _trackScoreInfo;
     private RenderInfoCommon _renderCommon;
     private RangeScoreRenderInfo? _rangeInfo;
     private EditorPartsLayoutResolver _partsLayout = null!;
+    private TimingEditNegotiator _timingEdit;
 
     /// <summary>
     /// エディタのレイアウト情報。親要素のサイズ変更時や編集モード変更時に更新される。
@@ -91,6 +90,9 @@ public partial class PlotEditor : UserControl
     public PlotEditor()
     {
         this.InitializeComponent();
+
+        this._timingEdit = new(this.PART_Notes);
+
         // HACK:
         // this._displayDpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
         this._displayDpi = 1.0;
@@ -429,7 +431,7 @@ public partial class PlotEditor : UserControl
             Score = track.Score,
         };
 
-        this._timings = ScoreLayoutHelper.CreateTimingHandles(track);
+        this._timingEdit.UpdateTimings(track.Timings);
 
         this._framesCount = track.GetTotalFramesCount();
 
@@ -445,11 +447,11 @@ public partial class PlotEditor : UserControl
         if (track == null)
             return;
 
-        this._timings = ScoreLayoutHelper.CreateTimingHandles(track);
-
         var trackInfo = this._trackScoreInfo;
 
         this._framesCount = track.GetTotalFramesCount();
+
+        this._timingEdit.UpdateTimings(track.Timings);
 
         // this.PART_LyricsTextBox.Text = GetLyrics(trackInfo.Score);
 
@@ -763,7 +765,6 @@ public partial class PlotEditor : UserControl
         var trackScore = this._trackScoreInfo;
         if (trackScore != null)
         {
-            var timings = this._timings;
             var timingEditingTarget = (this._editingInfo as TimingEditingInfo)?.Target;
 
             var trackRenderInfo = new TrackRenderInfo()
@@ -777,7 +778,7 @@ public partial class PlotEditor : UserControl
             this._renderCommon.RangeScoreRenderInfo = this._rangeInfo = new RangeScoreRenderInfo
             {
                 Score = trackScore.Score.GetRangeInfo(beginTime, endTime),
-                Timings = ScoreLayoutHelper.GetRenderTargets(this._renderCommon, this._partsLayout, timings, timingEditingTarget),
+                Timings = [],
                 NoteLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, this.Quantize),
                 RulerLines = ScoreDrawingUtil.GetVerticalLines(trackScore.Score, beginTime, endTime, LineType.Note8th),
             };
@@ -882,37 +883,6 @@ public partial class PlotEditor : UserControl
                 children.Add(note);
         }
 
-        var timingDict = children.OfType<TimingHandler>().ToDictionary(e => e.Timing);
-
-        var timings = rangeScoreInfo.Timings.Select(t => t.TimingInfo).Where(
-            e => beginTime <= NeutrinoUtil.TimingTimeToMs(e.EditedBeginTime100Ns) && NeutrinoUtil.TimingTimeToMs(e.EditedEndTime100Ns) <= endTime).ToList();
-
-        // 次の範囲に含まれないノートを画面上から削除
-        children.RemoveAll(timingDict.Values.Where(e => !timings.Contains(e.Timing)));
-
-        foreach (var _timing in timings)
-        {
-            int x = renderLayout.GetRenderPosXFromTime(NeutrinoUtil.TimingTimeToMs(_timing.EditedBeginTime100Ns) - beginTime);
-            int y = 0;
-            int h = renderLayout.ScoreArea.Height;
-
-            TimingHandler timing;
-            bool isExists = timingDict.TryGetValue(_timing, out timing!);
-            if (!isExists)
-                timing = new TimingHandler(_timing)
-                {
-                    ZIndex = timingZIndex,
-                };
-
-            Canvas.SetLeft(timing, x - 3);
-            Canvas.SetTop(timing, y);
-            timing.Height = h + 2;
-            timing.Phoneme = _timing.Phoneme;
-
-            if (!isExists)
-                children.Add(timing);
-        }
-
         // 次の範囲に含まれない範囲描画を画面上から削除
 
         var track = ri.Track;
@@ -950,6 +920,8 @@ public partial class PlotEditor : UserControl
                 phraseRect.UpdateBackground();
             }
         }
+
+        this._timingEdit.OnParentEditorLayoutUpdated(ri);
     }
 
     private const int KeyCount = 88;
@@ -1427,29 +1399,28 @@ public partial class PlotEditor : UserControl
                 {
                     if (this._isTimingEditable)
                     {
-                        var rangeTimings = this._renderCommon.RangeScoreRenderInfo?.Timings;
-                        if (rangeTimings != null)
-                        {
-                            (int x, int y) = scaling.ToRenderImageScaling(mousePos.X, mousePos.Y);
+                        var editorMousePos = e.GetPosition(this.PART_Notes);
 
-                            var handle = rangeTimings.FirstOrDefault(h => h.IsSelected && h.IsCollisionDetection(x, y));
-                            if (handle != null)
+                        var timingEditor = this._timingEdit;
+
+                        var timing = this._timingEdit.HitTest(editorMousePos);
+                        if (timing != null)
                             {
-                                int idx = this._timings!.IndexOf(handle);
+                            timingEditor.Select(timing);
 
-                                this.ChangeMouseMode(MouseControlMode.EditTiming, new TimingEditingInfo(handle, handle.TimingInfo.EditedBeginTime100Ns)
+                            var timings = this.Track!.Timings;
+                            int idx = timings.IndexOf(timing);
+
+                            this.ChangeMouseMode(MouseControlMode.EditTiming, new TimingEditingInfo(timing, timing.EditedTimeMs)
                                 {
-                                    LowerTime100Ns = idx <= 1 ? 0L : this._timings[idx - 1].TimingInfo.EditedBeginTime100Ns,
-                                    UpperTime100Ns = (idx == -1 || (this._timings.Count <= (idx + 1)))
-                                                                    ? null : this._timings[idx + 1].TimingInfo.EditedBeginTime100Ns,
-                                    OffsetX = x - handle.X,
+                                LowerTime = idx <= 1 ? 0 : timings[idx - 1].EditedTimeMs,
+                                UpperTime = (idx == -1 || (timings.Count <= (idx + 1))) ? null : timings[idx + 1].EditedTimeMs,
                                 });
 
                                 e.Handled = true;
                                 return;
                             }
                         }
-                    }
 
                     this._mouseMode = MouseControlMode.PutNote;
                     var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
@@ -1846,24 +1817,24 @@ public partial class PlotEditor : UserControl
             {
                 var editingInfo = this._editingInfo;
 
+                // タイミング編集中のマウス移動
                 if (editingInfo is TimingEditingInfo timingEditing)
                 {
                     // マウスの位置を取得、オフセット分補正する
-                    var mousePosition = this.GetPhysicalMousePosition(renderLayout, e).GetOffset((int)scaling.ToScaled(-timingEditing.OffsetX), 0);
+                    var mousePosition = this.GetPhysicalMousePosition(renderLayout, e);
 
                     // マウスで選択中の時間を計算し、範囲内に収める
                     int adjustedTime = GetConditionTimeRoundFrame(renderLayout, beginTime, mousePosition);
-                    adjustedTime = Math.Max(adjustedTime, NeutrinoUtil.TimingTimeToMs(timingEditing.LowerTime100Ns));
-                    if (timingEditing.UpperTime100Ns != null)
-                        adjustedTime = Math.Min(adjustedTime, NeutrinoUtil.TimingTimeToMs(timingEditing.UpperTime100Ns.Value));
+                    adjustedTime = Math.Max(adjustedTime, timingEditing.LowerTime);
+                    if (timingEditing.UpperTime is { } upperTime)
+                        adjustedTime = Math.Min(adjustedTime, upperTime);
 
                     // レイアウト、編集中のタイミング情報を更新
                     int adjustedX = this.GetScoreLocationX(renderLayout, adjustedTime);
-                    timingEditing.Target.MoveX(adjustedX);
+                    timingEditing.Target.EditingTimeMs = adjustedTime;
                     timingEditing.CurrentTimeMs = adjustedTime;
 
                     // タイミング編集関連の要素を再配置
-                    this.UpdateRenderContent();
                     this.UpdateTimingElements();
                     e.Handled = true;
                 }
@@ -2030,31 +2001,19 @@ public partial class PlotEditor : UserControl
             {
                 if (this._isTimingEditable)
                 {
-                    var timings = this._renderCommon.RangeScoreRenderInfo?.Timings;
-                    if (timings != null)
-                    {
-                        bool noSelected = true;
+                    var editorMousePos = e.GetPosition(this.PART_Notes);
 
-                        // 末尾から検索する
-                        foreach (var target in timings.Reverse())
+                    var timingEditor = this._timingEdit;
+                    var timing = this._timingEdit.HitTest(editorMousePos);
+                    if (timing != null)
                         {
-                            // 選択中(マウスオーバー)判定
-                            // 選択中判定となるのは最初に見つかった要素のみ。以降は未選択とする。
-                            bool isSelected = noSelected && target.IsCollisionDetection(mousePosition.X, mousePosition.Y);
-                            if (isSelected)
-                                noSelected = false;
-
-                            target.IsSelected = isSelected;
+                        // TODO: マウスカーソルの処理を見直す
+                        cursor = new Cursor(StandardCursorType.SizeWestEast);
+                        timingEditor.Select(timing);
                         }
-
-                        // 選択中のタイミングがある場合はカーソルを変更する
-                        if (!noSelected)
-                            cursor = new Cursor(StandardCursorType.SizeWestEast);
-
-                        // タイミング編集関連の要素を再配置
-                        this.UpdateRenderContent();
-                        this.UpdateTimingElements();
-                        e.Handled = true;
+                    else
+                    {
+                        timingEditor.UnselectAll();
                     }
                 }
             }
@@ -2101,6 +2060,7 @@ public partial class PlotEditor : UserControl
 
                 case MouseControlMode.EditTiming:
                     // タイミング編集中
+                    this._timingEdit.UnselectAll();
                     this.DetermineTimingEdit();
                     e.Handled = true;
                     return;
@@ -2149,6 +2109,13 @@ public partial class PlotEditor : UserControl
     protected override void OnKeyUp(KeyEventArgs e)
     {
         this._pressedKey = default;
+
+        var editInfo = this._editingInfo;
+        if (editInfo is TimingEditingInfo timingInfo)
+        {
+            this.CancelTimingEdit();
+            this._timingEdit.UnselectAll();
+        }
 
         if (this.EditMode == EditMode.AudioFeatures)
         {
@@ -2427,7 +2394,12 @@ public partial class PlotEditor : UserControl
         {
             var track = this.Track;
             // HACK: 処理見直し
-            track?.ChangeTiming(Array.IndexOf(track.Timings, editing.Target.TimingInfo), editing.CurrentTimeMs);
+            if (track != null)
+            {
+                var target = editing.Target;
+                target.DetermineEdit();
+                track?.ChangeTiming(target);
+            }
         }
 
         this.ClearMouseMode();
@@ -2441,16 +2413,9 @@ public partial class PlotEditor : UserControl
         var editing = this._editingInfo as TimingEditingInfo;
         if (editing != null)
         {
-            int adjustedX = this.GetScoreLocationX(NeutrinoUtil.TimingTimeToMs(editing.InitialTime100Ns));
-            editing.Target.MoveX(adjustedX);
-
-            foreach (var timing in this._timings)
-            {
-                timing.IsSelected = false;
-            }
+            editing.Target.CancelEdit();
 
             // タイミング編集関連の要素を再配置
-            this.UpdateRenderContent();
             this.UpdateTimingElements();
         }
 
@@ -2906,6 +2871,9 @@ public partial class PlotEditor : UserControl
 
     private void UpdateTimingElements()
     {
+        this._timingEdit.RelocateRenderElements();
+
+        // HACK: 処理を外せるようにする
         this.UpdateScreenContent();
     }
 

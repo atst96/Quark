@@ -9,6 +9,7 @@ using Quark.Constants;
 using Quark.Data.Projects;
 using Quark.Extensions;
 using Quark.Models.Neutrino;
+using Quark.Neutrino;
 using Quark.Projects.Tracks;
 using DoubleRange = (double Upper, double Lower, double Range);
 using FloatRange = (float Upper, float Lower, float Range);
@@ -45,18 +46,34 @@ public static partial class NeutrinoUtil
         => SplitWithRegex(input, regex).Select(conv);
 
     /// <summary>
-    /// 
+    /// 発声タイミングの情報をパースする
     /// </summary>
-    /// <param name="timing"></param>
+    /// <param name="phrasees">フレーズ情報</param>
+    /// <param name="timing">タイミング情報(ファイル内容)</param>
     /// <returns></returns>
-    public static TimingInfo[] ParseTiming(string timing)
+    public static List<PhonemeTiming> ParseTiming(IReadOnlyList<PhraseInfo> phrasees, string timing)
     {
-        return ParseWithRegex(timing, GetTimingRegex(),
-            r => new TimingInfo(
-                r.GetValue<long>("beginTime"),
-                r.GetValue<long>("endTime"),
-                r.GetValue("phoneme")))
-            .ToArray();
+        int phraseIdx = -1;
+        int phrasePhonemeCount = 0;
+        int phonemeCount = 0;
+
+        var timings = new List<PhonemeTiming>(phrasees.Sum(p => p.Phoneme.Sum(p2 => p2.Length)));
+
+        foreach (var r in SplitWithRegex(timing, GetTimingRegex()))
+        {
+            if (phrasePhonemeCount <= phonemeCount)
+            {
+                // 音素が次のフレーズに移った場合
+                phrasePhonemeCount += phrasees[++phraseIdx].Phoneme.Sum(p => p.Length);
+            }
+
+            int beginTime = TimingTimeToMs(r.GetValue<long>("beginTime"));
+            timings.Add(new(beginTime, beginTime, r.GetValue("phoneme"), phraseIdx));
+
+            ++phonemeCount;
+        }
+
+        return timings;
     }
 
     /// <summary>フレーズ情報パース用の正規表現</summary>
@@ -65,17 +82,12 @@ public static partial class NeutrinoUtil
     private static partial Regex GetPhraseRegex();
 
     /// <summary>
-    /// TODO: メソッドを分解する
     /// フレーズ情報をパースする
     /// </summary>
-    /// <param name="phraseContent">NEUTRINOから出力されたフレーズ情報</param>
+    /// <param name="content"フレーズ情報></param>
     /// <returns></returns>
-    public static (PhraseInfo[], T[]) ParsePhrases<T>(
-        string phraseContent, TimingInfo[] timing,
-        Func<int, int, int, string[][], PhraseStatus, T> func)
-        where T : INeutrinoPhrase
-    {
-        var parsedPhrases = ParseWithRegex<PhraseInfo>(phraseContent, GetPhraseRegex(),
+    public static PhraseInfo[] ParseRawPhrase(string content)
+        => ParseWithRegex<PhraseInfo>(content, GetPhraseRegex(),
             r => new(
                 r.GetValue<int>("no"),
                 r.GetValue<int>("time"),
@@ -83,14 +95,26 @@ public static partial class NeutrinoUtil
                 ParsePhrasePhonemes(r.GetValue("label"))))
             .ToArray();
 
-        var phrases = new T[parsedPhrases.Count(p => p.IsVoiced)];
+    /// <summary>
+    /// TODO: メソッドを分解する
+    /// フレーズ情報をパースする
+    /// </summary>
+    /// <param name="rawPhrases">全フレーズ情報</param>
+    /// <param name="timings">全タイミング情報</param>
+    /// <returns></returns>
+    public static T[] ParsePhrases<T>(
+        IReadOnlyList<PhraseInfo> rawPhrases, IReadOnlyList<PhonemeTiming> timings,
+        Func<int, int, int, string[][], PhraseStatus, T> func)
+        where T : INeutrinoPhrase
+    {
+        var phrases = new T[rawPhrases.Count(p => p.IsVoiced)];
 
-        for (int idx = 0, destIdx = 0; idx < parsedPhrases.Length; ++idx)
+        for (int idx = 0, destIdx = 0; idx < rawPhrases.Count; ++idx)
         {
             // idx: parsedPhrasesの要素インデックス
             // destIdx: phrasesの要素インデックス
 
-            (int no, int beginTime, bool isVoiced, string[][] phonemes) = parsedPhrases[idx];
+            (int no, int beginTime, bool isVoiced, string[][] phonemes) = rawPhrases[idx];
 
             // TODO: 有声でない場合は省く(今後の実装で変わるかも)
             if (!isVoiced)
@@ -98,14 +122,14 @@ public static partial class NeutrinoUtil
 
             // 終了するフレーム番号を取得する
             // 最後の要素の場合はタイミング情報の最後から終了位置を取得する。
-            int endFrameIdx = parsedPhrases.Length > (idx + 1)
-                ? (parsedPhrases[idx + 1].Time - 1)
-                : (int)Math.Ceiling(timing.Last().EditedEndTime100Ns / 10000d);
+            int endFrameIdx = rawPhrases.Count > (idx + 1)
+                ? (rawPhrases[idx + 1].Time - 1)
+                : timings[^1].EditedTimeMs;
 
             phrases[destIdx++] = func(no, beginTime, endFrameIdx, phonemes, PhraseStatus.WaitEstimate);
         }
 
-        return (parsedPhrases, phrases);
+        return phrases;
     }
 
     /// <summary>
@@ -149,12 +173,41 @@ public static partial class NeutrinoUtil
     }
 
     /// <summary>
+    /// タイミング情報のテキストデータを取得する
+    /// </summary>
+    /// <param name="timings">タイミング情報</param>
+    /// <returns></returns>
+    public static byte[] GetTimingContent(IReadOnlyList<PhonemeTiming> timings)
+    {
+        if (!timings.Any())
+            return [];
+
+        var sb = new StringBuilder();
+
+        for (int idx = 0, l = timings.Count - 1; idx < l; ++idx)
+        {
+            var curTiming = timings[idx];
+            var nextTiming = timings[idx + 1];
+
+            WriteTimingInfo(sb, curTiming.EditedTimeMs, nextTiming.EditedTimeMs, curTiming.Phoneme);
+            _ = sb.Append(TimingSeparator);
+        }
+
+        var lastTiming = timings.Last();
+        WriteTimingInfo(sb, lastTiming.EditedTimeMs, lastTiming.EditedTimeMs, lastTiming.Phoneme);
+
+        return Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
+    /// <summary>
     /// タイミング情報に書き込む
     /// </summary>
     /// <param name="sb">書込み先の<see cref="StringBuilder"/></param>
     /// <param name="timing">タイミング情報</param>
     private static void WriteTimingInfo(StringBuilder sb, TimingInfo timing)
         => sb.Append($"{timing.EditedBeginTime100Ns} {timing.EditedEndTime100Ns} {timing.Phoneme}");
+    private static void WriteTimingInfo(StringBuilder sb, int beginTime, int endTIme, string phoneme)
+        => sb.Append($"{GetTimingTimeFromMs(beginTime)} {GetTimingTimeFromMs(endTIme)} {phoneme}");
 
     /// <summary>フレーズ情報の区切り文字(改行)</summary>
     private const string PhraseSeparator = "\n";
@@ -420,4 +473,63 @@ public static partial class NeutrinoUtil
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static T MspecToLinear<T>(T value) where T : IFloatingPointIeee754<T>
         => SignalUtil.ToLinearScale(value);
+
+    /// <summary>
+    /// 保存用のタイミング情報から内部処理用に変換する
+    /// </summary>
+    /// <param name="timings"></param>
+    /// <param name="rawPhrases"></param>
+    /// <returns></returns>
+    public static IReadOnlyList<PhonemeTiming> ConvertTimingFromConfig(IReadOnlyList<TimingInfo> timings, IReadOnlyList<PhraseInfo> rawPhrases)
+    {
+        if (timings is null || timings.Count == 0)
+            return [];
+
+        var list = new List<PhonemeTiming>(timings.Count);
+
+        int phraseIdx = -1;
+        int totalPhonemeCount = 0;
+
+        for (int idx = 0; idx < timings.Count; ++idx)
+        {
+            if (totalPhonemeCount <= idx)
+            {
+                ++phraseIdx;
+                totalPhonemeCount += rawPhrases[phraseIdx].GetTotalPhonemeCount();
+            }
+
+            var timing = timings[idx];
+            list.Add(new PhonemeTiming(
+                TimingTimeToMs(timing.OriginBeginTime100Ns),
+                TimingTimeToMs(timing.EditedBeginTime100Ns),
+                timing.Phoneme, phraseIdx));
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// 内部処理用のタイミング情報を保存用に変換する
+    /// </summary>
+    /// <param name="timings"></param>
+    /// <returns></returns>
+    public static TimingInfo[] ConvertTimingToConfig(IReadOnlyList<PhonemeTiming> timings)
+    {
+        if (timings.Count == 0)
+            return [];
+
+        var result = new TimingInfo[timings.Count];
+
+        int lastIdx = timings.Count - 1;
+        for (int idx = 0; idx < lastIdx; ++idx)
+        {
+            result[idx] = new(GetTimingTimeFromMs(timings[idx].EditedTimeMs), GetTimingTimeFromMs(timings[idx + 1].EditedTimeMs), timings[idx].Phoneme);
+        }
+
+        var lastTiming = timings[lastIdx];
+        long lastTimingTimeMs = GetTimingTimeFromMs(lastTiming.EditedTimeMs);
+        result[lastIdx] = new(lastTimingTimeMs, lastTimingTimeMs, lastTiming.Phoneme);
+
+        return result;
+    }
 }

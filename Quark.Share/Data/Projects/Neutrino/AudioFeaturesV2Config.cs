@@ -16,7 +16,7 @@ public partial class AudioFeaturesV2Config
     public string ModelId { get; }
 
     [MemoryPackOrder(1)]
-    public required TimingInfo[]? Timing { get; set; }
+    public required TimingInfo[]? Timings { get; set; }
 
     [MemoryPackOrder(2)]
     public required PhraseInfo[] RawPhraseInfo { get; set; }

@@ -531,7 +531,7 @@ internal class NeutrinoV2Service
         var timings = track.Timings;
         var phrases = track.Phrases;
 
-        if (timings.Length == 0 || phrases.Length == 0)
+        if (timings.Count == 0 || phrases.Length == 0)
             return;
 
         (float[] f0, float[] mgc, float[] bap) = GetAudioFeaturesForWorld(track);
@@ -558,7 +558,7 @@ internal class NeutrinoV2Service
 
         int mgcDimension = NeutrinoConfig.MgcDimension;
         int bapDimension = NeutrinoConfig.BapDimension;
-        int frameCount = NeutrinoUtil.MsToFrameIndex(NeutrinoUtil.TimingTimeToMs(timings[^1].EditedEndTime100Ns));
+        int frameCount = NeutrinoUtil.MsToFrameIndex(timings[^1].EditedTimeMs);
 
         // F0
         float[] f0 = new float[frameCount];
@@ -625,7 +625,7 @@ internal class NeutrinoV2Service
             if (option.NumberOfParallelInSession != null)
                 args.Append(" -p ").Append(option.NumberOfParallelInSession);
 
-            if (option.MultiPhrasePrediction?.Length > 0)
+            if (option.MultiPhrasePrediction?.Count > 0)
             {
                 // labファイルの作成
                 var timingFile = TempFile.CreateReadOnly(FileExtensions.Label);
@@ -748,7 +748,7 @@ internal class NeutrinoV2Service
         var timings = track.Timings;
         var phrases = track.Phrases;
 
-        if (timings.Length == 0 || phrases.Length == 0)
+        if (timings.Count == 0 || phrases.Length == 0)
             return;
 
         (float[] f0, float[] mspec) = GetAudioFeatures(track);
@@ -763,7 +763,7 @@ internal class NeutrinoV2Service
             SamplingRate = 48,
             NumberOfParallel = this.GetCpuThreads(),
             UseMultiGpus = this.GetUseGpu(),
-            MultiPhrasePrediction = track.Timings,
+            MultiPhrasePrediction = timings,
             IsViewInformation = true,
         }
         , progress, cancellationToken).ConfigureAwait(false);
@@ -779,7 +779,7 @@ internal class NeutrinoV2Service
 
         const int mspecDimension = NeutrinoConfig.MspecDimension;
 
-        int frameCount = NeutrinoUtil.MsToFrameIndex(NeutrinoUtil.TimingTimeToMs(timings[^1].EditedEndTime100Ns));
+        int frameCount = NeutrinoUtil.MsToFrameIndex(timings[^1].EditedTimeMs);
 
         // F0
         float[] f0 = new float[frameCount];

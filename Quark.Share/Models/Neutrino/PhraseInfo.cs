@@ -28,4 +28,11 @@ public partial class PhraseInfo
 
     public void Deconstruct(out int no, out int time, out bool isVoiced, out string[][] label)
         => (no, time, isVoiced, label) = (this.No, this.Time, this.IsVoiced, this.Phoneme);
+
+    /// <summary>
+    /// フレーズ内の音素数を取得する
+    /// </summary>
+    /// <returns></returns>
+    public int GetTotalPhonemeCount()
+        => this.Phoneme.Sum(x => x.Length);
 }

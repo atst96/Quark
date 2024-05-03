@@ -1,5 +1,4 @@
-﻿using Quark.Constants;
-using Quark.Utils;
+﻿using Quark.Neutrino;
 
 namespace Quark.Controls.Editing;
 
@@ -12,32 +11,26 @@ public class TimingEditingInfo : IEditInfo
     public EditInfoType Type { get; } = EditInfoType.Timing;
 
     /// <summary>編集対象要素</summary>
-    public TimingHandle Target { get; }
+    public PhonemeTiming Target { get; }
 
     /// <summary>下限の時間</summary>
-    public required long LowerTime100Ns { get; init; }
+    public required int LowerTime { get; init; }
 
     /// <summary>上限の時間</summary>
-    public required long? UpperTime100Ns { get; init; }
-
-    /// <summary>
-    /// X位置のオフセット
-    /// 操作開始時の位置と当たり判定のマージンを考慮したマウス位置との差分
-    /// </summary>
-    public required float OffsetX { get; init; }
+    public required int? UpperTime { get; init; }
 
     /// <summary>編集前の位置(時間)</summary>
-    public long InitialTime100Ns { get; }
+    public int InitialTimeMs { get; }
 
     /// <summary>タイミング編集中の位置(時間)</summary>
     public int CurrentTimeMs { get; set; }
 
     /// <summary>コンストラクタ</summary>
     /// <param name="target"></param>
-    public TimingEditingInfo(TimingHandle target, long initialTime100Ns)
+    public TimingEditingInfo(PhonemeTiming target, int initialTime)
     {
         this.Target = target;
-        this.InitialTime100Ns = initialTime100Ns;
-        this.CurrentTimeMs = NeutrinoUtil.TimingTimeToMs(initialTime100Ns);
+        this.InitialTimeMs = initialTime;
+        this.CurrentTimeMs = initialTime;
     }
 }
