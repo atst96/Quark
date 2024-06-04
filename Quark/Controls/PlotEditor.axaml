@@ -28,7 +28,7 @@
                 <controls:NativeRenderPanel x:Name="BackgroundLayer" Grid.Column="1" Grid.Row="1"
                                             Rendering="Background_Rendering" IsHitTestVisible="False" ClipToBounds="True" />
 
-                <Canvas x:Name="PART_Notes" Grid.Column="1" Grid.Row="1" ClipToBounds="True" />
+                <Canvas x:Name="PART_Notes" Grid.Column="1" Grid.Row="1" ClipToBounds="True" IsHitTestVisible="False" />
 
                 <controls:NativeRenderPanel x:Name="WaveformLayer"  Grid.Column="1" Grid.Row="1"
                                             Rendering="Waveform_Rendering" IsHitTestVisible="False" />
