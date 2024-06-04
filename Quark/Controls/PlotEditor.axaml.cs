@@ -886,7 +886,7 @@ public partial class PlotEditor : UserControl
         var track = ri.Track;
         if (track != null)
         {
-            var phrases = track.Phrases.Where(e => beginTime <= e.BeginTime || e.EndTime <= endTime).ToList();
+            var phrases = track.Phrases.WithinRange(beginTime, endTime).ToList();
 
             var rangeRects = children.OfType<PhraseRect>().ToDictionary(e => e.Phrase);
             children.RemoveAll(rangeRects.Values.Where(e => !phrases.Contains(e.Phrase)));
