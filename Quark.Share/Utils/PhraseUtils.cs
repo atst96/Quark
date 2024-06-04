@@ -13,7 +13,6 @@ public static class PhraseUtils
     /// <param name="EndIndex"></param>
     /// <param name="PhraseBeginFrameIdx"></param>
     public class PhraseValueRange<TPhrase, TElement>(TPhrase Phrase, int BeginIndex, int EndIndex, int PhraseBeginFrameIdx)
-    public record PhraseValueRange<TPhrase, TElement>(TPhrase Phrase, int BeginIndex, int EndIndex, int PhraseBeginFrameIdx)
         where TElement : INumber<TElement>
     {
         public TPhrase Phrase { get; } = Phrase;

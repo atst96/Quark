@@ -7,7 +7,7 @@ using Quark.Utils;
 
 namespace Quark.Models.Neutrino;
 
-internal class NeutrinoV2Phrase : INeutrinoPhrase
+internal class NeutrinoV2Phrase : INeutrinoPhrase, IF0Phrase<float>
 {
     public const int FramePeriod = NeutrinoConfig.FramePeriod;
 

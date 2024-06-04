@@ -14,7 +14,7 @@ using Quark.Utils;
 
 namespace Quark.Projects.Tracks;
 
-internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
+internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack, IF0PhraseTrack<double>
 {
     private Settings _settings = ServiceLocator.GetService<SettingService>().Settings;
 
@@ -34,14 +34,16 @@ internal class NeutrinoV1Track : AudioTrackBase, INeutrinoTrack
     public byte[]? MonoTiming { get; set; }
 
     /// <inheritdoc/>
-    public IReadOnlyList<PhonemeTiming> Timings { get; private set; }
+    public IReadOnlyList<PhonemeTiming> Timings { get; private set; } = [];
 
     /// <summary><inheritdoc/></summary>
     public int Duration { get; private set; }
 
-    public PhraseInfo[] RawPhrases { get; private set; } = Array.Empty<PhraseInfo>();
+    public PhraseInfo[] RawPhrases { get; private set; } = [];
 
-    public NeutrinoV1Phrase[] Phrases { get; private set; } = Array.Empty<NeutrinoV1Phrase>();
+    public NeutrinoV1Phrase[] Phrases { get; private set; } = [];
+
+    IF0Phrase<double>[] IF0PhraseTrack<double>.Phrases => this.Phrases;
 
     INeutrinoPhrase[] INeutrinoTrack.Phrases => this.Phrases;
 
