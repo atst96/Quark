@@ -128,7 +128,7 @@ public class TimingHandle : TemplatedControl
     public void Select()
     {
         this.IsSelected = true;
-        this.PseudoClasses.Add(PseudoClassSelected);
+        this.PseudoClasses.Set(PseudoClassSelected, true);
     }
 
     /// <summary>
@@ -137,6 +137,6 @@ public class TimingHandle : TemplatedControl
     public void Unselect()
     {
         this.IsSelected = false;
-        this.PseudoClasses.Remove(PseudoClassSelected);
+        this.PseudoClasses.Set(PseudoClassSelected, false);
     }
 }
