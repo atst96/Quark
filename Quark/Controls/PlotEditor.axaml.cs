@@ -398,8 +398,6 @@ public partial class PlotEditor : UserControl
 
     #endregion Properties
 
-
-
     /// <summary>
     /// 内部的に保持している横伸長率を更新する
     /// </summary>

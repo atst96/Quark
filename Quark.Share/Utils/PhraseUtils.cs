@@ -12,30 +12,42 @@ public static class PhraseUtils
     /// <param name="BeginIndex"></param>
     /// <param name="EndIndex"></param>
     /// <param name="PhraseBeginFrameIdx"></param>
-    /// <param name="Values"></param>
+    public class PhraseValueRange<TPhrase, TElement>(TPhrase Phrase, int BeginIndex, int EndIndex, int PhraseBeginFrameIdx)
     public record PhraseValueRange<TPhrase, TElement>(TPhrase Phrase, int BeginIndex, int EndIndex, int PhraseBeginFrameIdx)
         where TElement : INumber<TElement>
     {
-        public int TotalBeginIndex
-            => this.PhraseBeginFrameIdx + this.BeginIndex;
-        public int TotalEndIndex
-            => this.PhraseBeginFrameIdx + this.EndIndex;
+        public TPhrase Phrase { get; } = Phrase;
+
+        public int BeginIndex { get; } = BeginIndex;
+
+        public int EndIndex { get; } = EndIndex;
+
+        public int Duration { get; } = EndIndex - BeginIndex + 1;
+
+        public int PhraseBeginFrameIdx { get; } = PhraseBeginFrameIdx;
+
+        public int AbsoluteBeginIndex { get; } = PhraseBeginFrameIdx + BeginIndex;
+
+        public int AbsoluteEndIndex { get; } = PhraseBeginFrameIdx + EndIndex;
     }
 
     /// <summary>
-    /// <paramref name="lower"/>以下を除外した要素のインデックスの範囲をを列挙する
+    /// <paramref name="threashold"/>以下を除外した配列要素のインデックスの範囲をを列挙する
     /// </summary>
     /// <typeparam name="TElement"></typeparam>
     /// <typeparam name="TPhrase"></typeparam>
     /// <param name="values"></param>
-    /// <param name="lower"></param>
+    /// <param name="threashold"></param>
     /// <param name="dimension"></param>
     /// <param name="phraseBeginFrameIdx"></param>
     /// <returns></returns>
-    public static IEnumerable<PhraseValueRange<TPhrase, TElement>> EnumerateGreaterThanForLowerRanges<TPhrase, TElement>(TPhrase phrase, TElement[] values, TElement lower, int dimension, int phraseBeginFrameIdx)
+    public static IEnumerable<PhraseValueRange<TPhrase, TElement>> EnumerateAboveThresholdRanges<TPhrase, TElement>(TPhrase phrase, TElement[]? values, TElement threashold, int dimension, int phraseBeginFrameIdx)
         where TPhrase : INeutrinoPhrase
         where TElement : INumber<TElement>
     {
+        if (values is null)
+            yield break;
+
         int length = values.Length / dimension;
 
         bool isDetected = false;
@@ -43,7 +55,7 @@ public static class PhraseUtils
 
         for (int idx = 0; idx < length; ++idx)
         {
-            if (values[idx * dimension] <= lower)
+            if (values[idx * dimension] <= threashold)
             {
                 if (isDetected)
                 {

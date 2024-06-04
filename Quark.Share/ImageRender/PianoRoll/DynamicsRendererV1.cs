@@ -64,9 +64,9 @@ internal class DynamicsRendererV1
 
         var dynamicsGroups = targetPhrases
              .Where(p => p.Mgc is not null)
-             .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.Mgc!, min, dimension, NeutrinoUtil.MsToFrameIndex(p.BeginTime)))
-             .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
-             .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
+             .SelectMany(p => PhraseUtils.EnumerateAboveThresholdRanges(p, p.Mgc!, min, dimension, NeutrinoUtil.MsToFrameIndex(p.BeginTime)))
+             .OrderBy(i => i.AbsoluteBeginIndex)
+             .GroupingAdjacentRange(i => i.AbsoluteBeginIndex, i => i.AbsoluteEndIndex);
 
         int offsetMs = NeutrinoUtil.FrameIndexToMs(beginFrameIdx) - beginTime;
 
@@ -80,7 +80,7 @@ internal class DynamicsRendererV1
 
             foreach (var dynamicsGroup in dynamicsGroups)
             {
-                int count = dynamicsGroup.Last().TotalEndIndex - dynamicsGroup.First().TotalBeginIndex + 1;
+                int count = dynamicsGroup.Last().AbsoluteEndIndex - dynamicsGroup.First().AbsoluteBeginIndex + 1;
                 var origPoints = new SKPoint[count];
                 var editedPoints = new SKPoint[count];
                 int pointsIdx = 0;
@@ -93,7 +93,7 @@ internal class DynamicsRendererV1
 
                     // 描画開始／終了インデックス
                     (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(
-                        dynamics.PhraseBeginFrameIdx + dynamics.BeginIndex, dynamics.EndIndex - dynamics.BeginIndex + 1,
+                        dynamics.AbsoluteBeginIndex, dynamics.Duration,
                         beginFrameIdx, endFrameIdx, 0);
 
                     if (beginIdx >= endIdx)

@@ -4,7 +4,6 @@ using Quark.Extensions;
 using Quark.Projects.Tracks;
 using Quark.Utils;
 using SkiaSharp;
-using static Quark.Controls.EditorRenderLayout;
 
 namespace Quark.ImageRender.Score;
 
@@ -13,10 +12,6 @@ namespace Quark.ImageRender.Score;
 /// </summary>
 internal class PitchRendererV1
 {
-    public PitchRendererV1()
-    {
-    }
-
     public void Render(SKCanvas g, RenderInfoCommon ri)
     {
         var rangeScoreInfo = ri.RangeScoreRenderInfo;
@@ -47,9 +42,9 @@ internal class PitchRendererV1
 
         var pitches = targetPhrases
             .Where(p => p.F0 is not null)
-            .SelectMany(p => PhraseUtils.EnumerateGreaterThanForLowerRanges(p, p.F0!, 0, 1, NeutrinoUtil.MsToFrameIndex(p.BeginTime)))
-            .OrderBy(i => i.PhraseBeginFrameIdx + i.BeginIndex)
-            .GroupingAdjacentRange(i => i.TotalBeginIndex, i => i.TotalEndIndex);
+            .SelectMany(p => PhraseUtils.EnumerateAboveThresholdRanges(p, p.F0!, 0, 1, NeutrinoUtil.MsToFrameIndex(p.BeginTime)))
+            .OrderBy(i => i.AbsoluteBeginIndex)
+            .GroupingAdjacentRange(i => i.AbsoluteBeginIndex, i => i.AbsoluteEndIndex);
 
         float pitchOffset = (float)keyHeight / 2;
 
@@ -57,7 +52,7 @@ internal class PitchRendererV1
 
         foreach (var pitchGroup in pitches)
         {
-            int count = pitchGroup.Last().TotalEndIndex - pitchGroup.First().TotalBeginIndex + 1;
+            int count = pitchGroup.Last().AbsoluteEndIndex - pitchGroup.First().AbsoluteBeginIndex + 1;
             var origPoints = new SKPoint[count];
             var editedPoints = new SKPoint[count];
             int pointsIdx = 0;
@@ -70,7 +65,7 @@ internal class PitchRendererV1
 
                 // 描画開始／終了インデックス
                 (int beginIdx, int endIdx) = DrawUtil.GetDrawRange(
-                    pitch.PhraseBeginFrameIdx + pitch.BeginIndex, pitch.EndIndex - pitch.BeginIndex + 1,
+                    pitch.AbsoluteBeginIndex, pitch.Duration,
                     beginFrameIdx, endFrameIdx, 0);
 
                 if (beginIdx >= endIdx)
