@@ -10,4 +10,7 @@ namespace Quark.Renderers;
 /// <param name="BeginFrameIdx">描画開始インデックス</param>
 /// <param name="EndFrameIdx">描画終了インデックス</param>
 public readonly record struct DrawPointRangeInfo(
-    LineRenderType Type, Point[] Points, int BeginFrameIdx, int EndFrameIdx);
+    RenderValueType Type, Point[] Points, int BeginFrameIdx, int EndFrameIdx)
+{
+    public Point[]? OrigPoints { get; init; } = null;
+}

@@ -32,7 +32,7 @@ public static class AudioDataConverter
     /// <param name="frequency">周波数</param>
     /// <returns>12平均律</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static T FrequencyToPitch12<T>(T frequency) where T : INumber<T>, ILogarithmicFunctions<T>
+    public static T FrequencyToPitch12<T>(T frequency) where T : IFloatingPointIeee754<T>
         => (GenericValue<T>.OctaveTones12 * T.Log2(frequency / GenericValue<T>.BaseFrequency)) + GenericValue<T>.BasePitch12;
 
     /// <summary>
@@ -41,6 +41,6 @@ public static class AudioDataConverter
     /// <param name="pitch">12音階率</param>
     /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static T Pitch12ToFrequency<T>(T pitch) where T : INumber<T>, IPowerFunctions<T>
+    public static T Pitch12ToFrequency<T>(T pitch) where T : IFloatingPointIeee754<T>
         => T.Pow(GenericValue<T>.N2, (pitch - GenericValue<T>.BasePitch12) / GenericValue<T>.OctaveTones12) * GenericValue<T>.BaseFrequency;
 }

@@ -9,7 +9,7 @@ namespace Quark.Controls;
 internal class EditorWaveform : Control
 {
     private INeutrinoTrack? _track;
-    private IPitchRenderer? _renderer;
+    private IVisualRenderer? _renderer;
     private RenderInfoCommon? _renderInfo;
 
     public void OnTrackChanged(INeutrinoTrack? track)

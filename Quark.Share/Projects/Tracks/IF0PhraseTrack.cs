@@ -2,8 +2,9 @@
 
 namespace Quark.Projects.Tracks;
 
-public interface IF0PhraseTrack<T>
-    where T : IFloatingPointIeee754<T>
+public interface IF0PhraseTrack<TPhrase, TNumber>
+    where TPhrase : IF0Phrase<TNumber>
+    where TNumber : IFloatingPointIeee754<TNumber>
 {
-    public IF0Phrase<T>[] Phrases { get; }
+    public TPhrase[] Phrases { get; }
 }
