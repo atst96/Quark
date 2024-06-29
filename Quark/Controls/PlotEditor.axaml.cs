@@ -160,8 +160,10 @@ public partial class PlotEditor : UserControl
             newTrack.FeatureChanged += this.OnTrackFeatureChanged;
             newTrack.TimingEstimated += this.OnTrackTimingEstimated;
             this.LoadTrack(newTrack);
-            this.WaveformLayer.OnTrackChanged(newTrack);
         }
+
+        this.DynamicsLayer.OnTrackChanged(newTrack);
+        this.WaveformLayer.OnTrackChanged(newTrack);
 
         this.UpdateScrollLayout();
         this.RelocateSeekBars();
@@ -726,9 +728,9 @@ public partial class PlotEditor : UserControl
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private (int width, int height) GetCanvasSize()
     {
-        var size = this.SKElement.Bounds;
+        var size = this.Bounds;
 
-        return ((int)size.Width, (int)size.Height);
+        return ((int)(size.Width - this.vScrollBar1.Bounds.Width), (int)(size.Height - this.hScrollBar1.Bounds.Height));
     }
 
     private EditorRenderLayout CreateRenderLayout()
@@ -1077,17 +1079,19 @@ public partial class PlotEditor : UserControl
         }
     }
 
-    /// <summary>
-    /// 描画領域のサイズ変更時
-    /// </summary>
-    /// <param name="sender">イベント発火元</param>
-    /// <param name="e">イベント情報</param>
-    private void OnRenderSizeChanged(object sender, SizeChangedEventArgs e)
+    /// <inheritdoc/>
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         this.UpdateRenderContent();
         this.UpdateScrollLayout();
         this.RelocateSeekBars();
         this.RedrawAll();
+
+        var dynamicsArea = this._renderCommon.ScreenLayout.DynamicsArea;
+        if (dynamicsArea != null)
+        {
+            this.DynamicsLayer.Height = dynamicsArea.Height;
+        }
     }
 
     /// <summary>描画開始時間</summary>
@@ -1215,6 +1219,8 @@ public partial class PlotEditor : UserControl
 
         this._isTimingEditable = this._isScoreEditable = editMode == EditMode.ScoreAndTiming;
         this._isFeatureEditable = this._isF0Editable = editMode == EditMode.AudioFeatures;
+
+        this.DynamicsLayer.IsVisible = editMode == EditMode.AudioFeatures;
 
         this.UpdateRenderContent();
         this.RedrawAll();
@@ -2729,6 +2735,11 @@ public partial class PlotEditor : UserControl
         this.WaveformLayer.OnParentEditorLayoutUpdated(this._renderCommon);
     }
 
+    public void RedrawDynamics()
+    {
+        this.DynamicsLayer.OnParentEditorLayoutUpdated(this._renderCommon);
+    }
+
     private void RedrawAll()
     {
         // 要素の再配置
@@ -2741,6 +2752,7 @@ public partial class PlotEditor : UserControl
         this.RedrawRuler();
         this.RedrawBackground();
         this.RedrawWaveform();
+        this.RedrawDynamics();
     }
 
     private void UpdateTimingElements()
@@ -2768,5 +2780,6 @@ public partial class PlotEditor : UserControl
     private void UpdateDynamicsArea()
     {
         // TODO: 実装
+        this.RedrawDynamics();
     }
 }

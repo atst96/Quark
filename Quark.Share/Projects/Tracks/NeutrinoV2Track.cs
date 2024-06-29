@@ -1,4 +1,4 @@
-using NAudio.Wave;
+﻿using NAudio.Wave;
 using Quark.Audio;
 using Quark.Components;
 using Quark.Data.Projects.Neutrino;
@@ -16,7 +16,8 @@ using Quark.Utils;
 namespace Quark.Projects.Tracks;
 
 internal class NeutrinoV2Track : AudioTrackBase, INeutrinoTrack,
-    IF0PhraseTrack<NeutrinoV2Phrase, float>
+    IF0PhraseTrack<NeutrinoV2Phrase, float>,
+    IMspecDynamicsPhraseTrack<NeutrinoV2Phrase, float>
 {
     private readonly Settings _settings = ServiceLocator.GetService<SettingService>().Settings;
 

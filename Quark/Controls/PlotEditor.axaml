@@ -9,11 +9,11 @@
         <Grid ColumnDefinitions="*, Auto" RowDefinitions="*, Auto, Auto">
 
 
-            <Grid ColumnDefinitions="80,*" RowDefinitions="24,*">
+            <Grid ColumnDefinitions="80,*" RowDefinitions="24,*,Auto">
 
                 <controls:RenderPanel x:Name="SKElement"
                         Grid.ColumnSpan="2" Grid.RowSpan="2"
-                        PointerWheelChanged="OnScoreMouseWheel" SizeChanged="OnRenderSizeChanged"
+                        PointerWheelChanged="OnScoreMouseWheel"
                         PointerPressed="OnMouseDown" PointerMoved="OnMouseMove" PointerReleased="OnMouseUp" />
 
                 
@@ -31,6 +31,9 @@
                 <Canvas x:Name="PART_Notes" Grid.Column="1" Grid.Row="1" ClipToBounds="True" IsHitTestVisible="False" />
 
                 <controls:EditorWaveform x:Name="WaveformLayer" Grid.Column="1" Grid.Row="1" IsHitTestVisible="False" ClipToBounds="True" />
+                
+                <controls:DynamicsEditor x:Name="DynamicsLayer" Grid.Column="1" Grid.Row="2" IsHitTestVisible="False" ClipToBounds="True"
+                                         Height="200" IsVisible="False" />
                 
             </Grid>
 
